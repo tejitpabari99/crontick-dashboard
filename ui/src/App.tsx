@@ -36,7 +36,8 @@ export function App(props: AppProps = {}) {
   const tray = useMemo(() => pick(snap?.zones.tray), [snap]);
   const hidden = useMemo(() => pick(snap?.zones.hidden), [snap]);
   const threshold = snap?.config.nowPriorityThreshold ?? 5;
-  const onItemAction = (cardId: string, itemId: string): Promise<void> => m.onItemAction(cardId, itemId);
+  const onItemAction = (cardId: string, itemId: string, checked?: boolean): Promise<void> =>
+    m.onItemAction(cardId, itemId, checked);
 
   const searching = query.trim() !== '';
   const visible = useMemo(() => [...alerts, ...now, ...grid], [alerts, now, grid]);
@@ -154,7 +155,7 @@ export function App(props: AppProps = {}) {
                   checked={m.getChecked(c.id)}
                   pending={m.getPending(c.id)}
                   nowPriorityThreshold={threshold}
-                  onItemAction={(itemId) => onItemAction(c.id, itemId)}
+                  onItemAction={(itemId, checked) => onItemAction(c.id, itemId, checked)}
                   onDone={(id) => void m.done(id)}
                   onHide={(id) => void m.hide(id)}
                   onFullscreen={openFullscreen}
@@ -174,7 +175,7 @@ export function App(props: AppProps = {}) {
           checked={m.getChecked(fsCard.id)}
           pending={m.getPending(fsCard.id)}
           nowPriorityThreshold={threshold}
-          onItemAction={(itemId) => onItemAction(fsCard.id, itemId)}
+          onItemAction={(itemId, checked) => onItemAction(fsCard.id, itemId, checked)}
           onDone={(id) => void m.done(id)}
           onHide={(id) => void m.hide(id)}
           onClose={closeFullscreen}

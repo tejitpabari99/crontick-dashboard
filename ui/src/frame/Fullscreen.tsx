@@ -10,7 +10,7 @@ export interface FullscreenProps {
   checked: ReadonlySet<string>;
   pending: ReadonlySet<string>;
   nowPriorityThreshold: number;
-  onItemAction(itemId: string): Promise<void>;
+  onItemAction(itemId: string, checked?: boolean): Promise<void>;
   onDone(id: string): void;
   onHide(id: string): void;
   onClose(): void;

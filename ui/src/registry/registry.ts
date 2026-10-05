@@ -24,7 +24,7 @@ export interface CardTypeProps<D> {
   query: string;
   checked: ReadonlySet<string>;
   pending: ReadonlySet<string>;
-  onItemAction(itemId: string): Promise<void>;
+  onItemAction(itemId: string, checked?: boolean): Promise<void>;
 }
 
 export interface CardTypeDef<D> {

@@ -13,7 +13,7 @@ export interface AlertStripProps {
   nowPriorityThreshold: number;
   checked(id: string): ReadonlySet<string>;
   pending(id: string): ReadonlySet<string>;
-  onItemAction(cardId: string, itemId: string): Promise<void>;
+  onItemAction(cardId: string, itemId: string, checked?: boolean): Promise<void>;
   onTick(id: string): void;
 }
 
@@ -50,7 +50,7 @@ export function AlertStrip(p: AlertStripProps) {
                       query={p.query}
                       checked={p.checked(c.id)}
                       pending={p.pending(c.id)}
-                      onItemAction={(itemId) => p.onItemAction(c.id, itemId)}
+                      onItemAction={(itemId, checked) => p.onItemAction(c.id, itemId, checked)}
                     />
                   ) : (
                     <UnknownBody type={c.type} />

@@ -13,7 +13,7 @@ export interface NowZoneProps {
   nowPriorityThreshold: number;
   checked(id: string): ReadonlySet<string>;
   pending(id: string): ReadonlySet<string>;
-  onItemAction(cardId: string, itemId: string): Promise<void>;
+  onItemAction(cardId: string, itemId: string, checked?: boolean): Promise<void>;
   onTick(id: string): void;
   onDone(id: string): void;
   onHide(id: string): void;
@@ -50,7 +50,7 @@ export function NowZone(p: NowZoneProps) {
                 checked={p.checked(c.id)}
                 pending={p.pending(c.id)}
                 nowPriorityThreshold={p.nowPriorityThreshold}
-                onItemAction={(itemId) => p.onItemAction(c.id, itemId)}
+                onItemAction={(itemId, checked) => p.onItemAction(c.id, itemId, checked)}
                 onDone={p.onDone}
                 onHide={p.onHide}
                 onFullscreen={p.onFullscreen}

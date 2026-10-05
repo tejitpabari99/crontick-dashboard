@@ -20,7 +20,7 @@ export interface CardFrameProps {
   pending: ReadonlySet<string>;
   /** `snapshot.config.nowPriorityThreshold`. */
   nowPriorityThreshold: number;
-  onItemAction(itemId: string): Promise<void>;
+  onItemAction(itemId: string, checked?: boolean): Promise<void>;
   onDone(id: string): void;
   onHide(id: string): void;
   onFullscreen(id: string): void;

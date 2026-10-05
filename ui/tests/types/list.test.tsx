@@ -1,5 +1,5 @@
 import axe from 'axe-core';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/list/index.ts';
@@ -144,5 +144,90 @@ describe('list type', () => {
     expect(container.querySelectorAll('li').length).toBe(3);
     const res = await axe.run(container);
     expect(res.violations).toEqual([]);
+  });
+
+  describe('item actions', () => {
+    const acts = (type: string, extra: object = {}) => ({
+      items: [{ id: 'a', text: 'Alpha', action: { type }, ...extra }],
+    });
+    const box = () => screen.getByRole('checkbox', { name: 'Alpha' }) as HTMLInputElement;
+
+    it('no checkbox without action', () => {
+      renderList({ items: [{ id: 'a', text: 'Alpha' }] });
+      expect(screen.queryByRole('checkbox')).toBeNull();
+    });
+
+    it('initial item.checked and set-driven checked', () => {
+      const { unmount } = renderList(acts('complete', { checked: true }));
+      expect(box().checked).toBe(true);
+      unmount();
+      renderList(acts('complete'), { checked: new Set(['a']) });
+      expect(box().checked).toBe(true);
+    });
+
+    it('click calls onItemAction(id, true); complete checked unticks with false', () => {
+      const fn = vi.fn(async () => {});
+      const { unmount } = renderList(acts('complete'), { onItemAction: fn });
+      fireEvent.click(box());
+      expect(fn).toHaveBeenCalledWith('a', true);
+      unmount();
+      const fn2 = vi.fn(async () => {});
+      renderList(acts('complete'), { checked: new Set(['a']), onItemAction: fn2 });
+      expect(box().disabled).toBe(false);
+      fireEvent.click(box());
+      expect(fn2).toHaveBeenCalledWith('a', false);
+    });
+
+    it('dismiss checked is disabled and never fires', () => {
+      const fn = vi.fn(async () => {});
+      renderList(acts('dismiss'), { checked: new Set(['a']), onItemAction: fn });
+      expect(box().disabled).toBe(true);
+      fireEvent.click(box());
+      expect(fn).not.toHaveBeenCalled();
+    });
+
+    it('pending: disabled + aria-busy, spinner only after 150 ms', () => {
+      vi.useFakeTimers();
+      renderList(acts('complete'), { pending: new Set(['a']) });
+      expect(box().disabled).toBe(true);
+      expect(box().getAttribute('aria-busy')).toBe('true');
+      expect(document.querySelector('.lst-spin')).toBeNull();
+      act(() => void vi.advanceTimersByTime(150));
+      expect(document.querySelector('.lst-spin')).not.toBeNull();
+    });
+
+    it('not pending: no aria-busy', () => {
+      renderList(acts('complete'));
+      expect(box().getAttribute('aria-busy')).toBeNull();
+    });
+
+    it('resolve: no failed text', async () => {
+      renderList(acts('complete'), { onItemAction: async () => {} });
+      await act(async () => void fireEvent.click(box()));
+      expect(screen.queryByText(/Couldn’t save/)).toBeNull();
+    });
+
+    it('reject shows failed text; clears after 8 s', async () => {
+      vi.useFakeTimers();
+      renderList(acts('complete'), { onItemAction: () => Promise.reject(new Error('x')) });
+      await act(async () => void fireEvent.click(box()));
+      expect(screen.getByText('Couldn’t save — retry')).toBeTruthy();
+      act(() => void vi.advanceTimersByTime(7999));
+      expect(screen.queryByText('Couldn’t save — retry')).not.toBeNull();
+      act(() => void vi.advanceTimersByTime(2));
+      expect(screen.queryByText('Couldn’t save — retry')).toBeNull();
+    });
+
+    it('failed clears on next click', async () => {
+      let fail = true;
+      const fn = vi.fn(() => (fail ? Promise.reject(new Error('x')) : Promise.resolve()));
+      renderList(acts('complete'), { onItemAction: fn });
+      await act(async () => void fireEvent.click(box()));
+      expect(screen.queryByText('Couldn’t save — retry')).not.toBeNull();
+      fail = false;
+      await act(async () => void fireEvent.click(box()));
+      expect(screen.queryByText('Couldn’t save — retry')).toBeNull();
+      expect(fn).toHaveBeenCalledTimes(2);
+    });
   });
 });
