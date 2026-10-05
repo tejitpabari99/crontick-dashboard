@@ -2,3 +2,5 @@
 dist/
 node_modules/
 ui/dist/
+test-results/
+playwright-report/
