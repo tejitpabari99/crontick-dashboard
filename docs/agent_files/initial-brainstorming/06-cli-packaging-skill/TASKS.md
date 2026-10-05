@@ -16,8 +16,8 @@ Source of truth: docs/agent_files/initial-brainstorming/06-cli-packaging-skill/P
 | 6 | `start` and `daemon` commands | 2, 3, 02#11 | done |
 | 7 | `skill install` command | 2, 3 | done |
 | 8 | SKILL.md and its CI test | 4, 5, 7 | done |
-| 9 | Package verify scripts | 4, 5, 6, 7, 8 | in-progress |
-| 10 | CI workflow and README install section | 9 | todo |
+| 9 | Package verify scripts | 4, 5, 6, 7, 8 | done |
+| 10 | CI workflow and README install section | 9 | in-progress |
 
 ## Task 1 — Complete package metadata and toolchain
 What it is / what it means: 01#1 left a minimal scaffold; this brings it to the PRD's final package shape (P2, Scripts, Install & platform).
