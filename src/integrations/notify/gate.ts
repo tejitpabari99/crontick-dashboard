@@ -70,3 +70,47 @@ export function detectNotifySend(
   }
   return false;
 }
+
+type Env = Readonly<Record<string, string | undefined>>;
+
+export interface ResolveNotifyGateInput {
+  configValue: NotifyOsSetting;
+  env: Env;
+  platform: NodeJS.Platform;
+  /** Override the PATH probe (tests). */
+  detect?: (env: Env, platform: NodeJS.Platform) => boolean;
+}
+
+/** PATH probe only matters on a Linux desktop with `auto`. */
+function needsProbe({ configValue, env, platform }: Pick<ResolveNotifyGateInput, 'configValue' | 'env' | 'platform'>): boolean {
+  return configValue === 'auto' && platform === 'linux' && (set(env['DISPLAY']) || set(env['WAYLAND_DISPLAY']));
+}
+
+/** One-shot composed gate (config + env + PATH probe); usable without a running server (06 `info`). */
+export function resolveNotifyGate(input: ResolveNotifyGateInput): NotifyGateResult {
+  const { configValue, env, platform, detect = detectNotifySend } = input;
+  const probe = needsProbe(input);
+  return resolveNotifyMode({ platform, env, configValue, notifySendOnPath: probe && detect(env, platform) });
+}
+
+export interface CreateNotifyGateOptions {
+  getConfigValue: () => NotifyOsSetting;
+  env: Env;
+  platform: NodeJS.Platform;
+  detect?: (env: Env, platform: NodeJS.Platform) => boolean;
+}
+
+/** Long-lived gate: re-reads config each call, probes PATH at most once. */
+export function createNotifyGate(opts: CreateNotifyGateOptions): () => NotifyGateResult {
+  const { getConfigValue, env, platform, detect = detectNotifySend } = opts;
+  let cached: boolean | undefined;
+  return () => {
+    const configValue = getConfigValue();
+    return resolveNotifyGate({
+      configValue,
+      env,
+      platform,
+      detect: (e, p) => (cached ??= detect(e, p)),
+    });
+  };
+}

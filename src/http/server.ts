@@ -20,8 +20,7 @@ import { assertUiBuilt } from './static.js';
 import {
   createNodeNotifierAdapter,
   createNotifier,
-  detectNotifySend,
-  resolveNotifyMode,
+  createNotifyGate,
   type Notifier,
   type NotifyAdapter,
 } from '../integrations/notify/index.js';
@@ -82,7 +81,6 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
 
   // Notifier subscribes here, before watcher.start(), so startup-scan events reach it.
   let boundPort = 0;
-  let notifySendProbe: boolean | undefined;
   let realAdapter: NotifyAdapter | undefined;
   const notifyAdapter: NotifyAdapter =
     opts.notifyAdapter ?? {
@@ -95,15 +93,11 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     getThreshold: () => config.get().config.nowPriorityThreshold,
     warnings,
     logger,
-    gate: () => {
-      const platform = opts.notifyPlatform ?? process.platform;
-      const configValue = config.get().config.notifications.os;
-      // PATH probe only when it can matter (Linux desktop, auto), cached for the process.
-      const needsProbe =
-        configValue === 'auto' && platform === 'linux' && ((env['DISPLAY'] ?? '') !== '' || (env['WAYLAND_DISPLAY'] ?? '') !== '');
-      if (needsProbe) notifySendProbe ??= detectNotifySend(env);
-      return resolveNotifyMode({ platform, env, notifySendOnPath: needsProbe && notifySendProbe === true, configValue });
-    },
+    gate: createNotifyGate({
+      getConfigValue: () => config.get().config.notifications.os,
+      env,
+      platform: opts.notifyPlatform ?? process.platform,
+    }),
   });
 
   // eslint-disable-next-line prefer-const -- archive/watcher reference each other through closures
