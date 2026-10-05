@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 summary: 12 commit-sized tasks building the server core — paths/config, state store, ingest, archive, snapshot compute, events, HTTP, mutations, actions, write-back, lifecycle.
 date: 2026-10-05
 ---
