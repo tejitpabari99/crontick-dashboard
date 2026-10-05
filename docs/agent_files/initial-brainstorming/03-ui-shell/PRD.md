@@ -143,8 +143,8 @@ export function registerCardType<T extends TypeName>(type: T, def: CardTypeDef<D
 - [RESOLVED: `#card=<id>` = scroll + highlight, `#card=<id>&view=full` = fullscreen; both specced above] 05 deep-link request.
 - [RESOLVED: Vite emits `ui/dist`; 06 copies to `dist/ui`] build handoff.
 - [RESOLVED: link allowlist `http|https|mailto|ms-outlook` (owner 2026-10-05), `CardLink` follows 01] was link-scheme open item.
-- [OPEN-5] `react-grid-layout` major (v1 + `@types` vs v2 hooks API) — pick at task time after checking React 19 support.
-- [OPEN-6] Smoke runner: Playwright (needs browser download in CI) vs puppeteer-core + system Chrome.
+- [RESOLVED: choose react-grid-layout major at task time based on React 19 support; prefer latest stable that supports React 19] `react-grid-layout` major (v1 + `@types` vs v2 hooks API) — pick at task time after checking React 19 support.
+- [RESOLVED: Playwright] Smoke runner: Playwright (needs browser download in CI) vs puppeteer-core + system Chrome.
 - [RESOLVED: placement in UI, saved via PUT] D21 per 02 Decision 10.
 - [DEFERRED] Keyboard move/resize, theme presets, SSE (poll latency), mobile.
 - Risk: crowding with many cards — mitigated by compact sizes, collapse, search dim, Done/hide; revisit after 2-week real use.

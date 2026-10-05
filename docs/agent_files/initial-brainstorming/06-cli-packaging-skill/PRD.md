@@ -107,7 +107,7 @@ dist/           cli/index.js  server/index.js  index.js  index.d.ts  ui/   (buil
 - [RESOLVED: 02 owns `src/lifecycle.ts`, spawns `dist/server/index.js`; requirements recorded in 02] was OPEN-5.
 - [RESOLVED: flat 02 layout plus `src/shared`, `src/integrations`; layout block above] was OPEN-6.
 - [RESOLVED: `crontick-dashboard skill install [--dir] [--force]` added (owner 2026-10-05)] was OPEN-3.
-- [OPEN-7] `info --json` field names are a contract for the skill; freeze at task time: `{version, dataDir, feedDir, url|null, running, configPath, templatesDir, schemasDir, skillPath}` plus 05 addition `{notifications:{mode,reason}}` (intents fields removed 2026-10-05).
+- [RESOLVED: freeze fields as listed] `info --json` field names are a contract for the skill; freeze at task time: `{version, dataDir, feedDir, url|null, running, configPath, templatesDir, schemasDir, skillPath}` plus 05 addition `{notifications:{mode,reason}}` (intents fields removed 2026-10-05).
 - [RESOLVED: no autostart] D27/D31.
 - [RESOLVED: Node >=22.5 kept] D28, though dashboard does not use `node:sqlite`; parity with crontick.
 - [DEFERRED] `--open` browser flag, shell completions, `crontick-dashboard doctor`, npx-only usage docs.

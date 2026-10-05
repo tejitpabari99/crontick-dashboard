@@ -50,25 +50,9 @@ Build order: 01 -> 02 -> (03, 05 in parallel) -> 04 -> 06.
 - Ownership: 01 card shape/validator; 02 API/snapshot/handlers/lifecycle; 03 UI registry/deep links; 06 CLI/layout.
 - Reconciled across PRDs: validator API (`validateCardFile`), Broken `reason`+`message` in snapshot, id-vs-filename Broken, no `show.tz`, list `checked` union (item.checked incl. write-backs + dismiss ids + optimistic), alerts = markdown/list/kpi only, Vite output handoff, `#card=<id>` deep link, config keys (`notifications.os`; `ticktick.mode` removed), no CSP, `DEFAULT_PORT`.
 
-## Owner decisions needed (remaining [OPEN])
+## Owner decisions needed
 
-All product decisions were resolved on 2026-10-05 and applied in the PRDs. Remaining items:
-
-**Product / behavior**
-| Decision | PRD ref | Recommendation |
-|---|---|---|
-| Write-back vs agent write race: compare-and-rename + one retry + 409 (specced) vs lock files | 02 OPEN-WB | As specced; residual sub-ms window accepted (owner re-ticks) |
-| Untick of a `complete` item after the agent already completed it in TickTick only changes the file | 01 OPEN-8 | Allow untick; agent rewrites the card each run so its state wins |
-
-**Technical (agent can decide at task time; listed for visibility)**
-| Item | PRD ref | Recommendation |
-|---|---|---|
-| react-grid-layout v1 vs v2 (React 19) | 03 OPEN-5 | Check compat at task time |
-| Smoke runner: Playwright vs puppeteer-core | 03 OPEN-6 | Playwright |
-| croner previous-run lookup (else cron-parser) | 02 OPEN | Verify first task of 02; same lib as 01 |
-| `info --json` field freeze | 06 OPEN-7 | Freeze at task time |
-| Notification lib final (spike Win+mac) | 05 OPEN-2 | node-notifier behind adapter |
-| Notify only on ingest, not window-open (accepted) | 05 OPEN-7 | Accept for v1 |
+None remaining. All items resolved 2026-10-05 and applied in the PRDs.
 
 ## Owner-only manual steps
 
@@ -80,4 +64,4 @@ All product decisions were resolved on 2026-10-05 and applied in the PRDs. Remai
 
 ## Next step
 
-Owner confirms the two remaining product [OPEN]s (or accepts the recommendations), PRDs go to `status: approved`, then run `dev-tasks` over the six PRDs.
+PRDs go to `status: approved`, then run `dev-tasks` over the six PRDs.

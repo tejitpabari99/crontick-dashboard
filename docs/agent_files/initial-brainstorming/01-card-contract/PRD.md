@@ -117,7 +117,7 @@ Never throws. `message` is human-readable one-liner shown in the Broken card; `i
 - [RESOLVED: Now threshold default 3 (owner 2026-10-05); 02 owns the config key] was OPEN-7.
 - [RESOLVED: cell-level `link` (Cell object), list `links[]`, list `due` added to schema (owner 2026-10-05)].
 - [DEFERRED] Local image files (media = http(s)/`data:image` only in v1).
-- [OPEN-8] Untick of a `complete` item after the agent already completed it in TickTick only changes the file; agent's next rewrite is authoritative. Recommendation: allow untick (as specced); skill tells agents to rewrite the whole card each run.
+- [RESOLVED: untick allowed; agent's next rewrite is authoritative; no conflict handling needed (owner 2026-10-05)] Untick of a `complete` item after the agent already completed it in TickTick only changes the file; agent's next rewrite is authoritative. Recommendation: allow untick (as specced); skill tells agents to rewrite the whole card each run.
 - [RESOLVED: 02 adopts `validateCardFile(text,{filename})` and its `ValidationResult`; no `validateCardText`/`partial`; `broken.id` replaces `partial.id`] validator API.
 - [RESOLVED: 02 passes filename and handles `id-mismatch` as a Broken card keyed `file:<name>`] id vs filename.
 - [RESOLVED: list `checked` = item.checked (data) union snapshot `checked` ids (server-confirmed) union optimistic; 02/03/04 aligned] .
