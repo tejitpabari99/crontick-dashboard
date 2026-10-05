@@ -117,13 +117,20 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
   watcher = createFeedWatcher({ feedDir: feedDir(env), onIngest: archive.onIngest, onChange: events.onChange });
 
   let reconcileTimer: NodeJS.Timeout | undefined;
+  /** In-flight state reconciles; stop() awaits them so nothing writes after it resolves. */
+  const reconciles = new Set<Promise<void>>();
   const reconcileState = (): void => {
     const present = new Set<string>();
     for (const e of watcher.store.list()) {
       if (e.status === 'ok') present.add(e.key);
       else if (e.id !== undefined) present.add(e.id); // a temporarily broken card keeps its owner state
     }
-    state.reconcile(present).catch((err: unknown) => logger.warn(`state reconcile failed: ${err instanceof Error ? err.message : String(err)}`));
+    if (stopped) return;
+    const p: Promise<void> = state
+      .reconcile(present)
+      .catch((err: unknown) => logger.warn(`state reconcile failed: ${err instanceof Error ? err.message : String(err)}`))
+      .finally(() => reconciles.delete(p));
+    reconciles.add(p);
   };
 
   let stopped: Promise<void> | undefined;
@@ -136,6 +143,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
       watcher.stop();
       archive.stop();
       await events.flush().catch(() => {});
+      await Promise.allSettled([...reconciles]);
       if (server.listening) {
         await new Promise<void>((resolve) => {
           server.close(() => resolve());

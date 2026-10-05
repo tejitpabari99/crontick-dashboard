@@ -29,7 +29,7 @@ afterEach(async () => {
   await running?.stop();
   running = undefined;
   rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
-  rmSync(ui, { recursive: true, force: true });
+  rmSync(ui, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 const boot = async (adapter: FakeNotifyAdapter, extra: Record<string, unknown> = {}): Promise<RunningServer> =>

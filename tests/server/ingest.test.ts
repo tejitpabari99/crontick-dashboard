@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 const card = (id: string, updatedAt = '2026-01-01T00:00:00Z', extra: object = {}) =>

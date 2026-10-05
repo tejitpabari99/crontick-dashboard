@@ -31,8 +31,8 @@ afterEach(async () => {
   running = undefined;
   await Promise.all(blockers.map((b) => new Promise((r) => b.close(r))));
   blockers = [];
-  rmSync(data, { recursive: true, force: true });
-  rmSync(ui, { recursive: true, force: true });
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  rmSync(ui, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 async function boot(port = 0): Promise<RunningServer> {

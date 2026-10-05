@@ -25,8 +25,8 @@ beforeEach(() => {
 afterEach(async () => {
   await running?.stop();
   running = undefined;
-  rmSync(data, { recursive: true, force: true });
-  rmSync(ui, { recursive: true, force: true });
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  rmSync(ui, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 const env = (): NodeJS.ProcessEnv => ({ CRONTICK_DASHBOARD_HOME: data });
 const card = (id: string, extra: object = {}): string =>

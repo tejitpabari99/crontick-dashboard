@@ -6,6 +6,7 @@ import { createMutations } from '../src/api/mutations.ts';
 import { createSnapshotStore } from '../src/api/store.ts';
 import { createToastStore } from '../src/api/toasts.ts';
 import type { LayoutItem, Snapshot, ViewCard } from '../src/api/types.ts';
+import { markSeen } from '../src/lib/seen.ts';
 import { registerCardType } from '../src/registry/registry.ts';
 
 const captured: { layout: LayoutItem[] } = { layout: [] };
@@ -226,6 +227,17 @@ describe('title count', () => {
     await screen.findByText('Notify');
     await waitFor(() => expect(document.title).toBe('(2) Crontick'));
     expect(screen.getByRole('button', { name: /1 alert/i })).toBeTruthy();
+  });
+
+  it('drops the count when a notify card is seen, without any snapshot change', async () => {
+    const s = base();
+    s.cards['n'] = card('n', { notify: true, title: 'Notify' });
+    s.zones = { ...s.zones, grid: ['a', 'b', 'n'] };
+    mount(s);
+    await screen.findByText('Notify');
+    await waitFor(() => expect(document.title).toBe('(1) Crontick'));
+    act(() => markSeen({ id: 'n', updatedAt: s.cards['n']!.updatedAt }));
+    expect(document.title).toBe('Crontick'); // synchronous: no snapshot/poll re-render involved
   });
 
   it('is plain when nothing needs attention', async () => {

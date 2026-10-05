@@ -157,7 +157,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
       throw new Error(failure.message);
     }
     // Keep the patch until the refetched snapshot carries the truth.
-    await store.refetch();
+    await store.refetch({ fresh: true });
     removeOp(op.id);
   }
 

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { getMutations, useMutationView, type Mutations } from './api/mutations.ts';
 import { getToastStore, type ToastStore } from './api/toasts.ts';
 import type { ViewCard } from './api/types.ts';
 import { CardFrame } from './frame/CardFrame.tsx';
 import { Fullscreen } from './frame/Fullscreen.tsx';
 import { buildCardHash, parseCardHash, replaceHash, useHash } from './lib/hash.ts';
+import { getSeenVersion, subscribeSeen } from './lib/seen.ts';
 import { matchCards, toSearchCard } from './lib/search.ts';
 import { DoneTray } from './zones/DoneTray.tsx';
 import { Grid } from './zones/Grid.tsx';
@@ -82,6 +83,7 @@ export function App(props: AppProps = {}) {
     window.setTimeout(() => el.classList.remove('card-highlight'), HIGHLIGHT_MS);
   }, [target, snap, toasts]);
 
+  useSyncExternalStore(subscribeSeen, getSeenVersion);
   const count = attentionCount(alerts, [...now, ...grid]);
   useEffect(() => {
     document.title = down ? 'Server down' : count > 0 ? `(${count}) Crontick` : 'Crontick';

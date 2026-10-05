@@ -15,7 +15,7 @@ beforeEach(() => {
   home = join(mkdtempSync(join(tmpdir(), 'cd-')), 'data');
   env = { CRONTICK_DASHBOARD_HOME: home };
 });
-afterEach(() => rmSync(join(home, '..'), { recursive: true, force: true }));
+afterEach(() => rmSync(join(home, '..'), { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 describe('paths', () => {
   it('resolves all paths under override', () => {

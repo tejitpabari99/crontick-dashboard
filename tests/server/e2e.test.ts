@@ -24,8 +24,8 @@ beforeEach(() => {
 afterEach(async () => {
   await running?.stop();
   running = undefined;
-  rmSync(data, { recursive: true, force: true });
-  rmSync(ui, { recursive: true, force: true });
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  rmSync(ui, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 const boot = async (): Promise<RunningServer> => (running = await startServer({ env: env(), clock, uiDir: ui, port: 0 }));

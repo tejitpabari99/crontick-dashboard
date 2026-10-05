@@ -1,5 +1,15 @@
 export const SEEN_KEY = 'crontick-dashboard.seen';
 
+let version = 0;
+const listeners = new Set<() => void>();
+
+/** useSyncExternalStore pair: `getVersion` bumps whenever `markSeen` runs. */
+export function subscribeSeen(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+export const getSeenVersion = (): number => version;
+
 type SeenMap = Record<string, string>;
 
 function read(): SeenMap {
@@ -23,4 +33,6 @@ export function markSeen(card: { id: string; updatedAt: string }): void {
   } catch {
     /* storage unavailable: in-page highlight only */
   }
+  version += 1;
+  for (const l of [...listeners]) l();
 }

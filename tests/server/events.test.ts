@@ -19,8 +19,8 @@ beforeEach(() => {
   clock.set('2026-06-01T12:00:00Z');
 });
 afterEach(() => {
-  rmSync(feed, { recursive: true, force: true });
-  rmSync(data, { recursive: true, force: true });
+  rmSync(feed, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 const card = (id: string, updatedAt = '2026-06-01T10:00:00Z', extra: object = {}) =>

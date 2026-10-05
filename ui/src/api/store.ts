@@ -52,8 +52,11 @@ export interface StoreOptions {
 export interface SnapshotStore {
   subscribe(listener: () => void): () => void;
   getSnapshot(): StoreState;
-  /** Fetch now (resets the poll timer). Never rejects; failures are recorded in state. */
-  refetch(): Promise<void>;
+  /**
+   * Fetch now (resets the poll timer). Never rejects; failures are recorded in state.
+   * `fresh`: wait for any in-flight fetch, then start a new one (its response may predate a mutation).
+   */
+  refetch(opts?: { fresh?: boolean }): Promise<void>;
 }
 
 /** Return `prev` when deep-equal to `next`; otherwise reuse unchanged subtrees. */
@@ -168,7 +171,8 @@ export function createSnapshotStore(opts: StoreOptions = {}): SnapshotStore {
     }
   }
 
-  function refetch(): Promise<void> {
+  async function refetch(opts?: { fresh?: boolean }): Promise<void> {
+    if (opts?.fresh && inflight) await inflight;
     clearTimer();
     inflight ??= doFetch().finally(() => {
       inflight = null;

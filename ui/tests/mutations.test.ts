@@ -66,6 +66,38 @@ describe('mutations', () => {
     expect(t.toasts.getSnapshot()).toEqual([]);
   });
 
+  it('mutation during an in-flight poll: waits and refetches fresh, patch is not dropped by stale data', async () => {
+    const before = snap();
+    const after = snap({ zones: { alerts: ['al'], now: [], grid: ['b'], tray: ['a'], hidden: [] } });
+    let applied = false;
+    let releasePoll!: () => void;
+    const gate = new Promise<void>((r) => (releasePoll = r));
+    let gets = 0;
+    const fetchFn = vi.fn<typeof fetch>(async (input) => {
+      if (String(input) === '/api/snapshot') {
+        gets += 1;
+        if (gets === 1) {
+          await gate; // poll started before the mutation was applied
+          return json(200, before, { ETag: 'e1' });
+        }
+        return json(200, applied ? after : before, { ETag: `e${gets}` });
+      }
+      applied = true;
+      return json(200, { rev: 'r2' });
+    });
+    const store = createSnapshotStore({ client: createClient({ fetch: fetchFn }), doc: undefined });
+    const m = createMutations({ store, toasts: createToastStore(), fetch: fetchFn });
+    const poll = store.refetch();
+    const p = m.done('a');
+    await new Promise((r) => setTimeout(r, 0));
+    releasePoll(); // pre-mutation data arrives
+    await poll;
+    expect(m.getView().state.snapshot?.zones.tray).toEqual(['a']); // optimistic patch still applied
+    await p;
+    expect(gets).toBe(2);
+    expect(m.getView().state.snapshot?.zones.tray).toEqual(['a']);
+  });
+
   it('500: rolls back and toasts server error', async () => {
     const t = setup([json(500, { error: 'disk full' })]);
     await t.store.refetch();

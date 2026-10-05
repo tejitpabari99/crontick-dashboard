@@ -19,7 +19,7 @@ beforeEach(() => {
   mkdirSync(feed);
   clock = fakeClock('2026-03-01T00:00:00Z');
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() => rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 const body = (id: string, updatedAt = '2026-01-01T00:00:00Z', extra: object = {}) => ({
   id, kind: 'panel', type: 'markdown', title: id, updatedAt, data: { text: 'hi' }, ...extra,

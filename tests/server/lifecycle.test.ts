@@ -28,9 +28,10 @@ afterEach(async () => {
     } catch {
       /* gone */
     }
+    for (let i = 0; i < 100 && isPidAlive(pid); i++) await new Promise((r) => setTimeout(r, 20));
   }
-  rmSync(data, { recursive: true, force: true });
-  rmSync(ui, { recursive: true, force: true });
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  rmSync(ui, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 describe('daemon lifecycle', () => {

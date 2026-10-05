@@ -13,7 +13,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'state-'));
   env = { CRONTICK_DASHBOARD_HOME: dir };
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 describe('state store', () => {
   it('has defaults and no file until first mutation', async () => {
