@@ -1,0 +1,15 @@
+.md-body { overflow-wrap: anywhere; }
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+.md-body h3, .md-body h4, .md-body h5, .md-body h6 { margin: 0.8em 0 0.3em; line-height: 1.25; }
+.md-h3 { font-size: 1.15em; }
+.md-h4 { font-size: 1.05em; }
+.md-h5, .md-h6 { font-size: 1em; }
+.md-body pre { overflow: auto; font-family: var(--font-mono, monospace); padding: 8px; border-radius: 4px; background: color-mix(in srgb, currentColor 8%, transparent); }
+.md-body code { font-family: var(--font-mono, monospace); font-size: 0.92em; }
+.md-table-wrap { overflow-x: auto; max-width: 100%; }
+.md-body table { border-collapse: collapse; }
+.md-body th, .md-body td { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); padding: 4px 8px; }
+.md-img { max-width: 100%; height: auto; }
+.md-empty { color: var(--muted, inherit); opacity: 0.7; margin: 0; }
+.md-alert { margin: 0; }
