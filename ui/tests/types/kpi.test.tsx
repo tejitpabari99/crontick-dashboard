@@ -5,6 +5,7 @@ import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/kpi/index.ts';
 import example from '../../../templates/kpi.example.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
+import { ALERT_CAP } from '../../src/constants/types.ts';
 import type { KpiData } from '../../../src/index.js';
 
 const def = getCardType('kpi')!;
@@ -118,9 +119,9 @@ describe('kpi type', () => {
     });
   });
 
-  it('alert: one line per metric, first 3 + plain "+N"', () => {
-    const { container } = renderKpi(n(5), { mode: 'alert' });
-    expect(container.querySelectorAll('.kpi-alert-line').length).toBe(3);
+  it('alert: one line per metric, first ALERT_CAP + plain "+N"', () => {
+    const { container } = renderKpi(n(ALERT_CAP + 2), { mode: 'alert' });
+    expect(container.querySelectorAll('.kpi-alert-line').length).toBe(ALERT_CAP);
     expect(screen.getByText('+2').tagName).not.toBe('BUTTON');
     expect(screen.queryByRole('button')).toBeNull();
   });

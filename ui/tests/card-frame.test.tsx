@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ViewCard } from '../src/api/types.ts';
 import { CardFrame, type CardFrameProps } from '../src/frame/CardFrame.tsx';
 import { resetExpanded } from '../src/frame/CardFrame.tsx';
-import { SEEN_KEY, markSeen } from '../src/lib/seen.ts';
+import { markSeen } from '../src/lib/seen.ts';
+import { SEEN_KEY } from '../src/constants/storage.ts';
 import { registerCardType } from '../src/registry/registry.ts';
 
 const NOW = Date.parse('2026-10-05T12:00:00Z');

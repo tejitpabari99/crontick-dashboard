@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cellText as srcCellText } from '../../../src/contract/index.js';
+import { MAX_FILTER_VALUES } from '../../src/constants/types.ts';
 import {
   cellText,
   distinctValues,
@@ -137,14 +138,14 @@ describe('filterRows', () => {
 });
 
 describe('distinctValues', () => {
-  it('2-20 distinct, sorted, as strings', () => {
+  it('2..MAX_FILTER_VALUES distinct, sorted, as strings', () => {
     expect(distinctValues([r('b'), r('a'), r('b')], 0)).toEqual(['a', 'b']);
   });
-  it('null when 1 or >20 distinct', () => {
+  it('null when 1 or >MAX_FILTER_VALUES distinct', () => {
     expect(distinctValues([r('a'), r('a')], 0)).toBeNull();
-    const many = Array.from({ length: 21 }, (_, i) => r(`v${i}`));
+    const many = Array.from({ length: MAX_FILTER_VALUES + 1 }, (_, i) => r(`v${i}`));
     expect(distinctValues(many, 0)).toBeNull();
-    expect(distinctValues(many.slice(0, 20), 0)).toHaveLength(20);
+    expect(distinctValues(many.slice(0, MAX_FILTER_VALUES), 0)).toHaveLength(MAX_FILTER_VALUES);
   });
   it('cell objects use text; null -> empty string', () => {
     expect(distinctValues([r({ text: 'a' }), r(null), r('a')], 0)).toEqual(['', 'a']);

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-
-export const SPINNER_DELAY_MS = 150;
+import { SPINNER_DELAY_MS } from '../constants/timing.ts';
 
 /** True only once `active` has stayed true for `delayMs`; false immediately when it ends. */
 export function useDelayedSpinner(active: boolean, delayMs: number = SPINNER_DELAY_MS): boolean {

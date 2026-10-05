@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ALERT_CAP } from '../../constants/types.ts';
 import { CardLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
 import type { KpiData, KpiMetric } from '../../../../src/index.js';
@@ -8,7 +9,6 @@ import { metrics, STATE_ICON, stateWord, trendView, valueText, type KpiState } f
 import './kpi.css';
 
 const COMPACT_CAP = 4;
-const ALERT_CAP = 3;
 
 function usePrevious<T>(value: T): T | undefined {
   const ref = useRef<T | undefined>(undefined);

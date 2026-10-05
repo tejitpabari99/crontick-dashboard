@@ -1,16 +1,14 @@
-import { useSyncExternalStore } from 'react';
 import { createClient, type Client } from './client.ts';
 import type { Snapshot } from './types.ts';
 
-export const DEFAULT_POLL_MS = 30_000;
-export const MIN_POLL_MS = 15_000;
-export const MAX_POLL_MS = 60_000;
-export const HIDDEN_POLL_MS = 60_000;
-
-/** Retry delays (ms) while the server is down: 5 s, then 10 s, then 30 s. */
-export const DOWN_BACKOFF_MS = [5_000, 10_000, 30_000] as const;
-/** Consecutive failures that flip the UI to the Server down page. */
-export const DOWN_AFTER_FAILURES = 2;
+import {
+  DEFAULT_POLL_MS,
+  DOWN_AFTER_FAILURES,
+  DOWN_BACKOFF_MS,
+  HIDDEN_POLL_MS,
+  MAX_POLL_MS,
+  MIN_POLL_MS,
+} from '../constants/polling.ts';
 
 export function clampPollInterval(ms: number | undefined): number {
   if (typeof ms !== 'number' || !Number.isFinite(ms)) return DEFAULT_POLL_MS;
@@ -209,8 +207,4 @@ export function createSnapshotStore(opts: StoreOptions = {}): SnapshotStore {
 let defaultStore: SnapshotStore | null = null;
 export function getSnapshotStore(): SnapshotStore {
   return (defaultStore ??= createSnapshotStore());
-}
-
-export function useSnapshotState(store: SnapshotStore = getSnapshotStore()): StoreState {
-  return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }

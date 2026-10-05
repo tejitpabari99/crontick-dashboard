@@ -1,5 +1,4 @@
-/* Derived tokens: pure CSS calc() on the preset components (themes.css).
-   Mirrored by ui/src/theme/derive.ts; keep the constants in sync. */
+/* Derived tokens: pure CSS calc() on the preset components (themes.css). */
 :root {
   --bg: hsl(var(--bg-h) calc(var(--bg-s) * 1%) calc(var(--bg-l) * 1%));
   --surface-1: hsl(var(--bg-h) calc(var(--bg-s) * 1%) calc((var(--bg-l) + var(--dir) * 3 * var(--contrast)) * 1%));

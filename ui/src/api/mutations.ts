@@ -3,7 +3,7 @@ import type { LayoutItem, Snapshot, ViewCard } from './types.ts';
 import { getSnapshotStore, type SnapshotStore, type StoreState } from './store.ts';
 import { getToastStore, type ToastStore } from './toasts.ts';
 
-export const CONFLICT_TOAST = 'card updated, try again';
+import { CONFLICT_TOAST } from '../constants/messages.ts';
 
 type Op =
   | { id: number; kind: 'zone'; cardId: string; zone: 'tray' | 'hidden' | 'restore' | 'drop' }

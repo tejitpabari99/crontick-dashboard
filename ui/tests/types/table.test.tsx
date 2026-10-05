@@ -5,6 +5,7 @@ import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/table/index.ts';
 import example from '../../../templates/table.example.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
+import { PAGE } from '../../src/constants/types.ts';
 import type { TableData } from '../../../src/index.js';
 
 const def = getCardType('table')!;
@@ -99,12 +100,12 @@ describe('table type', () => {
     expect(window.location.hash).toContain('view=full');
   });
 
-  it('fullscreen pages 200 at a time', () => {
-    const { container } = renderTable(big(500), { mode: 'fullscreen' });
-    expect(container.querySelectorAll('tbody tr').length).toBe(200);
-    fireEvent.click(screen.getByRole('button', { name: 'Show 200 more' }));
-    expect(container.querySelectorAll('tbody tr').length).toBe(400);
-    expect(screen.getByRole('button', { name: 'Show 100 more' })).toBeTruthy();
+  it('fullscreen pages PAGE rows at a time', () => {
+    const { container } = renderTable(big(2.5 * PAGE), { mode: 'fullscreen' });
+    expect(container.querySelectorAll('tbody tr').length).toBe(PAGE);
+    fireEvent.click(screen.getByRole('button', { name: `Show ${PAGE} more` }));
+    expect(container.querySelectorAll('tbody tr').length).toBe(2 * PAGE);
+    expect(screen.getByRole('button', { name: `Show ${PAGE / 2} more` })).toBeTruthy();
   });
 
   it('sort header cycles asc, desc, default with aria-sort', () => {

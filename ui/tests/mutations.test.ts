@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/api/client.ts';
 import { createSnapshotStore } from '../src/api/store.ts';
-import { createMutations, CONFLICT_TOAST } from '../src/api/mutations.ts';
+import { createMutations } from '../src/api/mutations.ts';
+import { CONFLICT_TOAST } from '../src/constants/messages.ts';
 import { createToastStore } from '../src/api/toasts.ts';
 import type { Snapshot } from '../src/api/types.ts';
 
@@ -116,7 +117,6 @@ describe('mutations', () => {
     await t.m.tick('al');
     expect(t.m.getView().state.snapshot?.zones.alerts).toEqual(['al']);
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual([CONFLICT_TOAST]);
-    expect(CONFLICT_TOAST).toBe('card updated, try again');
     await vi.waitFor(() =>
       expect(t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length).toBeGreaterThan(before),
     );

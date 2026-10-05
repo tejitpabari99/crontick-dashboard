@@ -5,6 +5,7 @@ import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/list/index.ts';
 import example from '../../../templates/list.example.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
+import { ALERT_CAP, PAGE } from '../../src/constants/types.ts';
 import type { ListData } from '../../../src/index.js';
 
 const def = getCardType('list')!;
@@ -110,20 +111,20 @@ describe('list type', () => {
     expect(window.location.hash).toContain('view=full');
   });
 
-  it('fullscreen shows 200, Show more pages, Hide done toggles', () => {
-    const { container } = renderList(many(250), { mode: 'fullscreen' });
-    expect(container.querySelectorAll('li').length).toBe(200);
+  it('fullscreen shows PAGE, Show more pages, Hide done toggles', () => {
+    const { container } = renderList(many(PAGE + 50), { mode: 'fullscreen' });
+    expect(container.querySelectorAll('li').length).toBe(PAGE);
     fireEvent.click(screen.getByRole('button', { name: 'Show 50 more' }));
-    expect(container.querySelectorAll('li').length).toBe(250);
+    expect(container.querySelectorAll('li').length).toBe(PAGE + 50);
     cleanup();
     const r = renderList({ items: [{ id: 'a', text: 'A', checked: true }, { id: 'b', text: 'B' }] }, { mode: 'fullscreen' });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Hide done' }));
     expect(r.container.querySelectorAll('li').length).toBe(1);
   });
 
-  it('alert mode: first 3 + plain "+n", single line', () => {
-    const { container } = renderList(many(5), { mode: 'alert' });
-    expect(container.querySelectorAll('li').length).toBe(3);
+  it('alert mode: first ALERT_CAP + plain "+n", single line', () => {
+    const { container } = renderList(many(ALERT_CAP + 2), { mode: 'alert' });
+    expect(container.querySelectorAll('li').length).toBe(ALERT_CAP);
     expect(screen.getByText('+2')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
     expect(container.querySelector('.clamp-1')).not.toBeNull();
