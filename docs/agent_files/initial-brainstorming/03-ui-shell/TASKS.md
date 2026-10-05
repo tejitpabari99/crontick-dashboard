@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 summary: 12 commit-sized tasks building the React/Vite UI shell, from ui scaffold and theme through store, frame, zones, search, fullscreen/deep links, a11y and a Playwright smoke.
 date: 2026-10-05
 ---
@@ -8,8 +8,8 @@ Source of truth: [PRD.md](PRD.md). The shell renders 02's snapshot and exposes t
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | UI scaffold and theme tokens | 01#1 | todo |
-| 2 | API client and snapshot store | 1, 02#5 | todo |
+| 1 | UI scaffold and theme tokens | 01#1 | done |
+| 2 | API client and snapshot store | 1, 02#5 | in-progress |
 | 3 | Optimistic mutations | 2, 02#8, 02#9 | todo |
 | 4 | Pure libs: placement, search, seen, relative time | 1, 02#5 | todo |
 | 5 | Client type registry, CardLink, error boundary | 1, 01 done | todo |
