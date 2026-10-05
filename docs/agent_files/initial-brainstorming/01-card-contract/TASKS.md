@@ -8,8 +8,8 @@ Source of truth: docs/agent_files/initial-brainstorming/01-card-contract/PRD.md.
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Minimal repo scaffold | none | in-progress |
-| 2 | Formats and helpers | 1 | todo |
+| 1 | Minimal repo scaffold | none | done |
+| 2 | Formats and helpers | 1 | in-progress |
 | 3 | Envelope schema | 2 | todo |
 | 4 | Type schemas: markdown, kpi, media | 2, 3 | todo |
 | 5 | Type schemas: table, list (cells, links, actions) | 2, 3 | todo |
