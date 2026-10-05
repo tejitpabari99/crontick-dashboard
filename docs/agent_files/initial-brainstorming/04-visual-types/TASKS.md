@@ -12,8 +12,8 @@ Source of truth: [PRD.md](PRD.md). Five domain-agnostic React bodies registered 
 | 2 | markdown type | 1, 01#4 | done |
 | 3 | Table pure logic | 1, 01#5 | done |
 | 4 | table component | 3, 03#6, 03#10 | done |
-| 5 | table fullscreen filter | 4 | in-progress |
-| 6 | list rendering, due, links | 1, 01#5 | todo |
+| 5 | table fullscreen filter | 4 | done |
+| 6 | list rendering, due, links | 1, 01#5 | in-progress |
 | 7 | list item actions | 6, 03#3 | todo |
 | 8 | kpi type | 1, 01#4 | todo |
 | 9 | media type | 1, 01#4 | todo |
