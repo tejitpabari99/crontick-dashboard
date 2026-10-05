@@ -8,6 +8,7 @@ import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';
 import type { Snapshot } from '../shared/api-types.js';
 import { hostGuard, mutationGuard } from './guards.js';
+import { mountActions } from './actions.js';
 import { mountMutations } from './mutations.js';
 import { serveStatic } from './static.js';
 
@@ -68,7 +69,7 @@ export function createApp(ctx: AppContext): Hono {
   });
 
   mountMutations(app, ctx);
-  // TODO(Task 9): card actions route.
+  mountActions(app, ctx);
 
   app.all('*', serveStatic(ctx.uiDir));
   return app;
