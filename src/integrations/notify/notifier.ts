@@ -17,6 +17,24 @@ import type { CardEvents, CardEventPayload } from '../../feed/events.js';
 import type { Card } from '../../contract/validate.js';
 import { envelope } from '../../feed/ingest.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
+import { realClock, type Clock } from '../../clock.js';
+
+export const BURST_WINDOW_MS = 10_000;
+export const BURST_LIMIT = 3;
+
+/** Injectable timers (fake in tests). */
+export interface Timers {
+  setTimeout(fn: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+export const realTimers: Timers = {
+  setTimeout: (fn, ms) => {
+    const h = setTimeout(fn, ms);
+    h.unref?.();
+    return h;
+  },
+  clearTimeout: (h) => clearTimeout(h as NodeJS.Timeout),
+};
 
 export const MAX_BODY = 140;
 
@@ -27,6 +45,11 @@ export interface NotifierOptions {
   /** Boolean or a resolved gate result (Task 3). Function form is re-read per event. */
   gate: boolean | { enabled: boolean } | (() => boolean | { enabled: boolean });
   logger?: { warn(msg: string): void };
+  /** Burst-window time source (default real clock). */
+  clock?: Clock;
+  timers?: Timers;
+  /** Alerts with priority >= this are named in the summary, never collapsed away (default 3). */
+  getThreshold?: () => number;
 }
 
 export interface Notifier {
@@ -101,8 +124,12 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     return typeof g === 'boolean' ? g : g.enabled;
   };
 
-  /** Single delivery seam: Task 5 adds burst control here, Task 6 adds failure isolation/warnings. */
-  function dispatch(payload: NotifyPayload): void {
+  const clock = opts.clock ?? realClock;
+  const timers = opts.timers ?? realTimers;
+  const threshold = (): number => opts.getThreshold?.() ?? 3;
+
+  /** Raw adapter call. Task 6 hardens failure isolation/warnings here. */
+  function deliver(payload: NotifyPayload): void {
     try {
       void opts.adapter.notify(payload).catch((err: unknown) => {
         opts.logger?.warn(`notify failed: ${String(err)}`);
@@ -112,16 +139,64 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     }
   }
 
-  function handle({ card }: CardEventPayload): void {
-    const e = envelope(card);
-    if (e.notify !== true || !gateOn()) return;
-    dispatch({
-      title: e.title,
-      body: summarize(card),
-      openUrl: `http://127.0.0.1:${opts.getPort()}/#card=${encodeURIComponent(e.id)}`,
+  // Burst window: opens at the first notification, closes BURST_WINDOW_MS later.
+  let windowEnd = 0;
+  let fired = 0;
+  let overflow = 0;
+  let important: string[] = [];
+  let timer: unknown;
+
+  function flushSummary(): void {
+    if (timer !== undefined) timers.clearTimeout(timer);
+    timer = undefined;
+    const n = overflow;
+    const names = important;
+    windowEnd = 0;
+    fired = 0;
+    overflow = 0;
+    important = [];
+    if (n === 0) return;
+    deliver({
+      title: `${n} more update${n === 1 ? '' : 's'} on your dashboard`,
+      body: names.length > 0 ? truncate(`High priority: ${names.join(', ')}`) : 'Open the dashboard to see them.',
+      openUrl: `http://127.0.0.1:${opts.getPort()}/`,
     });
   }
 
+  /** Single delivery seam: burst control (Task 5) then deliver(). */
+  function dispatch(payload: NotifyPayload, meta: { high: boolean }): void {
+    const now = clock.now().getTime();
+    if (windowEnd !== 0 && now >= windowEnd) flushSummary(); // window expired: close it, start fresh
+    if (windowEnd === 0) windowEnd = now + BURST_WINDOW_MS;
+    if (fired < BURST_LIMIT) {
+      fired++;
+      deliver(payload);
+      return;
+    }
+    overflow++;
+    if (meta.high) important.push(payload.title);
+    timer ??= timers.setTimeout(flushSummary, Math.max(0, windowEnd - now));
+  }
+
+  function handle({ card }: CardEventPayload): void {
+    const e = envelope(card);
+    if (e.notify !== true || !gateOn()) return;
+    dispatch(
+      {
+        title: e.title,
+        body: summarize(card),
+        openUrl: `http://127.0.0.1:${opts.getPort()}/#card=${encodeURIComponent(e.id)}`,
+      },
+      { high: e.kind === 'alert' && e.priority >= threshold() },
+    );
+  }
+
   const offs = [opts.events.on('card:new', handle), opts.events.on('card:changed', handle)];
-  return { dispose: () => offs.forEach((off) => off()) };
+  return {
+    /** Unsubscribes, clears timers, and flushes any pending summary (nothing silently dropped). */
+    dispose: () => {
+      offs.forEach((off) => off());
+      flushSummary();
+    },
+  };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createNotifier, summarize, stripMarkdown } from '../../src/integrations/notify/notifier.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
+import { fakeClock } from '../../src/clock.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
 import type { Card } from '../../src/contract/validate.js';
 
@@ -110,5 +111,90 @@ describe('summarize', () => {
   });
   it('unknown/missing data -> empty', () => {
     expect(summarize(card({ type: 'zzz', data: undefined }) as never)).toBe('');
+  });
+});
+
+describe('burst control', () => {
+  function burst(threshold = 3) {
+    const b = bus();
+    const adapter = new FakeNotifyAdapter();
+    const clock = fakeClock(0);
+    const pending: { at: number; fn: () => void; id: number }[] = [];
+    let id = 0;
+    const timers = {
+      setTimeout: (fn: () => void, ms: number) => {
+        pending.push({ at: clock.now().getTime() + ms, fn, id: ++id });
+        return id;
+      },
+      clearTimeout: (h: unknown) => {
+        const i = pending.findIndex((p) => p.id === h);
+        if (i >= 0) pending.splice(i, 1);
+      },
+    };
+    const advance = (ms: number) => {
+      const end = clock.now().getTime() + ms;
+      for (;;) {
+        const next = pending.filter((p) => p.at <= end).sort((a, c) => a.at - c.at)[0];
+        if (!next) break;
+        pending.splice(pending.indexOf(next), 1);
+        clock.set(next.at);
+        next.fn();
+      }
+      clock.set(end);
+    };
+    const n = createNotifier({ events: b.events, adapter, getPort: () => 4321, gate: true, clock, timers, getThreshold: () => threshold });
+    const emit = (i: number, over: Record<string, unknown> = {}) => b.emit('card:new', card({ id: `c${i}`, title: `T${i}`, ...over }));
+    return { b, adapter, n, advance, emit, pending };
+  }
+
+  it('5 cards in 10s -> 3 toasts + 1 summary at window close', () => {
+    const { adapter, advance, emit } = burst();
+    for (let i = 0; i < 5; i++) { emit(i); advance(1000); }
+    expect(adapter.calls).toHaveLength(3);
+    advance(5000);
+    expect(adapter.calls).toHaveLength(4);
+    expect(adapter.calls[3]).toEqual({
+      title: '2 more updates on your dashboard',
+      body: 'Open the dashboard to see them.',
+      openUrl: 'http://127.0.0.1:4321/',
+    });
+    advance(60_000);
+    expect(adapter.calls).toHaveLength(4);
+  });
+  it('high-priority overflow is named in summary', () => {
+    const { adapter, advance, emit } = burst(3);
+    for (let i = 0; i < 3; i++) emit(i);
+    emit(3, { priority: 4 });
+    emit(4, { priority: 1 });
+    emit(5, { priority: 5 });
+    emit(6, { priority: 5, kind: 'panel' });
+    advance(10_000);
+    expect(adapter.calls).toHaveLength(4);
+    expect(adapter.calls[3]!.title).toBe('4 more updates on your dashboard');
+    expect(adapter.calls[3]!.body).toBe('High priority: T3, T5');
+  });
+  it('new window after expiry starts fresh', () => {
+    const { adapter, advance, emit } = burst();
+    for (let i = 0; i < 4; i++) emit(i);
+    advance(10_000);
+    expect(adapter.calls).toHaveLength(4);
+    for (let i = 10; i < 13; i++) emit(i);
+    expect(adapter.calls).toHaveLength(7);
+    expect(adapter.calls[6]!.title).toBe('T12');
+  });
+  it('single overflow uses singular', () => {
+    const { adapter, advance, emit } = burst();
+    for (let i = 0; i < 4; i++) emit(i);
+    advance(10_000);
+    expect(adapter.calls[3]!.title).toBe('1 more update on your dashboard');
+  });
+  it('dispose flushes pending summary and clears timers', () => {
+    const { adapter, n, emit, pending, advance } = burst();
+    for (let i = 0; i < 5; i++) emit(i);
+    n.dispose();
+    expect(adapter.calls).toHaveLength(4);
+    expect(pending).toHaveLength(0);
+    advance(20_000);
+    expect(adapter.calls).toHaveLength(4);
   });
 });
