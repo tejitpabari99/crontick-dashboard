@@ -115,7 +115,7 @@ export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>)
   const [sort, setSort] = useState<SortState | null>(defaultSort);
   const [ownQuery, setOwnQuery] = useState('');
   const [shown, setShown] = useState(PAGE);
-  const [filters, setFilters] = useState<Record<number, ReadonlySet<string>>>({});
+  const [rawFilters, setFilters] = useState<Record<number, ReadonlySet<string>>>({});
   const [openCol, setOpenCol] = useState<number | null>(null);
   const headRef = useRef<HTMLTableRowElement>(null);
 
@@ -128,6 +128,17 @@ export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>)
     () => columns.map((_, i) => (compact ? null : distinctValues(rows, i))),
     [columns, rows, compact],
   );
+  // Ignore filters on columns that are no longer filterable, and values no longer present (data refresh).
+  const filters = useMemo(() => {
+    const out: Record<number, ReadonlySet<string>> = {};
+    for (const [k, set] of Object.entries(rawFilters)) {
+      const vals = filterable[Number(k)];
+      if (!vals) continue;
+      const kept = new Set([...set].filter((v) => vals.includes(v)));
+      if (kept.size > 0) out[Number(k)] = kept;
+    }
+    return out;
+  }, [rawFilters, filterable]);
   const toggleFilter = useCallback((col: number, v: string) => {
     setFilters((f) => {
       const next = new Set(f[col] ?? []);

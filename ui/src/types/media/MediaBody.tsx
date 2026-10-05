@@ -39,7 +39,7 @@ export function MediaBody({ card, data, mode }: CardTypeProps<MediaData>) {
     <div className={`media-root media-root--${layout}${full ? ' media-root--full' : ''}`}>
       <div className="media-grid">
         {shown.map((item, i) => (
-          <figure key={i} className="media-figure">
+          <figure key={`${i}:${item.src}`} className="media-figure">
             <Picture item={item} />
             {item.caption && <figcaption className="media-caption">{item.caption}</figcaption>}
           </figure>

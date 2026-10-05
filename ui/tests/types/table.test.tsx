@@ -247,6 +247,34 @@ describe('table type', () => {
       expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
     });
 
+    it('drops filters for columns that stop being filterable after a data refresh', () => {
+      const mk = (envs: string[]) => ({
+        columns: ['Name', 'Env'],
+        rows: envs.map((e, i) => ({ cells: [`n${i}`, e] })),
+      });
+      const props = { card: { id: 'c1' } as never, mode: 'fullscreen' as const, query: '', checked: new Set<string>(), pending: new Set<string>(), onItemAction: async () => {} };
+      const C = def.Component as React.ComponentType<P>;
+      const { container, rerender } = render(<C {...props} data={mk(['dev', 'prod', 'prod']) as TableData} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Filter Env' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'dev' }));
+      expect(bodyRows(container)).toBe(1);
+      rerender(<C {...props} data={mk(['prod', 'prod', 'prod']) as TableData} />);
+      expect(screen.queryByText('No rows match the filters')).toBeNull();
+      expect(bodyRows(container)).toBe(3);
+    });
+
+    it('drops filter values that are no longer present', () => {
+      const mk = (envs: string[]) => ({ columns: ['Name', 'Env'], rows: envs.map((e, i) => ({ cells: [`n${i}`, e] })) });
+      const props = { card: { id: 'c1' } as never, mode: 'fullscreen' as const, query: '', checked: new Set<string>(), pending: new Set<string>(), onItemAction: async () => {} };
+      const C = def.Component as React.ComponentType<P>;
+      const { container, rerender } = render(<C {...props} data={mk(['dev', 'prod', 'qa']) as TableData} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Filter Env' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'dev' }));
+      rerender(<C {...props} data={mk(['prod', 'qa', 'qa']) as TableData} />);
+      expect(bodyRows(container)).toBe(3);
+      expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
+    });
+
     it('keyboard: button has aria-expanded and Escape closes the popover', () => {
       renderTable(data, { mode: 'fullscreen' });
       const btn = screen.getByRole('button', { name: 'Filter Env' });

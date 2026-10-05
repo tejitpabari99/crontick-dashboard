@@ -116,4 +116,15 @@ describe('media type', () => {
       unmount();
     }
   });
+
+  it('resets the failed placeholder when the src at the same index changes', () => {
+    const one = (src: string) => ({ items: [{ src, alt: 'pic' }] });
+    const { container, rerender } = renderMedia(one('https://e.com/bad.png'));
+    fireEvent.error(container.querySelector('img')!);
+    expect(container.querySelector('img')).toBeNull();
+    rerender(
+      <C card={{ id: 'c1' } as never} data={one('https://e.com/good.png') as MediaData} mode="grid" query="" checked={new Set()} pending={new Set()} onItemAction={async () => {}} />,
+    );
+    expect(container.querySelector('img')).not.toBeNull();
+  });
 });
