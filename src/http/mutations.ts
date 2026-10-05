@@ -45,13 +45,18 @@ export function mountMutations(app: Hono, ctx: AppContext): void {
   const fail = (c: Context, err: unknown) =>
     c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
 
+  /** Ids this server already moved to done/: a repeated tick is an idempotent 200 (ids never reach the filesystem). */
+  const ticked = new Set<string>();
+
   app.post('/api/alerts/:id/tick', async (c) => {
-    const entry = ctx.cards.get(c.req.param('id'));
-    if (!entry) return c.json({ error: 'not found' }, 404);
+    const id = c.req.param('id');
+    const entry = ctx.cards.get(id);
+    if (!entry) return ticked.has(id) ? ok(c) : c.json({ error: 'not found' }, 404);
     if (entry.status !== 'ok' || entry.card['kind'] !== 'alert') return c.json({ error: 'not an alert' }, 400);
     try {
       await moveToDone(ctx, entry.file);
       ctx.refreshFeed(entry.file);
+      ticked.add(id);
     } catch (err) {
       return fail(c, err);
     }
