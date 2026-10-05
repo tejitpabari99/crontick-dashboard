@@ -19,7 +19,7 @@ Non-Goals: creating/editing/reading tasks beyond complete (agents populate list 
 ## Requirements
 **Notifications (D16)**
 - Card with `notify:true`, non-Broken, in window, on `card:new` or `card:changed` (new `updatedAt`) fires one OS notification: title = card title, body = alert/first line summary (<=140 chars, plain text), no `data` leakage beyond that line. Applies to alerts and panels.
-- Click opens `http://127.0.0.1:<port>/#card=<id>` in the default browser (03 scrolls/highlights; [OPEN] 03). Where the platform/library can't report clicks, the toast is still shown (click is best-effort).
+- Click opens `http://127.0.0.1:<port>/#card=<id>` in the default browser (03 scrolls + highlights, specced in 03 deep-link bullet). Where the platform/library can't report clicks, the toast is still shown (click is best-effort).
 - Burst control: per card max 1 per `updatedAt` (02's `notified`); global: first 3 within a 10 s window fire individually, the rest collapse into one "N more updates on your dashboard" toast. Alert priority >= `nowPriorityThreshold` is never collapsed away (listed in summary body).
 - Headless = in-page only (the page highlight is 03's; 05 only guarantees no OS call and no error). Detection: `config.notifications.os` = `auto` (default) | `on` | `off`. `auto`: Linux without `DISPLAY` and `WAYLAND_DISPLAY` -> off; Linux with a display but no `notify-send` on PATH -> off + one warning; macOS/Windows -> on, except `SSH_CONNECTION` set with no desktop session is still on (cannot detect reliably; `off` override exists). Resolved mode and reason appear in a snapshot `warnings[]` entry when off and in `info`.
 - Delivery failure never throws into the watcher; logged, retried never (the in-page highlight is the safety net).
@@ -39,7 +39,7 @@ Non-Goals: creating/editing/reading tasks beyond complete (agents populate list 
                       │ mode=mcp or intent write fails
                       └──────────────────────────► {ok:false,error}         (failed -> 502)
 ```
-**Interface additions requested of 02** (02's handler result is `{ok:true}|{ok:false,error}`): allow `{ok:true, pending:true}`; 02 stores it in `checks` with `pending:true` and surfaces `pendingItems:string[]` beside `checked` in the card snapshot; 05 exposes `getIntentStatus(intentId)` so 02 can clear `pending` -> `checked` when the intent file moves to `intents/applied/` (checked on the existing 10 s rescan). [OPEN-1]
+**Interface additions (accepted into 02):** handler result `{ok:true, pending?:{intentId}}|{ok:false,error}`; 02 stores pending in `checks[id].pending` and surfaces `pendingItems:string[]` beside `checked`; 05 exposes `getIntentStatus(intentId)` so 02 moves `pending` -> `checked` when the intent file reaches `intents/applied/` (checked on the existing 10 s rescan).
 
 **Notification adapter.** `interface NotifyAdapter { notify({title,body,openUrl}): Promise<void> }`; default `node-notifier` (bundles terminal-notifier on macOS, SnoreToast on Windows, notify-send on Linux; supports click callbacks). It is largely unmaintained (no release for ~4 years), so it sits behind the interface with a documented swap: thin shell-outs (`osascript display notification`, PowerShell WinRT toast with explicit AppUserModelID, `notify-send`) lose click-through on macOS but have zero dependencies. Windows: a toast needs an AppUserModelID; use fixed id `Crontick.Dashboard` (SnoreToast registers a Start-menu shortcut with it on first use) so toasts are attributed and can be allow-listed in Focus Assist. macOS: toasts appear under the notifying binary's identity (terminal-notifier / Terminal) and require owner permission in System Settings. Choice final after the spike. [OPEN-2]
 
@@ -85,14 +85,14 @@ Non-Goals: creating/editing/reading tasks beyond complete (agents populate list 
 - Windows + macOS manual notification test (below); Linux desktop optional.
 
 ## Risks / Open Questions
-- [OPEN-1] 02 must accept `{ok:true,pending:true}`, a `pendingItems` snapshot field, and the intent-applied check. Without it pending state cannot be shown.
+- [RESOLVED: 02 handler result is `{ok:true, pending?:{intentId}}`; snapshot has `pendingItems`; 02 calls `getIntentStatus(intentId)` on rescan; `server.warnings.set/clear` for warnings] was OPEN-1. Note: 05 returns `{ok:true,pending:{intentId}}` (not `pending:true`); intent id = `ticktick-complete-<taskId>`.
 - [OPEN-2] Notification library final choice + macOS click-through + Windows AUMID behaviour: spike on real Win and mac before tasks. node-notifier fork status not verified in this research.
 - [OPEN-3] Does mcp.ticktick.com support dynamic client registration / accept a non-Anthropic client id and 127.0.0.1 redirect? Unverified (docs only state "OAuth or Bearer"). Spike with MCP Inspector; design already survives "no".
 - [OPEN-4] Official-server tool schema: `complete_task` params (`project_id`,`task_id`) seen via the claude.ai TickTick connector schema, not the raw server; error payloads for completed/deleted tasks unknown; `get_task_by_id` probe assumed.
-- [OPEN-5] 01 vs 05 naming: 01 action keys are camelCase (`taskId`,`projectId`); confirmed equivalent, adapter maps. 01 [OPEN-2] can be closed.
-- [OPEN-6] 03 owns in-page highlight and `#card=<id>` deep link; 05 assumes both. Highlight trigger (updatedAt newer than UI-local last-seen) not yet specified.
+- [RESOLVED: camelCase in 01, adapter maps to snake_case; 01 OPEN-2 closed] was OPEN-5.
+- [RESOLVED: 03 specs both: highlight when `updatedAt` != local `seen[id]`; `#card=<id>` scrolls + highlights] was OPEN-6.
 - [OPEN-7] 02 event `card:changed` is in-window only and `notified` is stamped after emit even if OS delivery was skipped (headless or failure) — accepted; [DEFERRED] notify when a window later opens (02 DEFERRED).
-- [OPEN-8] 06: register `ticktick connect|status|disconnect` subcommand group; 02 snapshot `warnings[]` carries integration warnings; `config.json` gains `notifications.os`, `ticktick.mode`.
+- [RESOLVED: 06 lists `ticktick connect|status|disconnect`; 02 config parses `notifications.os`, `ticktick.mode`; 02 `warnings` registry] was OPEN-8.
 - [DEFERRED] Keychain storage, notification action buttons, intent applier as a built-in server timer.
 - Risk: while the server is not running nothing notifies (D31). Risk: `SSH_CONNECTION` on a desktop machine misdetected as headless — `os: on` override.
 

@@ -46,6 +46,7 @@ Non-Goals: frame/Broken/scroll/error boundary (03); schemas (01); action executi
 ### list
 - Items: `text`, optional `subtitle`, `link` (text becomes the link), optional `action` → checkbox. No `action` → bullet, no checkbox.
 - **Checked** = `item.checked === true` OR `checked.has(item.id)` (shell set: server-confirmed + optimistic). Checked items stay in place (no reorder), muted + strike-through; completed (`ticktick.complete`) and `dismiss` items both stay visible-checked until the agent rewrites the card (answers 02's [OPEN] on dismiss UX). A checked item's checkbox is disabled (no un-complete in v1; TickTick owns that). Header shows "k of n done" and, in fullscreen, a "Hide done" toggle (local).
+- **Pending (05)**: ids in the shell `pending` set render checked-style with a clock badge + tooltip "queued, applied by job" (checkbox disabled) until the snapshot moves them to `checked`.
 - **Tri-state feedback** on click: component calls `onItemAction(id)` and tracks per-item `pending` locally: `pending` (spinner, checkbox disabled, `aria-busy`) → resolves → checked via shell set; rejects → `failed` (item unchecked, inline "Couldn’t complete — retry" in negative token, clears on next click or after 8 s). Shell owns optimistic patch, rollback, and toast; 502/409 arrive as rejection.
 - **Due date**: 01 has no field. Agents put it in `subtitle`. If an item carries an extra `due` (ISO date/datetime) the list renders it as "Today / Tomorrow / Mon 12 / Overdue 2d" (overdue in `--negative`). [OPEN] 01: promote `due` to the schema?
 - Compact: first 100 items then "Show n more"; fullscreen: all up to 200, then "Show more". `alert`: single line per item, first 3 + "+n"; checkbox allowed.
@@ -68,7 +69,7 @@ Non-Goals: frame/Broken/scroll/error boundary (03); schemas (01); action executi
 - `searchText` = alt + caption.
 
 ### Safety & a11y
-- URL rules: links = 03 `CardLink` allowlist (`http|https|mailto|ms-outlook`, trailing re-check); images = `safeImageSrc()`; markdown `urlTransform` routed through the same two helpers. Outlook web deep links (`https://outlook.office.com/mail/deeplink/read/…`) work today; `ms-outlook:` depends on 01 OPEN-6.
+- URL rules: links = 03 `CardLink` allowlist (01 list: `http|https|mailto`, `ms-outlook` only if 01 OPEN-6 accepts; trailing re-check); images = `safeImageSrc()`; markdown `urlTransform` routed through the same two helpers. Outlook web deep links (`https://outlook.office.com/mail/deeplink/read/…`) work today; `ms-outlook:` depends on 01 OPEN-6.
 - Real `<table>/<th scope>`, `<ul>`, native `<input type=checkbox>` with label, `<figure>/<figcaption>`; `:focus-visible` ring; colour never sole signal; sort/filter controls are buttons with labels; axe check per fixture.
 
 ## Architecture
@@ -79,7 +80,7 @@ ui/src/types/
   shared/ highlight.tsx  useQueryFilter.ts  safeImageSrc.ts  format.ts (number/date/due)  ShowMore.tsx  matchTokens.ts
 ui/tests/types/                vitest + @testing-library/react + jest-axe, fixtures = 01 `templates/*.example.json` + local edge fixtures
 ```
-- Consumes 03: `registerCardType(type,{Component,searchText,allowedModes?})`, `CardTypeProps<D>` = `{card,data,mode,query,checked,onItemAction}`, `CardLink`, theme tokens (`--positive`, `--negative`, `--primary`, surfaces). Consumes 01: per-type `data` types via `import type`, `templates/*.example.json` for tests.
+- Consumes 03: `registerCardType(type,{Component,searchText,allowedModes?})`, `CardTypeProps<D>` = `{card,data,mode,query,checked,pending,onItemAction}`, `CardLink`, theme tokens (`--positive`, `--negative`, `--primary`, surfaces). Consumes 01: per-type `data` types via `import type`, `templates/*.example.json` for tests.
 - Provides: 5 registered defs; `matchTokens(text, query)` (shared by `searchText` consumers); contract for 03 that `searchText(data)` is pure/total (never throws).
 - **Libraries**: `react-markdown` + `remark-gfm` (AST → React elements, no innerHTML; `skipHtml`, no `rehype-raw`). No table/virtual/highlight libs; table logic is ~150 LOC pure functions (`inferColumnType`, `sortRows`, `filterRows`) unit-tested separately.
 - **Add a type (D7, step 5 of 01)**: create `ui/src/types/<t>/` with component + `registerCardType('<t>', …)`, import it in `types/index.ts`, add fixture test from `templates/<t>.example.json`. 03/01 registry-parity tests fail otherwise.
@@ -101,15 +102,16 @@ ui/tests/types/                vitest + @testing-library/react + jest-axe, fixtu
 | V12 | Search interplay | Pre-filter + "show all" escape | Dim only; hard filter | Matches 03; avoids dead card |
 
 ## Risks / Open Questions
-- [OPEN] **03**: `onItemAction` must reject (Error with server message) on rollback/409/502 and resolve on success; confirm. Also 03 gives both `card.checked: string[]` and `checked: ReadonlySet`; 04 uses only the Set.
-- [OPEN] **01**: `due` on list items (optional ISO date) — promote to schema or leave as extra.
-- [OPEN] **01/02**: local image files (e.g. recording screenshots on disk). 01 bans `file:`; v1 = remote or `data:` only (1 MB cap). A `<data>/media/` route served by 02 is the likely answer; needs decision.
-- [OPEN] **02**: any CSP header must allow `img-src 'self' data: http: https:` or media breaks; confirm no CSP / this one.
-- [OPEN] **01 OPEN-6** `ms-outlook:` scheme: 03 already allows it, 01 undecided; 04 follows whichever `CardLink` does.
+- [RESOLVED: 03 optimistic-mutation rule: `onItemAction` resolves on success (incl. queued/pending), rejects with Error(server message) on rollback/409/502; 04 uses only the `checked`/`pending` Sets] .
+- [OPEN] **01**: `due` on list items (optional ISO date) — promote to schema or leave as extra. Recommendation: leave as extra in v1 (04 already renders it); promote if agents use it.
+- [OPEN] **01/02**: local image files (e.g. recording screenshots on disk). 01 bans `file:`; v1 = remote or `data:` only (1 MB cap). A `<data>/media/` route served by 02 is the likely answer; needs decision. Recommendation: not in v1 (remote or `data:` only); add to futures.md.
+- [RESOLVED: 02 sends no CSP header in v1 (loopback, agent content is rendered as inert React nodes); if added later it must allow `img-src 'self' data: http: https:`] .
+- [OPEN] **01 OPEN-6** `ms-outlook:` scheme: 01 undecided; 03 `CardLink` now follows 01's list (http/https/mailto until decided); 04 follows `CardLink`.
 - [RESOLVED: stays visible, checked, disabled until rewrite] `dismiss` UX (02's open item).
 - [RESOLVED: one metric per kpi card] follows 01 OPEN-5 default.
 - [DEFERRED] markdown in-body search highlight; table virtualization; GIF pause; image lightbox; syntax highlighting; per-column filter in compact.
-- Mismatches found: list `checked` boolean (01) vs id array (02) → union rule above; 03 says alert-mode components render compactly for all types but 01 restricts alerts to markdown/list/kpi → `allowedModes` on table/media; 01 `data:image/*` includes SVG — safe only inside `<img>`, so 04 never inlines SVG.
+- [RESOLVED: 02 adds `pendingItems`; 03 passes `pending` set; list renders clock badge] 05 pending state.
+- Mismatches found (all reconciled): list `checked` boolean (01) vs id array (02) → union rule above; 03 says alert-mode components render compactly for all types but 01 restricts alerts to markdown/list/kpi → `allowedModes` on table/media; 01 `data:image/*` includes SVG — safe only inside `<img>`, so 04 never inlines SVG.
 - Risk: stretched-link rows block text selection; revisit after real use.
 
 ## Acceptance Criteria

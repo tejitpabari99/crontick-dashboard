@@ -26,7 +26,7 @@ Non-Goals: runtime state (visibility, stale, Done, Now — 02); rendering (03/04
 | `type` | yes | `markdown\|table\|list\|kpi\|media` | Unknown string = Broken "unknown type" (forward-compat: server tolerates, never crashes) |
 | `title` | yes | non-empty string ≤200 | |
 | `updatedAt` | yes | RFC 3339 / ISO 8601 with offset or `Z` | Change resets Done (D14). Agent-authored, not file mtime |
-| `priority` | no | integer 0–5, default 2 | ≤1 collapses (D22); Now threshold in config (default 4, 02 owns) |
+| `priority` | no | integer 0–5, default 2 | ≤1 collapses (D22); Now threshold in config (02 owns; default [OPEN-7], working value 3) |
 | `notify` | no | bool, default false | |
 | `show` | no | `{cron: string, for?: duration}` | See formats. `for` default: [OPEN-3] |
 | `staleAfter` | no | duration | Format validated here; enforcement = 02 |
@@ -40,7 +40,7 @@ Additional properties allowed everywhere (envelope and `data`, D9): validator pr
 ### Alerts
 `kind=alert` valid types: `markdown`, `list`, `kpi` (compact strip items). `table`/`media` on an alert = schema-invalid. Alerts ignore `show.for` semantics beyond `show.cron` gating [OPEN-4: do alerts honor `show` at all?]; `size` ignored for alerts.
 
-### Per-type `data` (all `link` = `http(s)://` or `mailto:` or `outlook:` ... see Link rules)
+### Per-type `data` (all `link` = see Link rules)
 | Type | Required | Optional | Notes |
 |---|---|---|---|
 | `markdown` | `text` (string ≤100k) | — | CommonMark + GFM; raw HTML not rendered (04: sanitize) |
@@ -55,7 +55,7 @@ Link rules: `link` is a URL string ≤2048; allowed schemes `http`, `https`, `ma
 
 ### Formats
 - **Duration**: `^[1-9]\d*(m|h|d|w)$` (`30m`,`12h`,`26h`,`7d`,`2w`); no compound, no seconds, max 3650d. Helper `parseDuration → ms`.
-- **Cron** (`show.cron`): standard 5-field, parsed with **croner** (same lib/dialect as sibling crontick; `@daily`-style aliases and 6-field seconds rejected). Evaluated in server local timezone; `show.cron` = window start, `for` = length. Validator checks parseability only. Helper `windowActive(show, now)` lives here so 02 and tests share one implementation (02 calls it).
+- **Cron** (`show.cron`): standard 5-field, parsed with **croner** (same lib/dialect as sibling crontick; `@daily`-style aliases and 6-field seconds rejected). Evaluated in `config.timezone` (02), default server local timezone; `show.cron` = window start, `for` = length. Validator checks parseability only. Helper `windowActive(show, now, opts?: {timezone?: string})` lives here so 02 and tests share one implementation (02 calls it with `config.timezone`; owns the `show.for`-omitted default once [OPEN-3] is decided). No `show.tz` field in the contract (timezone = 02 `config.timezone` only).
 - **Timestamps**: `updatedAt` must parse and include offset/`Z`; naive local times = schema-invalid. Future skew > 5 min: valid, 02 may warn.
 - **Priority**: integer 0–5.
 
@@ -102,11 +102,17 @@ Never throws. `message` is human-readable one-liner shown in the Broken card; `i
 
 ## Risks / Open Questions
 - [OPEN-1] Windows-safe 64-char id vs agents wanting email-like ids: confirm lowercase-only is acceptable (resolve in design review; default as specced).
-- [OPEN-2] `ticktick.complete` params (`taskId`+`projectId`) must be verified against the live MCP tool schema (05 spike); contract may add optional fields.
-- [OPEN-3] Default `show.for` when omitted (proposed: until next day boundary? or 24h) — needs owner call; 02 consumes.
-- [OPEN-4] Do alerts honor `show`? Proposed: yes cron-gated like panels.
-- [OPEN-5] kpi multi-metric (`items`) in v1 or one metric per card? Proposed: one per card, defer.
-- [OPEN-6] Outlook deep links: `https://outlook.office.com/...` fine; native `ms-outlook:` scheme allowlist needs owner confirm.
+- [RESOLVED: 05 confirmed `complete_task(project_id, task_id)`; `taskId`+`projectId` both required, adapter maps camel to snake] was OPEN-2. Live-server re-check stays a 05 spike.
+- [OPEN-3] Default `show.for` when omitted needs owner call; 02 consumes via `windowActive`. Recommendation: until end of that local day (02 already assumes it); alt fixed 24h.
+- [OPEN-4] Do alerts honor `show`? Recommendation: yes, cron-gated like panels (02 already applies the window to every kind).
+- [OPEN-5] kpi multi-metric (`items`) in v1 or one metric per card? Recommendation: one per card, defer (04 implements one).
+- [OPEN-6] Outlook deep links: `https://outlook.office.com/...` fine; native `ms-outlook:` scheme allowlist needs owner confirm. Recommendation: ship http/https/mailto only; `ms-outlook:` is a one-line add later (03/04 `CardLink` follows this list).
+- [OPEN-7] Now-priority threshold default: 01 originally said 4, 02 said 3. Owner call (02 owns the config key). Recommendation: 3 (0-5 scale, default priority 2, so 3+ = deliberately raised; still calm because it only counts inside `show` windows).
+- [RESOLVED: 02 adopts `validateCardFile(text,{filename})` and its `ValidationResult`; no `validateCardText`/`partial`; `broken.id` replaces `partial.id`] validator API.
+- [RESOLVED: 02 passes filename and handles `id-mismatch` as a Broken card keyed `file:<name>`] id vs filename.
+- [RESOLVED: list `checked` = item.checked (data) union snapshot `checked` ids (server-confirmed) union optimistic; 02/03/04 aligned] .
+- [RESOLVED: alerts limited to markdown/list/kpi; 04 `allowedModes` on table/media, 03 registry honors it] .
+- [RESOLVED: no `show.tz`; 02 `config.timezone`] .
 - [RESOLVED: no schema versioning field in v1] forward-compat via additional-properties + `x-` reservation; add optional `schema` field later if needed.
 - [DEFERRED] Per-type `data` size limits beyond 1 MB file cap; timezone field on `show`.
 

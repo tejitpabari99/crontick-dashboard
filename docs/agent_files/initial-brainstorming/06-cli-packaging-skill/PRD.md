@@ -27,7 +27,10 @@ Non-Goals: autostart/service install (D27, D31); a `write`/push CLI (futures.md)
 | `info` | Works with daemon stopped. Prints: version, data dir, **feed dir**, URL (or "not running"), config path, templates dir, schemas dir, skill path. `--json` for agents. | 0 |
 | `validate <file...>` | Reads each file (`-` = stdin, no filename check) and calls `validateCardFile(text,{filename})`. Human output: `OK id (type, kind)` + warnings, or `BROKEN reason: message` + one line per `issues[]` (`path: message`). `--json` prints an array of `{file, result}` (01 `ValidationResult` verbatim). | 0 all ok; 1 any broken; 2 usage/unreadable file |
 | `templates [type]` | No arg: table of types (`listTypes()`), allowed kinds, example path. `<type>`: prints `getExample(type)`; `--schema` prints its JSON Schema; `--path` prints file paths. Unknown type → exit 2 listing valid types. | 0/2 |
+| `ticktick connect [--token] [--port N]` / `ticktick status` / `ticktick disconnect` | Command group registered here; logic is 05's `src/integrations/ticktick/cli.ts`, runs without the daemon (OAuth loopback, API token via stdin, or `--port` for SSH-forwarded headless sign-in). `status` also reports queued intents. | 0 ok; 1 failed |
 | `--version`, `--help` | Standard | 0 |
+
+**Config keys** read by 02 `config.ts` and documented by `info`/README: `port`, `retentionDefault`, `nowPriorityThreshold`, `pollIntervalMs`, `timezone`, `notifications.os` (`auto|on|off`, 05), `ticktick.mode` (`auto|mcp|intent`, 05).
 
 `validate` is the agent's pre-write check; it must not need a running server or touch the feed dir.
 
@@ -55,9 +58,10 @@ The skill must not restate full schemas (drift); it links to `templates`/`schema
 ```
 package.json  tsup.config.ts  tsconfig.json  eslint.config.js  vitest.config.ts
 src/contract/   (01)           src/cli/ (06)            src/skill/SKILL.md (06)
-src/{paths,config,lifecycle}.ts, src/{state,feed,compute,actions,http}/  (02, server)
+src/{paths,config,lifecycle}.ts, src/{state,feed,compute,actions,http,shared}/  (02, server; shared/api-types.ts = type-only DTOs)
+src/integrations/{notify,ticktick}/  (05)
 src/index.ts    library export: contract only (validateCardFile, listTypes, getExample, types)
-ui/             (03/04) Vite+React app; own tsconfig; builds to ui/dist
+ui/             (03/04) Vite+React app; own tsconfig; builds to ui/dist (03 confirmed)
 schemas/ templates/   (01, generated/committed)      scripts/  tests/{contract,server,cli,e2e}/
 dist/           cli/index.js  server/index.js  index.js  index.d.ts  ui/   (build output, gitignored)
 ```
@@ -91,16 +95,17 @@ dist/           cli/index.js  server/index.js  index.js  index.d.ts  ui/   (buil
 - `npm publish` (npm login/2FA), choose package scope/availability of the name `crontick-dashboard`.
 - Copy `SKILL.md` into `~/.claude/skills/crontick-dashboard/` on each machine (until [OPEN-3]).
 - Windows/macOS manual smoke of `daemon start` (+ OS notification, with 05).
+- TickTick sign-in (`ticktick connect`) and creating the intents applier crontick job (05).
 
 ## Risks / Open Questions
 **01 vs 02 mismatches (06 builds on 01's interface; 02 must align):**
-- [OPEN-1] Validator API: 01 = `validateCardFile(text,{filename}) → {ok:true,card,warnings} | {broken:true,reason,message,issues,id?}`; 02 assumes `validateCardText(text) → {ok:false,reason,partial?:{id,title,kind}}`. 06 uses 01's. 02 must adopt it (`partial` ≈ `id` only; title/kind not provided).
-- [OPEN-2] Now threshold default: 01 says 4, 02 says 3. Also `show.for` default (01 OPEN-3 undecided; 02 assumes end of day); `id`≠filename stem Broken (01) not handled in 02; 02 assumes optional `show.tz`, 01 defers it. 06's skill text depends on these, so it will use "see `templates`"-style wording until settled.
-- [OPEN-4] Default port constant not stated in 02 (crontick uses 47615). Proposal: pick a distinct constant, say 47616; `info` and README quote 02's constant, never hard-code.
-- [OPEN-5] Lifecycle ownership: 06 scope says CLI mirrors lifecycle/ensure; 02 owns `src/lifecycle.ts`. Assumed 02 implements, 06 consumes (requirements above). Confirm; also which file the daemon is spawned from (assumed `dist/server/index.js`).
-- [OPEN-6] 02 file layout is flat `src/{state,feed,...}`; this PRD assumes it as-is rather than a `src/server/` folder (cosmetic; one rename if owner prefers).
+- [RESOLVED: 02 adopts 01 `validateCardFile`; `partial` dropped] was OPEN-1.
+- [OPEN-2] Now threshold default (01 said 4, 02 says 3) and `show.for` omitted default: owner calls tracked in 01 [OPEN-3]/[OPEN-7]; skill text uses "see `templates`" wording until settled. Resolved: `id`≠filename = Broken handled by 02; `show.tz` does not exist.
+- [RESOLVED: `DEFAULT_PORT = 47616` exported by 02 `config.ts`; `info` and README quote it, never hard-code] was OPEN-4.
+- [RESOLVED: 02 owns `src/lifecycle.ts`, spawns `dist/server/index.js`; requirements recorded in 02] was OPEN-5.
+- [RESOLVED: flat 02 layout plus `src/shared`, `src/integrations`; layout block above] was OPEN-6.
 - [OPEN-3] Add `crontick-dashboard skill install [--dir]` (copy, `--force`, prints destination)? Proposed yes if cheap; default v1 = docs only. Owner call.
-- [OPEN-7] `info --json` field names are a contract for the skill; freeze at task time: `{version, dataDir, feedDir, url|null, running, configPath, templatesDir, schemasDir, skillPath}`.
+- [OPEN-7] `info --json` field names are a contract for the skill; freeze at task time: `{version, dataDir, feedDir, url|null, running, configPath, templatesDir, schemasDir, skillPath}` plus 05 additions `{intentsDir, queuedIntents, notifications:{mode,reason}}`.
 - [RESOLVED: no autostart] D27/D31.
 - [RESOLVED: Node >=22.5 kept] D28, though dashboard does not use `node:sqlite`; parity with crontick.
 - [DEFERRED] `--open` browser flag, shell completions, `crontick-dashboard doctor`, npx-only usage docs.
