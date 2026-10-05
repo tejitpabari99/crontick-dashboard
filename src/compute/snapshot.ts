@@ -40,7 +40,7 @@ const sameInstant = (a: string, b: string): boolean => {
   return a === b || (!Number.isNaN(x) && x === y);
 };
 
-function inWindow(show: Show | undefined, now: Date, timezone: string): boolean {
+export function inWindow(show: Show | undefined, now: Date, timezone: string): boolean {
   try {
     return windowActive(show, now, { timezone });
   } catch {
@@ -48,7 +48,7 @@ function inWindow(show: Show | undefined, now: Date, timezone: string): boolean 
   }
 }
 
-function brokenReason(card: Env, now: Date): { reason: ViewReason; message: string } | null {
+export function brokenReason(card: Env, now: Date): { reason: ViewReason; message: string } | null {
   if (card.error !== null && card.error !== undefined && card.error !== '') return { reason: 'error', message: card.error };
   if (card.staleAfter !== undefined) {
     try {
