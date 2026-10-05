@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 summary: 12 commit-sized tasks building the React/Vite UI shell, from ui scaffold and theme through store, frame, zones, search, fullscreen/deep links, a11y and a Playwright smoke.
 date: 2026-10-05
 ---
