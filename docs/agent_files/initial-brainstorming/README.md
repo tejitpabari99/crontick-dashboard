@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 summary: Index for the crontick-dashboard design set — 6 sub-project PRDs, dependency graph, locked cross-cutting picks, consolidated owner decisions and manual steps.
 date: 2026-10-05
 ---
@@ -64,4 +64,4 @@ None remaining. All items resolved 2026-10-05 and applied in the PRDs.
 
 ## Next step
 
-Implement the 59 settled tasks in order: 01 -> 02 -> (03 and 05 in parallel) -> 04 -> 06. Sub-project 01 Task 1 is in progress. Track implementation status in each TASKS.md; retain the approved design and settled choices.
+Implementation complete on branch `initial-brainstorming` (not pushed); see IMPLEMENTATION.md. Owner-only next steps: Win/mac notification spike and manual test (05-notifications/spike-notes.md); `npm publish` / name check; `crontick-dashboard skill install`; Win/mac daemon smoke and Windows global-install check; set up the crontick job that completes ticked TickTick tasks; 2 weeks of real use.
