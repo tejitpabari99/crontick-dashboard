@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick card envelope",
+  "description": "Not expressible in JSON Schema, enforced by the validator: id pattern ^[a-z0-9][a-z0-9._-]{0,63}$ (no trailing \".\", no Windows reserved names); updatedAt must be an RFC 3339 timestamp with offset or Z; show.cron must be a valid 5-field cron (no aliases, no seconds); durations (staleAfter, retention, show.for) match ^[1-9]\\d*(m|h|d|w)$, max 3650d; data is required unless error is a non-empty string; error \"\" is treated as null; priority/notify/size/error defaults are applied by the validator. Unknown keys are preserved; keys starting with \"x-\" are reserved for agents.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "panel",
+        "alert"
+      ]
+    },
+    "type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "priority": {
+      "default": 2,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "notify": {
+      "default": false,
+      "type": "boolean"
+    },
+    "show": {
+      "type": "object",
+      "properties": {
+        "cron": {
+          "type": "string"
+        },
+        "for": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cron"
+      ],
+      "additionalProperties": {}
+    },
+    "staleAfter": {
+      "type": "string"
+    },
+    "retention": {
+      "type": "string"
+    },
+    "size": {
+      "default": "M",
+      "type": "string",
+      "enum": [
+        "S",
+        "M",
+        "L"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "type",
+    "title",
+    "updatedAt"
+  ],
+  "additionalProperties": {}
+}

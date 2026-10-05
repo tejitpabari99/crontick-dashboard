@@ -1,0 +1,595 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick card",
+  "description": "Full card: the envelope plus per-type data (selected by \"type\") and the allowed kinds per type. Per-type data is only checked when error is absent/null/empty (an agent-declared error card skips data validation). Unknown types are rejected by the validator, not by this schema. Not expressible in JSON Schema, enforced by the validator: id pattern ^[a-z0-9][a-z0-9._-]{0,63}$ (no trailing \".\", no Windows reserved names); updatedAt must be an RFC 3339 timestamp with offset or Z; show.cron must be a valid 5-field cron (no aliases, no seconds); durations (staleAfter, retention, show.for) match ^[1-9]\\d*(m|h|d|w)$, max 3650d; data is required unless error is a non-empty string; error \"\" is treated as null; priority/notify/size/error defaults are applied by the validator. Unknown keys are preserved; keys starting with \"x-\" are reserved for agents.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "panel",
+        "alert"
+      ]
+    },
+    "type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "priority": {
+      "default": 2,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "notify": {
+      "default": false,
+      "type": "boolean"
+    },
+    "show": {
+      "type": "object",
+      "properties": {
+        "cron": {
+          "type": "string"
+        },
+        "for": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cron"
+      ],
+      "additionalProperties": {}
+    },
+    "staleAfter": {
+      "type": "string"
+    },
+    "retention": {
+      "type": "string"
+    },
+    "size": {
+      "default": "M",
+      "type": "string",
+      "enum": [
+        "S",
+        "M",
+        "L"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "type",
+    "title",
+    "updatedAt"
+  ],
+  "additionalProperties": {},
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "markdown"
+          },
+          "error": {
+            "enum": [
+              null,
+              ""
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "panel",
+              "alert"
+            ]
+          },
+          "data": {
+            "$ref": "#/$defs/markdown"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "table"
+          },
+          "error": {
+            "enum": [
+              null,
+              ""
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "panel"
+            ]
+          },
+          "data": {
+            "$ref": "#/$defs/table"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "list"
+          },
+          "error": {
+            "enum": [
+              null,
+              ""
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "panel",
+              "alert"
+            ]
+          },
+          "data": {
+            "$ref": "#/$defs/list"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "kpi"
+          },
+          "error": {
+            "enum": [
+              null,
+              ""
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "panel",
+              "alert"
+            ]
+          },
+          "data": {
+            "$ref": "#/$defs/kpi"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "media"
+          },
+          "error": {
+            "enum": [
+              null,
+              ""
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "panel"
+            ]
+          },
+          "data": {
+            "$ref": "#/$defs/media"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "markdown": {
+      "title": "crontick markdown card data",
+      "description": "Not expressible in JSON Schema: none beyond the text length limit.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 100000
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": {}
+    },
+    "table": {
+      "title": "crontick table card data",
+      "description": "Not expressible in JSON Schema, enforced by the validator: every row must have exactly as many cells as columns; defaultSort.column must be within range; link values must be http, https, mailto or ms-outlook (max 2048 chars, no whitespace).",
+      "type": "object",
+      "properties": {
+        "columns": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "sort": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "number",
+                      "date"
+                    ]
+                  }
+                },
+                "required": [
+                  "label"
+                ],
+                "additionalProperties": {}
+              }
+            ]
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cells": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "link": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  ]
+                }
+              },
+              "link": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "cells"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "defaultSort": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "dir": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          "required": [
+            "column",
+            "dir"
+          ],
+          "additionalProperties": {}
+        },
+        "searchable": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "columns",
+        "rows"
+      ],
+      "additionalProperties": {}
+    },
+    "list": {
+      "title": "crontick list card data",
+      "description": "Not expressible in JSON Schema, enforced by the validator: item ids must be unique; an item with action requires id; due is YYYY-MM-DD or an RFC 3339 datetime; checkedAt is an RFC 3339 timestamp; link values must be http, https, mailto or ms-outlook. A bare string action (\"complete\") is accepted as shorthand for {\"type\":\"complete\"}.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "subtitle": {
+                "type": "string"
+              },
+              "checked": {
+                "type": "boolean"
+              },
+              "checkedAt": {
+                "type": "string"
+              },
+              "due": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "links": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "link"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "action": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "dismiss",
+                      "complete"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "dismiss",
+                          "complete"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "additionalProperties": {}
+                  }
+                ]
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "emptyText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": {}
+    },
+    "kpi": {
+      "title": "crontick kpi card data",
+      "description": "Not expressible in JSON Schema, enforced by the validator: data must use either \"items\" or the flat single-metric form (value, label, unit, state, trend, link at the top level), not both; the flat form is normalized to items of length 1. This schema describes the canonical \"items\" form only; link values must be http, https, mailto or ms-outlook.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "minItems": 1,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "pending",
+                  "fail",
+                  "warn"
+                ]
+              },
+              "trend": {
+                "type": "object",
+                "properties": {
+                  "delta": {
+                    "type": "number"
+                  },
+                  "dir": {
+                    "type": "string",
+                    "enum": [
+                      "up",
+                      "down",
+                      "flat"
+                    ]
+                  },
+                  "good": {
+                    "type": "string",
+                    "enum": [
+                      "up",
+                      "down"
+                    ]
+                  }
+                },
+                "required": [
+                  "delta"
+                ],
+                "additionalProperties": {}
+              },
+              "link": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "value"
+            ],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "additionalProperties": {}
+    },
+    "media": {
+      "title": "crontick media card data",
+      "description": "Not expressible in JSON Schema, enforced by the validator: src must be an http(s) URL or a data:image/* URI; link values must be http, https, mailto or ms-outlook.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "src": {
+                "type": "string"
+              },
+              "alt": {
+                "type": "string"
+              },
+              "caption": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "src"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "grid",
+            "single"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": {}
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick markdown card data",
+  "description": "Not expressible in JSON Schema: none beyond the text length limit.",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "maxLength": 100000
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "additionalProperties": {}
+}
