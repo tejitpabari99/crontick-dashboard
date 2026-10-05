@@ -58,3 +58,8 @@ Run on Windows and macOS (Linux desktop optional) with `npm run build` output an
 4. Deny notification permission (macOS System Settings > Notifications; Windows Settings > Notifications, "Crontick.Dashboard", check Focus Assist): no toast, no server error, in-page highlight still works.
 5. Drop 5 `notify:true` cards within 10 s: 3 toasts + 1 summary toast.
 6. Set `notifications.os` to `off`: no toasts, snapshot warning shows the reason.
+
+## Dependency audit
+
+- `node-notifier@10.0.1` pulls `uuid@8.3.2`. `npm audit --omit=dev` reports GHSA-w5hq-g745-h8pq (moderate): affects the `buf` arg of uuid v3/v5/v6. node-notifier only calls v4 without `buf`, so not reachable.
+- notify-send receives title/message as leading argv without `--`, so a card title starting with `-` may be parsed as an option (toast dropped/garbled; not code execution). Candidate hardening.
