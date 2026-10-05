@@ -1,0 +1,129 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { fakeClock } from '../../src/clock.js';
+import { startServer, type RunningServer } from '../../src/http/server.js';
+import { FakeNotifyAdapter } from '../../src/integrations/notify/index.js';
+import type { Snapshot } from '../../src/shared/api-types.js';
+
+let data: string;
+let ui: string;
+let running: RunningServer | undefined;
+const clock = fakeClock('2026-06-01T12:00:00Z');
+const feed = (n: string): string => join(data, 'feed', n);
+const T1 = '2026-06-01T10:00:00Z';
+const T2 = '2026-06-01T11:00:00Z';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const card = (id: string, over: Record<string, unknown> = {}): string =>
+  JSON.stringify({ id, kind: 'panel', type: 'markdown', title: id, updatedAt: T1, notify: true, data: { text: `hi ${id}` }, ...over });
+
+beforeEach(() => {
+  data = mkdtempSync(join(tmpdir(), 'ns-data-'));
+  ui = mkdtempSync(join(tmpdir(), 'ns-ui-'));
+  writeFileSync(join(ui, 'index.html'), '<html></html>');
+  mkdirSync(join(data, 'feed'), { recursive: true });
+});
+afterEach(async () => {
+  await running?.stop();
+  running = undefined;
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  rmSync(ui, { recursive: true, force: true });
+});
+
+const boot = async (adapter: FakeNotifyAdapter, extra: Record<string, unknown> = {}): Promise<RunningServer> =>
+  (running = await startServer({
+    env: { CRONTICK_DASHBOARD_HOME: data },
+    clock,
+    uiDir: ui,
+    port: 0,
+    notifyAdapter: adapter,
+    notifyPlatform: 'darwin',
+    ...extra,
+  }));
+const restart = async (adapter: FakeNotifyAdapter): Promise<RunningServer> => {
+  await running?.stop();
+  running = undefined;
+  return boot(adapter);
+};
+const snap = async (s: RunningServer): Promise<Snapshot> =>
+  (await (await fetch(`http://127.0.0.1:${s.port}/api/snapshot`)).json()) as Snapshot;
+
+describe('notifications wired into server', () => {
+  it('notify:true new fires once with deep link; restart unchanged fires nothing', async () => {
+    writeFileSync(feed('a.json'), card('a'));
+    const a1 = new FakeNotifyAdapter();
+    const s = await boot(a1);
+    expect(a1.calls).toHaveLength(1);
+    expect(a1.calls[0]).toMatchObject({ title: 'a', body: 'hi a', openUrl: `http://127.0.0.1:${s.port}/#card=a` });
+    const a2 = new FakeNotifyAdapter();
+    await restart(a2);
+    await sleep(200);
+    expect(a2.calls).toHaveLength(0);
+  });
+
+  it('changed-while-down fires on restart; live change fires once', async () => {
+    writeFileSync(feed('a.json'), card('a'));
+    await boot(new FakeNotifyAdapter());
+    await running!.stop();
+    running = undefined;
+    writeFileSync(feed('a.json'), card('a', { updatedAt: T2 }));
+    const a2 = new FakeNotifyAdapter();
+    const s = await boot(a2);
+    expect(a2.calls).toHaveLength(1);
+    writeFileSync(feed('a.json'), card('a', { updatedAt: '2026-06-01T11:30:00Z' }));
+    for (let i = 0; i < 100 && a2.calls.length < 2; i++) await sleep(50);
+    expect(a2.calls).toHaveLength(2);
+    expect(s.notifier.status().enabled).toBe(true);
+  });
+
+  it('notify:false, Broken and out-of-window fire nothing', async () => {
+    writeFileSync(feed('f.json'), card('f', { notify: false }));
+    writeFileSync(feed('broken.json'), '{ not json');
+    writeFileSync(feed('bad.json'), card('bad', { updatedAt: 'nope' }));
+    writeFileSync(feed('old.json'), card('old', { show: { cron: '0 0 1 1 *', for: '1h' } }));
+    const a = new FakeNotifyAdapter();
+    await boot(a);
+    await sleep(300);
+    expect(a.calls).toHaveLength(0);
+  });
+
+  it('server write-back of a complete item fires nothing', async () => {
+    writeFileSync(
+      feed('l1.json'),
+      card('l1', { type: 'list', data: { items: [{ id: 'c', text: 'C', action: 'complete' }] } }),
+    );
+    const a = new FakeNotifyAdapter();
+    const s = await boot(a);
+    expect(a.calls).toHaveLength(1); // the initial new card
+    const r = await fetch(`http://127.0.0.1:${s.port}/api/cards/l1/actions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+      body: JSON.stringify({ itemId: 'c', updatedAt: T1 }),
+    });
+    expect(r.status).toBe(200);
+    await sleep(400);
+    expect(a.calls).toHaveLength(1);
+  });
+
+  it('headless (gate off): no adapter call, no error, snapshot warning has reason', async () => {
+    writeFileSync(feed('a.json'), card('a'));
+    const a = new FakeNotifyAdapter();
+    const s = await boot(a, { notifyPlatform: 'linux', env: { CRONTICK_DASHBOARD_HOME: data, PATH: '' } });
+    await sleep(200);
+    expect(a.calls).toHaveLength(0);
+    expect(s.notifier.status()).toMatchObject({ enabled: false, mode: 'off' });
+    expect((await snap(s)).warnings.join('\n')).toContain('headless');
+  });
+
+  it('config notifications.os=off disables; stop disposes subscription', async () => {
+    writeFileSync(join(data, 'config.json'), JSON.stringify({ notifications: { os: 'off' } }));
+    writeFileSync(feed('a.json'), card('a'));
+    const a = new FakeNotifyAdapter();
+    const s = await boot(a);
+    await sleep(100);
+    expect(a.calls).toHaveLength(0);
+    expect(s.notifier.status().enabled).toBe(false);
+  });
+});
