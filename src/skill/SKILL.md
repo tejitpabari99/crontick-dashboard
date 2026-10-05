@@ -3,7 +3,7 @@ name: crontick-dashboard
 description: Write cards to the local crontick-dashboard feed so they show on the user's dashboard. Use when asked to "show on my dashboard", "write a dashboard card", "raise an alert", "notify me", or to publish a table, list, KPI, markdown or media panel (e.g. unread email, today's tasks, service health) for the user to see.
 allowed-tools: shell
 ---
-<!-- crontick-dashboard@0.0.0 -->
+<!-- crontick-dashboard@0.1.0 -->
 
 # crontick-dashboard — write cards the dashboard shows
 
