@@ -12,8 +12,8 @@ Source of truth: [PRD.md](PRD.md). The shell renders 02's snapshot and exposes t
 | 2 | API client and snapshot store | 1, 02#5 | done |
 | 3 | Optimistic mutations | 2, 02#8, 02#9 | done |
 | 4 | Pure libs: placement, search, seen, relative time | 1, 02#5 | done |
-| 5 | Client type registry, CardLink, error boundary | 1, 01 done | in-progress |
-| 6 | Card frame and Broken state | 3, 4, 5 | todo |
+| 5 | Client type registry, CardLink, error boundary | 1, 01 done | done |
+| 6 | Card frame and Broken state | 3, 4, 5 | in-progress |
 | 7 | Grid zone and layout persistence | 3, 4, 6 | todo |
 | 8 | Now zone, alert strip, Done tray | 6, 7 | todo |
 | 9 | Header, search, Hidden popover, shortcuts | 4, 7, 8 | todo |
