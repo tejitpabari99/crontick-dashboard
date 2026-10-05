@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 summary: 7 commit-sized tasks — Win/mac spike deciding the adapter, adapter, headless gate, notifier core, burst control, failure/warnings, wiring + acceptance.
 date: 2026-10-05
 ---
@@ -8,8 +8,8 @@ Source of truth: [PRD.md](PRD.md). OS notifications only (TickTick was removed 2
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Win/mac notification spike (decides adapter) | 01#1 | todo |
-| 2 | NotifyAdapter + chosen implementation | 1 | todo |
+| 1 | Win/mac notification spike (decides adapter) | 01#1 | owner-pending (Linux part done; Win/mac run is owner-only) |
+| 2 | NotifyAdapter + chosen implementation | 1 | in-progress |
 | 3 | Headless gate (`notifications.os` auto/on/off) | 02#1 | todo |
 | 4 | Notifier core: events to toasts | 2, 3, 02#6 | todo |
 | 5 | Burst control | 4 | todo |
