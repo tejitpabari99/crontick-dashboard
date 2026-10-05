@@ -44,3 +44,4 @@ export const listDataSchema = z
 
 export type ListItem = z.infer<typeof listItemSchema>;
 export type ListData = z.infer<typeof listDataSchema>;
+export type Action = z.infer<typeof actionSchema>;

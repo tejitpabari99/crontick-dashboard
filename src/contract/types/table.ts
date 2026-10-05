@@ -57,3 +57,4 @@ export type TableData = z.infer<typeof tableDataSchema>;
 export function cellText(cell: Cell): string | number | boolean | null {
   return cell !== null && typeof cell === 'object' ? cell.text : cell;
 }
+export type Column = z.infer<typeof columnSchema>;

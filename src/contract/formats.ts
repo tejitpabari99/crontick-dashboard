@@ -141,7 +141,8 @@ export function windowActive(
   } else {
     const midnight = new Cron('0 0 * * *', { ...cronOpts, paused: true }).previousRuns(1, new Date(now.getTime() + 1000))[0];
     // midnight is the latest local 00:00 at or before now; fall back to 24h if unavailable
-    lookbackFrom = midnight ?? new Date(now.getTime() - 86_400_000);
+    // look back from midnight - 1ms so a start at exactly 00:00 (exclusive nextRun) still counts
+    lookbackFrom = new Date((midnight ?? new Date(now.getTime() - 86_400_000)).getTime() - 1);
   }
   // Window is active iff a start occurrence exists in (lookbackFrom, now].
   const start = new Cron(show.cron, { ...cronOpts, paused: true }).nextRun(lookbackFrom);
