@@ -17,10 +17,19 @@ export default defineConfig([
   {
     ...common,
     format: ['esm'],
-    entry: { 'cli/index': 'src/cli/index.ts', 'cli/main': 'src/cli/main.ts', 'server/index': 'src/server/index.ts' },
+    entry: { 'cli/main': 'src/cli/main.ts', 'server/index': 'src/server/index.ts' },
     banner: shebang,
     clean: true,
     onSuccess: 'node scripts/copy-ui.mjs',
+  },
+  {
+    // Bin guard: ./main.js must stay a dynamic import (external) so nothing heavy loads before the Node-version check.
+    ...common,
+    format: ['esm'],
+    entry: { 'cli/index': 'src/cli/index.ts' },
+    external: [...common.external, './main.js'],
+    banner: shebang,
+    clean: false,
   },
   {
     ...common,
