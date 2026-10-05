@@ -7,6 +7,11 @@ export const MIN_POLL_MS = 15_000;
 export const MAX_POLL_MS = 60_000;
 export const HIDDEN_POLL_MS = 60_000;
 
+/** Retry delays (ms) while the server is down: 5 s, then 10 s, then 30 s. */
+export const DOWN_BACKOFF_MS = [5_000, 10_000, 30_000] as const;
+/** Consecutive failures that flip the UI to the Server down page. */
+export const DOWN_AFTER_FAILURES = 2;
+
 export function clampPollInterval(ms: number | undefined): number {
   if (typeof ms !== 'number' || !Number.isFinite(ms)) return DEFAULT_POLL_MS;
   return Math.min(MAX_POLL_MS, Math.max(MIN_POLL_MS, ms));
@@ -24,6 +29,10 @@ export interface StoreState {
   consecutiveFailures: number;
   /** Current poll interval (ms) in effect while visible. */
   pollIntervalMs: number;
+  /** Server considered down: snapshot is dropped and nothing cached is shown. */
+  serverDown: boolean;
+  /** Retry delay (ms) in effect while `serverDown`. */
+  retryMs: number;
 }
 
 export interface VisibilityDoc {
@@ -82,7 +91,10 @@ export function createSnapshotStore(opts: StoreOptions = {}): SnapshotStore {
     lastSuccessAt: null,
     consecutiveFailures: 0,
     pollIntervalMs: DEFAULT_POLL_MS,
+    serverDown: false,
+    retryMs: DOWN_BACKOFF_MS[0],
   };
+  let downFailures = 0;
   let etag: string | null = null;
   let timer: unknown = null;
   let inflight: Promise<void> | null = null;
@@ -102,7 +114,8 @@ export function createSnapshotStore(opts: StoreOptions = {}): SnapshotStore {
   function schedule(): void {
     clearTimer();
     if (listeners.size === 0) return;
-    timer = setT(() => void refetch(), isHidden() ? HIDDEN_POLL_MS : state.pollIntervalMs);
+    const delay = state.serverDown ? state.retryMs : isHidden() ? HIDDEN_POLL_MS : state.pollIntervalMs;
+    timer = setT(() => void refetch(), delay);
   }
 
   async function doFetch(): Promise<void> {
@@ -119,12 +132,39 @@ export function createSnapshotStore(opts: StoreOptions = {}): SnapshotStore {
           lastSuccessAt: now(),
           consecutiveFailures: 0,
           pollIntervalMs: clampPollInterval(snapshot.config?.pollIntervalMs),
+          serverDown: false,
+          retryMs: DOWN_BACKOFF_MS[0],
         });
+        downFailures = 0;
       } else {
-        set({ loading: false, loaded: state.snapshot !== null, lastSuccessAt: now(), consecutiveFailures: 0 });
+        set({
+          loading: false,
+          loaded: state.snapshot !== null,
+          lastSuccessAt: now(),
+          consecutiveFailures: 0,
+          serverDown: false,
+          retryMs: DOWN_BACKOFF_MS[0],
+        });
+        downFailures = 0;
       }
     } catch {
-      set({ loading: false, consecutiveFailures: state.consecutiveFailures + 1 });
+      const failures = state.consecutiveFailures + 1;
+      const stale = state.lastSuccessAt !== null && now() - state.lastSuccessAt > 2 * state.pollIntervalMs;
+      if (state.serverDown || failures >= DOWN_AFTER_FAILURES || !state.loaded || stale) {
+        downFailures = state.serverDown ? downFailures + 1 : 0;
+        // Drop everything cached: nothing stale may stay visible while the server is down.
+        etag = null;
+        set({
+          snapshot: null,
+          loading: false,
+          loaded: false,
+          consecutiveFailures: failures,
+          serverDown: true,
+          retryMs: DOWN_BACKOFF_MS[Math.min(downFailures, DOWN_BACKOFF_MS.length - 1)]!,
+        });
+      } else {
+        set({ loading: false, consecutiveFailures: failures });
+      }
     }
   }
 

@@ -15,6 +15,8 @@ export interface HeaderProps {
   alertCount: number;
   hidden: readonly ViewCard[];
   connectionOk: boolean;
+  /** Server down: only the theme toggle and the connection dot. */
+  minimal?: boolean;
   search: SearchBoxProps;
   onUnhide(id: string): void;
 }
@@ -29,13 +31,17 @@ export function Header(p: HeaderProps) {
     <header className="header">
       <h1 className="header__brand">Crontick</h1>
       <span className="header__date">{date}</span>
-      {p.alertCount > 0 ? (
+      {!p.minimal && p.alertCount > 0 ? (
         <button type="button" className="header__badge" aria-label={`${p.alertCount} ${p.alertCount === 1 ? 'alert' : 'alerts'}`} onClick={scrollToNow}>
           {p.alertCount}
         </button>
       ) : null}
-      <SearchBox {...p.search} />
-      <HiddenPopover cards={p.hidden} onUnhide={p.onUnhide} />
+      {p.minimal ? null : (
+        <>
+          <SearchBox {...p.search} />
+          <HiddenPopover cards={p.hidden} onUnhide={p.onUnhide} />
+        </>
+      )}
       <button type="button" className="header__btn" aria-label={`Theme: ${choice}`} onClick={() => setChoice(cycleTheme())}>
         {choice === 'dark' ? '☾' : choice === 'light' ? '☀' : '◐'}
       </button>

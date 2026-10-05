@@ -10,6 +10,7 @@ import { DoneTray } from './zones/DoneTray.tsx';
 import { Grid } from './zones/Grid.tsx';
 import { attentionCount, Header } from './zones/Header.tsx';
 import { NowZone } from './zones/NowZone.tsx';
+import { ServerDown } from './zones/ServerDown.tsx';
 import { ToastHost } from './zones/ToastHost.tsx';
 
 const HIGHLIGHT_MS = 2000;
@@ -25,6 +26,7 @@ export function App(props: AppProps = {}) {
   const { state } = useMutationView(m);
   const [query, setQuery] = useState('');
   const snap = state.snapshot;
+  const down = state.serverDown;
   const pick = (ids: readonly string[] | undefined): ViewCard[] =>
     (ids ?? []).map((id) => snap?.cards[id]).filter((c): c is ViewCard => Boolean(c));
   const alerts = useMemo(() => pick(snap?.zones.alerts), [snap]);
@@ -82,8 +84,10 @@ export function App(props: AppProps = {}) {
 
   const count = attentionCount(alerts, [...now, ...grid]);
   useEffect(() => {
-    document.title = count > 0 ? `(${count}) Crontick` : 'Crontick';
-  }, [count]);
+    document.title = down ? 'Server down' : count > 0 ? `(${count}) Crontick` : 'Crontick';
+  }, [count, down]);
+  const empty =
+    snap !== null && ['alerts', 'now', 'grid', 'tray', 'hidden'].every((z) => (snap.zones[z as keyof typeof snap.zones] ?? []).length === 0);
 
   return (
     <>
@@ -91,6 +95,7 @@ export function App(props: AppProps = {}) {
         alertCount={alerts.length}
         hidden={hidden}
         connectionOk={state.consecutiveFailures === 0}
+        minimal={down}
         onUnhide={(id) => void m.unhide(id)}
         search={{
           query,
@@ -103,7 +108,16 @@ export function App(props: AppProps = {}) {
         }}
       />
       <main>
-        {snap ? (
+        {down ? (
+          <ServerDown retryMs={state.retryMs} />
+        ) : empty ? (
+          <section className="empty-state" aria-labelledby="empty-state-h" data-testid="empty-state">
+            <h2 id="empty-state-h">No cards yet</h2>
+            <p>
+              Cards come from your feed folder. Run <code>crontick-dashboard info</code> to see the feed path.
+            </p>
+          </section>
+        ) : snap ? (
           <>
             <NowZone
               alerts={alerts}
@@ -119,6 +133,10 @@ export function App(props: AppProps = {}) {
               onHide={(id) => void m.hide(id)}
               onFullscreen={openFullscreen}
             />
+            <section aria-labelledby="grid-zone-h" className="grid-section">
+              <h2 id="grid-zone-h" className="sr-only">
+                Cards
+              </h2>
             <Grid
               cards={grid}
               layout={snap.layout}
@@ -141,11 +159,12 @@ export function App(props: AppProps = {}) {
                 />
               )}
             />
+            </section>
             <DoneTray cards={tray} onReopen={(id) => void m.undone(id)} />
           </>
         ) : null}
       </main>
-      {fsCard ? (
+      {fsCard && !down ? (
         <Fullscreen
           key={fsCard.id}
           card={fsCard}
@@ -159,7 +178,7 @@ export function App(props: AppProps = {}) {
           onClose={closeFullscreen}
         />
       ) : null}
-      <ToastHost store={toasts} />
+      {down ? null : <ToastHost store={toasts} />}
     </>
   );
 }

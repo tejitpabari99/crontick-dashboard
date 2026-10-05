@@ -23,7 +23,10 @@ export interface NowZoneProps {
 export function NowZone(p: NowZoneProps) {
   if (p.alerts.length === 0 && p.panels.length === 0) return null;
   return (
-    <section className="now-zone" aria-label="Now" data-testid="now-zone">
+    <section className="now-zone" aria-labelledby="now-zone-h" data-testid="now-zone">
+      <h2 id="now-zone-h" className="sr-only">
+        Now
+      </h2>
       <AlertStrip
         cards={p.alerts}
         query={p.query}

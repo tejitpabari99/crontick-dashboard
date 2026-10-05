@@ -92,6 +92,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
   };
 
   function compute(state: StoreState): MutationView {
+    if (state.serverDown) return { state, pending: new Map() };
     let snapshot = state.snapshot;
     const pending = new Map<string, Set<string>>();
     for (const op of ops) {
@@ -168,7 +169,11 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
   return {
     subscribe(listener) {
       listeners.add(listener);
-      const off = store.subscribe(listener);
+      const off = store.subscribe(() => {
+        // Server down: discard optimistic patches, pending sets and queued layout writes.
+        if (store.getSnapshot().serverDown && ops.length > 0) ops = [];
+        listener();
+      });
       return () => {
         listeners.delete(listener);
         off();
