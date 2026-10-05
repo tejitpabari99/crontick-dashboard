@@ -19,7 +19,7 @@ Source of truth: [PRD.md](PRD.md). The shell renders 02's snapshot and exposes t
 | 9 | Header, search, Hidden popover, shortcuts | 4, 7, 8 | done |
 | 10 | Fullscreen and deep links | 6, 8 | done |
 | 11 | Server-down, empty state, a11y pass | 3, 9, 10 | done |
-| 12 | Browser smoke test and build handoff | 11, 02 done | in-progress |
+| 12 | Browser smoke test and build handoff | 11, 02 done | done |
 
 ## Task 1 — UI scaffold and theme tokens
 What it is: the `ui/` Vite + React + TS app and the HSL-token theme (U1-U3, Theme section).
