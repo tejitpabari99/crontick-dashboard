@@ -30,7 +30,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "echo \"build pipeline (gen:schemas, vite, tsup) added in Task 2\" && exit 0",
+    "build": "npm run gen:schemas && npm run build:ui && tsup && node scripts/check-dist-built.mjs",
     "build:ui": "vite build ui",
     "gen:schemas": "tsx scripts/gen-schemas.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p ui",
@@ -74,6 +74,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-grid-layout": "^2.3.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
