@@ -3,7 +3,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer } from '../http/server.js';
 
-const uiDir = resolve(dirname(fileURLToPath(import.meta.url)), '../ui');
+// CRONTICK_DASHBOARD_UI_DIR overrides the built UI location (used by lifecycle tests running from source).
+const uiDir = process.env['CRONTICK_DASHBOARD_UI_DIR'] ?? resolve(dirname(fileURLToPath(import.meta.url)), '../ui');
 const log = (m: string): void => void console.log(`${new Date().toISOString()} ${m}`);
 
 const running = await startServer({

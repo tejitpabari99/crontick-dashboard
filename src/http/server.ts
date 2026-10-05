@@ -9,6 +9,7 @@ import { createArchive } from '../feed/archive.js';
 import { createCardEvents, type CardEvents } from '../feed/events.js';
 import { createFeedWatcher } from '../feed/watcher.js';
 import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
+import { claimPidFile, releasePidFile } from '../pid.js';
 import { createStateStore } from '../state/store.js';
 import { createWarnings, type Warnings } from '../state/warnings.js';
 import type { ActionDeps } from '../actions/registry.js';
@@ -54,6 +55,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
   assertUiBuilt(opts.uiDir);
 
   ensureDirs(env);
+  await claimPidFile(env);
   const dataDir = dataDirOf(env);
   const config = createConfigReader(env);
   const state = createStateStore({ env, clock });
@@ -95,6 +97,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
         });
       }
       rmSync(portFilePath(env), { force: true });
+      releasePidFile(env);
     })();
     return stopped;
   };
