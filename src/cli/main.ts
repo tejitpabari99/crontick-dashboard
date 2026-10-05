@@ -9,11 +9,12 @@ import { Command, CommanderError } from 'commander';
 import { packageAssets } from './assets.js';
 import { CliError, processIo, type CliContext, type CliIo } from './io.js';
 import { registerValidate } from './commands/validate.js';
+import { registerTemplates } from './commands/templates.js';
 
 export type { CliIo, CliContext } from './io.js';
 export { CliError } from './io.js';
 
-const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate];
+const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate, registerTemplates];
 
 function version(): string {
   const pkg = JSON.parse(readFileSync(join(packageAssets().root, 'package.json'), 'utf8')) as { version: string };
