@@ -14,6 +14,7 @@ Server side, `src/contract/registry.ts` is the single registry; each type is one
 - **Do** expose type-specific behaviour (search text, summary) as a field on the registered module.
 - **Don't** write `if (card.type === 'table')` / `switch (type)` in the core, server, frame, zones, or notifier.
 - **Don't** let one type's needs leak into the shared `CardTypeDef` / `TypeEntry` shape other types must implement.
+- **Do** derive `KnownType` from the registry (`keyof typeof registry`); never list type names twice. Type-level maps that name types (e.g. `DataByType` in `ui/src/registry/registry.ts`) are allowed.
 
 ## 2. Work modular
 
@@ -21,7 +22,7 @@ Anything that can be a standalone, reusable function should be one.
 
 **Rationale:** modular helpers are independently testable and stop the same logic getting reimplemented (and re-diverging) in two places.
 
-Shared helpers live in `src/utils/` (server/CLI/contract) and `ui/src/lib/` (UI) — one concern per file, pure where possible, unit-tested. Cross-boundary API types live in `src/shared/`; type-local helpers stay inside their `ui/src/types/<type>/` folder (`logic.ts`, `shared/`).
+Shared helpers live in `src/utils/` (server/CLI/contract) and `ui/src/lib/` (UI) — one concern per file, pure where possible, unit-tested. `src/utils/` is the home for new shared helpers (e.g. `timers`, `sleep`, `retry`, `port`, `errors`); the established injectable-time modules `src/clock.ts` and `src/instant.ts` stay at the src root. Cross-boundary API types live in `src/shared/`; type-local helpers stay inside their `ui/src/types/<type>/` folder (`logic.ts`, `shared/`).
 
 - **Do** extract a helper as soon as a second call site needs the same logic.
 - **Do** keep each utils file scoped to one concern (durations, time formatting, path resolution) rather than a catch-all `helpers.ts`.
@@ -30,7 +31,7 @@ Shared helpers live in `src/utils/` (server/CLI/contract) and `ui/src/lib/` (UI)
 
 ## 3. Constants in one place
 
-All constants — especially anything used in more than one file, including tests — plus default config values live in `src/constants/` (server/CLI/contract), grouped by domain (e.g. `src/constants/feed.ts`, `src/constants/http.ts`, `src/constants/notify.ts`), and `ui/src/constants/` for the UI (polling, grid, storage keys).
+Constants that are shared (used in more than one file, including tests), tunable (default config values), or wire/format values (header names, storage keys, env var names, codes) live in `src/constants/` (server/CLI/contract), grouped by domain (e.g. `src/constants/feed.ts`, `src/constants/http.ts`, `src/constants/notify.ts`), and `ui/src/constants/` for the UI (polling, grid, storage keys). Constants files are dependency-free leaf modules; the UI may import cross-boundary values from `src/constants/`. File-private implementation details (regexes, MIME map, file modes, per-renderer caps) may stay un-exported in their file or type folder (`ui/src/types/<type>/logic.ts`).
 
 **Rationale:** a magic number duplicated between source and test can drift silently; a test that imports the same constant as the source it tests can't drift from it.
 
@@ -38,12 +39,14 @@ All constants — especially anything used in more than one file, including test
 - **Do** have tests import the constant, not re-declare its value.
 - **Don't** inline a literal (timeout, retry count, default port, limit, storage key) that appears, or is likely to appear, in more than one file.
 - **Don't** declare `export const FOO_MS` at the top of a feature file for others to import.
+- **Do** keep single-file private constants local and un-exported.
 
 ## 4. Single core, thin shims
 
 CLI commands (`src/cli/`) and HTTP routes (`src/http/`) are adapters over core modules (`src/contract`, `src/compute`, `src/feed`, `src/state`, `src/actions`). They parse transport input, call one core function, and format the result. Validation, visibility/Now computation, and orchestration live in the core, so `crontick-dashboard validate` and the server accept exactly the same cards.
 
 - **Do** put validation, error construction, and orchestration in core modules.
+- **Exempt:** composition roots (`src/http/server.ts`, `src/server/index.ts`, `src/cli/main.ts`) wire core modules together; CLI presentation formatting (tables, `render()`) belongs in `src/cli/`.
 - **Don't** add a CLI-only or HTTP-only branch of logic that the other surface doesn't get.
 
 ## 5. Side effects behind injectable interfaces
@@ -51,18 +54,22 @@ CLI commands (`src/cli/`) and HTTP routes (`src/http/`) are adapters over core m
 Filesystem, timing (clock/timers), process spawning, and OS notifications are accessed through injectable interfaces (e.g. `Clock`, `Timers`, `NotifyAdapter`, `CliIo`), never called as bare globals from business logic.
 
 - **Do** accept a `clock`/`timers`/`fs`/`spawn`/`notifier`-like dependency with a real default, so tests can substitute a fake (`fakeClock`, notify `fake`).
-- **Don't** call `child_process.spawn`, `Date.now()`, `new Date()`, `setInterval`, or `fs.*` directly from deep inside logic a test would otherwise need to run for real.
+- **Don't** call `child_process.spawn`, `Date.now()`, `new Date()`, or `setInterval` directly from deep inside logic a test would otherwise need to run for real.
+- **Clock, timers, process spawn, and the notifier** must be injectable wherever logic depends on them. Direct `node:fs` is acceptable in dedicated I/O-boundary modules (store, archive, ingest/watcher, pid, config, paths, static, skill install, write-back) whose tests use temp dirs; flag `fs` only inside decision logic that is hard to test.
+- **Allowed:** `process.kill`/`process.pid` in the pid/lifecycle boundary; `new Date(x)` conversions (not clock reads); process entry points (`src/server/index.ts`, `src/cli/index.ts`).
+- **UI:** components may use bare `Date.now`/`setTimeout` (tests use vitest fake timers); non-React lib logic with module state should accept `now`/timers (as `api/store.ts` does).
 
 ## 6. No dead code, no legacy paths
 
 Pre-1.0, a removed feature is removed, not deprecated-and-kept. A capability that's gone is guarded by a regression test proving it stays gone.
 
 - **Do** delete the old code path in the same change that removes the feature.
+- **Don't** export symbols from `src/` only for tests; put test oracles in `tests/`.
 - **Don't** leave a flag, branch, or config option "just in case" once its feature is gone — reintroducing a removed feature requires explicit sign-off explaining why the original removal rationale no longer applies.
 
 ## 7. Actionable errors
 
-Every error surfaced to a consumer is a typed error with a machine-readable `code` and a message that tells the user what to do, not just what went wrong. CLI failures use `CliError` (message + exit code); HTTP errors return `{ error, code }` with a proper status; card problems surface as Broken with a reason naming the fix.
+Every error surfaced to a consumer is a typed error with a machine-readable `code` and a message that tells the user what to do, not just what went wrong. CLI failures use `CliError` (message + exit code); HTTP errors return `{ error, code }` with a proper status; card problems surface as Broken with a reason naming the fix. For the CLI, "code" means the `CliError` exit code plus the error `code` in `--verbose`/JSON output. Internal pure helpers (e.g. `parseDuration`, assertions) may throw plain `Error` when always caught and converted at the boundary.
 
 - **Do** give a new failure mode its own code and a message that names the fix (e.g. "run `crontick-dashboard info`").
 - **Don't** surface a raw `Error`, a stack trace, or a message that only restates the failure with no next step.
