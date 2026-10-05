@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
+import { envelope } from '../feed/ingest.js';
 import type { AppContext } from './app.js';
 import { buildSnapshot } from './app.js';
 
@@ -52,7 +53,7 @@ export function mountMutations(app: Hono, ctx: AppContext): void {
     const id = c.req.param('id');
     const entry = ctx.cards.get(id);
     if (!entry) return ticked.has(id) ? ok(c) : c.json({ error: 'not found' }, 404);
-    if (entry.status !== 'ok' || entry.card['kind'] !== 'alert') return c.json({ error: 'not an alert' }, 400);
+    if (entry.status !== 'ok' || envelope(entry.card).kind !== 'alert') return c.json({ error: 'not an alert' }, 400);
     try {
       await moveToDone(ctx, entry.file);
       ctx.refreshFeed(entry.file);
@@ -68,7 +69,7 @@ export function mountMutations(app: Hono, ctx: AppContext): void {
     if (!entry) return c.json({ error: 'not found' }, 404);
     if (entry.status !== 'ok') return c.json({ error: 'card is broken' }, 400);
     try {
-      await ctx.state.ack(entry.key, String(entry.card['updatedAt']));
+      await ctx.state.ack(entry.key, envelope(entry.card).updatedAt);
     } catch (err) {
       return fail(c, err);
     }

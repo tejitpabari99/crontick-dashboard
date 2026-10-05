@@ -11,6 +11,7 @@ import { type Clock, realClock } from '../clock.js';
 import { statePath } from '../paths.js';
 
 export const PRUNE_AFTER_MS = 30 * 86_400_000;
+const LAST_SEEN_GRANULARITY_MS = 3_600_000;
 
 const rec = <T extends z.ZodType>(v: T) => z.record(z.string(), v);
 const CheckSchema = z.object({ updatedAt: z.string(), items: z.array(z.string()) });
@@ -48,6 +49,34 @@ function nullMap<T>(src?: Record<string, T>): Record<string, T> {
   return out;
 }
 
+function cloneChecks(src: Record<string, CheckEntry>): Record<string, CheckEntry> {
+  const out = nullMap<CheckEntry>();
+  for (const k of Object.keys(src)) out[k] = { updatedAt: src[k]!.updatedAt, items: [...src[k]!.items] };
+  return out;
+}
+
+function snapshotOf(s: StateData): StateData {
+  return {
+    version: 1,
+    acks: nullMap(s.acks),
+    hidden: nullMap(s.hidden),
+    layout: structuredClone(s.layout),
+    checks: cloneChecks(s.checks),
+    notified: nullMap(s.notified),
+    lastSeen: nullMap(s.lastSeen),
+  };
+}
+
+/** Restore `s` in place (callers hold the `get()` reference). */
+function restore(s: StateData, from: StateData): void {
+  s.acks = from.acks;
+  s.hidden = from.hidden;
+  s.layout = from.layout;
+  s.checks = from.checks;
+  s.notified = from.notified;
+  s.lastSeen = from.lastSeen;
+}
+
 function defaults(): StateData {
   return {
     version: 1,
@@ -83,7 +112,8 @@ export interface StateStore {
   /** Marks present ids as seen now; prunes entries for ids absent > 30 days. */
   reconcile(presentIds: ReadonlySet<string>): Promise<void>;
   /** Generic serialized mutation. */
-  mutate(fn: (state: StateData) => void): Promise<void>;
+  /** `fn` may return `false` to signal "nothing changed" (skips the write). On write failure the in-memory state is rolled back. */
+  mutate(fn: (state: StateData) => void | boolean): Promise<void>;
 }
 
 const RENAME_TRIES = 5;
@@ -151,10 +181,17 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
   }
 
   let queue: Promise<void> = Promise.resolve();
-  function mutate(fn: (s: StateData) => void): Promise<void> {
+  function mutate(fn: (s: StateData) => void | boolean): Promise<void> {
     const run = queue.then(async () => {
-      fn(state);
-      await write();
+      const before = snapshotOf(state);
+      try {
+        const changed = fn(state);
+        if (changed === false) return;
+        await write();
+      } catch (err) {
+        restore(state, before); // memory must not diverge from disk
+        throw err;
+      }
     });
     queue = run.catch(() => undefined);
     return run;
@@ -176,25 +213,33 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
     setNotified: (id, updatedAt) => mutate((s) => void (s.notified[id] = updatedAt)),
     reconcile: (present) =>
       mutate((s) => {
+        // No state.json until the first real mutation: nothing to track or prune before that.
+        if (!existsSync(file)) return false;
         const now = clock.now();
         const nowIso = now.toISOString();
+        let changed = false;
+        const touch = (id: string): void => {
+          s.lastSeen[id] = nowIso;
+          changed = true;
+        };
         const ids = new Set<string>();
         for (const k of MAP_KEYS) for (const id of Object.keys(s[k])) ids.add(id);
-        for (const id of present) s.lastSeen[id] = nowIso;
+        for (const id of present) {
+          const seen = Object.hasOwn(s.lastSeen, id) ? Date.parse(s.lastSeen[id]!) : NaN;
+          // Coarse refresh (>1h) so hourly reconciles do not rewrite state.json for nothing.
+          if (Number.isNaN(seen) || now.getTime() - seen > LAST_SEEN_GRANULARITY_MS) touch(id);
+        }
         for (const id of ids) {
           if (present.has(id)) continue;
-          const seen = s.lastSeen[id];
-          if (seen === undefined) {
-            s.lastSeen[id] = nowIso;
-            continue;
-          }
-          const t = Date.parse(seen);
-          if (Number.isNaN(t)) {
-            s.lastSeen[id] = nowIso;
-          } else if (now.getTime() - t > PRUNE_AFTER_MS) {
+          const seen = Object.hasOwn(s.lastSeen, id) ? s.lastSeen[id] : undefined;
+          const t = seen === undefined ? NaN : Date.parse(seen);
+          if (Number.isNaN(t)) touch(id);
+          else if (now.getTime() - t > PRUNE_AFTER_MS) {
             for (const k of MAP_KEYS) delete s[k][id];
+            changed = true;
           }
         }
+        return changed;
       }),
   };
 }

@@ -2,6 +2,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { sameInstant } from '../instant.js';
 import type { ActionDeps, ActionRequest, ActionResult } from './registry.js';
 
 const CHANGED: ActionResult = { ok: false, status: 409, error: 'card changed, retry' };
@@ -36,13 +37,6 @@ function findItem(obj: Obj, itemId: string): Obj | undefined {
   if (!Array.isArray(items)) return undefined;
   const it = items.find((i) => isObj(i) && i['id'] === itemId);
   return isObj(it) && isComplete(it['action']) ? it : undefined;
-}
-
-function sameInstant(a: unknown, b: string): boolean {
-  if (typeof a !== 'string') return false;
-  if (a === b) return true;
-  const x = Date.parse(a);
-  return !Number.isNaN(x) && x === Date.parse(b);
 }
 
 export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): Promise<ActionResult> {

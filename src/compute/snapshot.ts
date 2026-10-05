@@ -2,7 +2,8 @@
 import { createHash } from 'node:crypto';
 import type { DashboardConfig } from '../config.js';
 import { parseDuration, windowActive } from '../contract/formats.js';
-import type { CardEntry, OkEntry } from '../feed/ingest.js';
+import { envelope, type CardEnvelope, type CardEntry, type OkEntry } from '../feed/ingest.js';
+import { sameInstant } from '../instant.js';
 import type { LayoutItem, Snapshot, ViewCard, ViewReason, Zones } from '../shared/api-types.js';
 import type { StateData } from '../state/store.js';
 
@@ -11,34 +12,11 @@ interface Show {
   for?: string;
 }
 
-/** Narrow, typed view of the envelope fields compute needs (Card fields surface as unknown). */
-interface Env {
-  id: string;
-  kind: 'panel' | 'alert';
-  type: string;
-  title: string;
-  updatedAt: string;
-  priority: number;
-  notify: boolean;
-  size?: 'S' | 'M' | 'L';
-  show?: Show;
-  staleAfter?: string;
-  error: string | null;
-  data?: Record<string, unknown>;
-}
-const env = (card: OkEntry['card']): Env => card as unknown as Env;
-
 interface Item {
   view: ViewCard;
   hasCron: boolean;
   windowOn: boolean;
 }
-
-const sameInstant = (a: string, b: string): boolean => {
-  const x = Date.parse(a);
-  const y = Date.parse(b);
-  return a === b || (!Number.isNaN(x) && x === y);
-};
 
 export function inWindow(show: Show | undefined, now: Date, timezone: string): boolean {
   try {
@@ -48,7 +26,7 @@ export function inWindow(show: Show | undefined, now: Date, timezone: string): b
   }
 }
 
-export function brokenReason(card: Env, now: Date): { reason: ViewReason; message: string } | null {
+export function brokenReason(card: CardEnvelope, now: Date): { reason: ViewReason; message: string } | null {
   if (card.error !== null && card.error !== undefined && card.error !== '') return { reason: 'error', message: card.error };
   if (card.staleAfter !== undefined) {
     try {
@@ -64,7 +42,7 @@ export function brokenReason(card: Env, now: Date): { reason: ViewReason; messag
 }
 
 function okItem(e: OkEntry, st: Readonly<StateData>, now: Date, tz: string): Item | null {
-  const c = env(e.card);
+  const c = envelope(e.card);
   const show = c.show;
   if (!inWindow(show, now, tz)) return null;
   const view: ViewCard = {

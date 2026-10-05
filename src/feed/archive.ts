@@ -7,7 +7,7 @@ import { mkdirSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, utimes
 import { join } from 'node:path';
 import { parseDuration } from '../contract/formats.js';
 import type { Clock } from '../clock.js';
-import type { IngestInfo } from './ingest.js';
+import { envelope, type IngestInfo } from './ingest.js';
 
 export interface ArchiveTimers {
   setInterval(fn: () => void, ms: number): unknown;
@@ -152,7 +152,8 @@ export function createArchive(opts: ArchiveOptions): Archive {
 
   function onIngest(info: IngestInfo): void {
     if (info.selfWrite) return;
-    const id = String(info.card['id']);
+    const e = envelope(info.card);
+    const id = e.id;
     if (!validId(id)) return;
     const hash = canonicalHash(info.text);
     if (hash === undefined) return;
@@ -162,15 +163,14 @@ export function createArchive(opts: ArchiveOptions): Archive {
     const newest = vs[vs.length - 1];
     if (!newest || HASH_RE.exec(newest.name)?.[1] !== hash8) {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
-      const name = `${safeStamp(String(info.card['updatedAt']))}-${hash8}.json`;
+      const name = `${safeStamp(e.updatedAt)}-${hash8}.json`;
       const tmp = join(dir, `.${name}.tmp`);
       writeFileSync(tmp, info.text, { mode: 0o600 });
       const now = opts.clock.now();
       utimesSync(tmp, now, now);
       renameSync(tmp, join(dir, name));
     }
-    const retention = info.card['retention'];
-    pruneId(id, typeof retention === 'string' ? retention : undefined, true);
+    pruneId(id, e.retention, true);
   }
 
   return {

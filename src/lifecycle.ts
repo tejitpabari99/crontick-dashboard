@@ -29,6 +29,8 @@ export interface DaemonStatus {
   dataDir: string;
   /** True when leftover pid/port files from a dead or foreign process were found (and removed). */
   stale?: boolean;
+  /** Pid is alive but /api/health did not answer as this server (busy or wedged); files are kept. */
+  unhealthy?: boolean;
 }
 
 export interface DaemonOptions {
@@ -76,8 +78,12 @@ export async function daemonStatus(opts: DaemonOptions = {}): Promise<DaemonStat
       return { running: true, pid, port, url: `http://127.0.0.1:${port}`, dataDir };
     }
   }
-  // Not healthy. A live pid with no port file may be a server that is still starting: leave it alone.
-  if (pid !== undefined && port === undefined && isPidAlive(pid)) return { running: false, dataDir };
+  if (pid !== undefined && isPidAlive(pid)) {
+    // Live pid: never remove its files (a second server could then start on the same data dir).
+    // Port file but no healthy answer => busy/unhealthy server, still running. No port file => still starting.
+    if (port === undefined) return { running: false, dataDir };
+    return { running: true, pid, port, url: `http://127.0.0.1:${port}`, dataDir, unhealthy: true };
+  }
   rmSync(pidFilePath(env), { force: true });
   rmSync(portFilePath(env), { force: true });
   return hadFiles ? { running: false, dataDir, stale: true } : { running: false, dataDir };

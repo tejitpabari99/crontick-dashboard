@@ -32,12 +32,32 @@ export interface BrokenEntry {
 }
 export type CardEntry = OkEntry | BrokenEntry;
 
+/** Typed view of the validated card envelope (the 01 `Card` type surfaces its fields as unknown). */
+export interface CardEnvelope {
+  id: string;
+  kind: 'panel' | 'alert';
+  type: string;
+  title: string;
+  updatedAt: string;
+  priority: number;
+  notify: boolean;
+  show?: { cron: string; for?: string };
+  staleAfter?: string;
+  retention?: string;
+  size?: 'S' | 'M' | 'L';
+  error?: string | null;
+  data?: Record<string, unknown>;
+}
+export const envelope = (card: Card): CardEnvelope => card as unknown as CardEnvelope;
+
 export interface CardChange {
   type: 'new' | 'changed' | 'removed';
   key: string;
   file: string;
   entry?: CardEntry;
   prev?: CardEntry;
+  /** True when the ingest that caused this change was a server write-back (never fires events). */
+  selfWrite?: boolean;
 }
 
 /** Fired for every accepted (valid) ingest, before the store is rebuilt. Seam for archive (T4) / self-write (T10). */
@@ -160,17 +180,17 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
   }
 
   function stamp(card: Card): number {
-    const t = Date.parse(String(card['updatedAt']));
+    const t = Date.parse(envelope(card).updatedAt);
     return Number.isNaN(t) ? 0 : t;
   }
 
-  function rebuild(): void {
+  function rebuild(selfWrite = false): void {
     const next = new Map<string, CardEntry>();
     const okByKey = new Map<string, FileRec[]>();
     const broken: FileRec[] = [];
     for (const r of recs.values()) {
       if (r.parsed.ok) {
-        const id = String(r.parsed.card['id']);
+        const id = envelope(r.parsed.card).id;
         const list = okByKey.get(id) ?? [];
         list.push(r);
         okByKey.set(id, list);
@@ -228,9 +248,9 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     entries = next;
     for (const [key, e] of next) {
       const old = prev.get(key);
-      if (!old) emit({ type: 'new', key, file: e.file, entry: e });
+      if (!old) emit({ type: 'new', key, file: e.file, entry: e, ...(selfWrite ? { selfWrite } : {}) });
       else if (old.hash !== e.hash || old.file !== e.file || old.status !== e.status || (old.status === 'broken' && e.status === 'broken' && old.message !== e.message))
-        emit({ type: 'changed', key, file: e.file, entry: e, prev: old });
+        emit({ type: 'changed', key, file: e.file, entry: e, prev: old, ...(selfWrite ? { selfWrite } : {}) });
     }
     for (const [key, old] of prev) if (!next.has(key)) emit({ type: 'removed', key, file: old.file, prev: old });
   }
@@ -243,9 +263,9 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     }
   }
 
-  function setRec(name: string, rec: FileRec): void {
+  function setRec(name: string, rec: FileRec, selfWrite = false): void {
     recs.set(name, rec);
-    rebuild();
+    rebuild(selfWrite);
   }
 
   function remove(name: string): void {
@@ -344,10 +364,11 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     if (!parsed.ok && (parsed.reason === 'malformed-json' || parsed.reason === 'unreadable')) return 'settling';
     clearSettling(name);
     const rec: FileRec = { name, hash, mtimeMs: r.mtimeMs, size: r.size, parsed };
+    let selfWrite = false;
     // Same bytes and mtime already ingested (e.g. watcher event after a synchronous write-back refresh): no hook call.
     const prevRec = recs.get(name);
     if (parsed.ok && !(prevRec?.hash === hash && prevRec.mtimeMs === r.mtimeMs)) {
-      const selfWrite = selfWrites.get(name) === hash;
+      selfWrite = selfWrites.get(name) === hash;
       if (selfWrite) selfWrites.delete(name);
       try {
         opts.onIngest?.({ file: name, text, hash, mtimeMs: r.mtimeMs, card: parsed.card, selfWrite });
@@ -355,7 +376,7 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
         /* hook errors must not break ingest */
       }
     }
-    setRec(name, rec);
+    setRec(name, rec, selfWrite);
     return 'done';
   }
 

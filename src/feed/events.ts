@@ -5,7 +5,7 @@
  * `card:changed` only when the card is non-Broken (status ok, no `error`, not stale), inside its show
  * window (config timezone), and its `updatedAt` differs from `state.notified[id]`; afterwards it stamps
  * `notified[id]`. Because the startup scan reports every card as `new`, restarts re-emit only cards that
- * changed while down. Server write-backs keep `updatedAt`, so they never fire.
+ * changed while down. Server write-backs (`change.selfWrite`) never fire or stamp.
  * Suppressed (broken / out-of-window) cards are NOT stamped.
  *
  * `card:removed` semantics: fires when a previously ok, non-Broken card disappears from the store
@@ -17,7 +17,8 @@ import type { Card } from '../contract/validate.js';
 import { brokenReason, inWindow } from '../compute/snapshot.js';
 import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';
-import type { CardChange, CardEntry } from './ingest.js';
+import { sameInstant } from '../instant.js';
+import { envelope, type CardChange, type CardEntry } from './ingest.js';
 
 export type CardEventType = 'card:new' | 'card:changed' | 'card:removed';
 export interface CardEventPayload {
@@ -47,18 +48,6 @@ export interface CardEventsHandle {
   flush(): Promise<void>;
 }
 
-interface Env {
-  updatedAt: string;
-  error: string | null;
-  staleAfter?: string;
-  show?: { cron: string; for?: string };
-}
-const env = (c: Card): Env => c as unknown as Env;
-const same = (a: string, b: string): boolean => {
-  const x = Date.parse(a);
-  return a === b || (!Number.isNaN(x) && x === Date.parse(b));
-};
-
 export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
   const listeners: Record<CardEventType, Set<CardEventListener>> = {
     'card:new': new Set(),
@@ -86,9 +75,9 @@ export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
   }
 
   function notifiable(card: Card): boolean {
-    const e = env(card);
+    const e = envelope(card);
     const now = opts.clock.now();
-    return brokenReason(e as never, now) === null && inWindow(e.show, now, opts.getTimezone());
+    return brokenReason(e, now) === null && inWindow(e.show, now, opts.getTimezone());
   }
 
   function stamp(id: string, updatedAt: string): void {
@@ -105,17 +94,18 @@ export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
   return {
     events,
     onChange(change) {
+      if (change.selfWrite) return; // server write-backs never fire events
       if (change.type === 'removed') {
         const card = okCard(change.prev);
-        if (card && brokenReason(env(card) as never, opts.clock.now()) === null) emit('card:removed', { card, file: change.file });
+        if (card && brokenReason(envelope(card), opts.clock.now()) === null) emit('card:removed', { card, file: change.file });
         return;
       }
       const card = okCard(change.entry);
       if (!card) return;
-      const updatedAt = env(card).updatedAt;
+      const updatedAt = envelope(card).updatedAt;
       const st = opts.state.get();
       const last = Object.hasOwn(st.notified, change.key) ? st.notified[change.key] : undefined;
-      if (last !== undefined && same(last, updatedAt)) return;
+      if (last !== undefined && sameInstant(last, updatedAt)) return;
       if (!notifiable(card)) return;
       const prev = okCard(change.prev);
       emit(change.type === 'new' ? 'card:new' : 'card:changed', { card, ...(prev ? { prev } : {}), file: change.file });

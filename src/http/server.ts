@@ -4,9 +4,10 @@ import { rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { type Clock, realClock } from '../clock.js';
-import { createConfigReader, resolvePort } from '../config.js';
+import { type ConfigReader, createConfigReader, resolvePort } from '../config.js';
 import { createArchive } from '../feed/archive.js';
 import { createCardEvents, type CardEvents } from '../feed/events.js';
+import { envelope } from '../feed/ingest.js';
 import { createFeedWatcher } from '../feed/watcher.js';
 import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
 import { claimPidFile, releasePidFile } from '../pid.js';
@@ -43,9 +44,12 @@ export interface RunningServer {
   stop(): Promise<void>;
   events: CardEvents;
   warnings: Warnings;
+  /** Live config reader (`get().config`, mtime-based reload) for consumers such as 05-notifications. */
+  config: ConfigReader;
   address(): AddressInfo;
 }
 
+const RECONCILE_INTERVAL_MS = 3_600_000;
 const nullLogger: ServerLogger = { info: () => {}, warn: () => {} };
 
 export async function startServer(opts: StartServerOptions): Promise<RunningServer> {
@@ -71,15 +75,22 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     cards: () => {
       const m = new Map<string, string | undefined>();
       for (const e of watcher.store.list()) {
-        if (e.status === 'ok') {
-          const r = e.card['retention'];
-          m.set(e.key, typeof r === 'string' ? r : undefined);
-        }
+        if (e.status === 'ok') m.set(e.key, envelope(e.card).retention);
       }
       return m;
     },
   });
   watcher = createFeedWatcher({ feedDir: feedDir(env), onIngest: archive.onIngest, onChange: events.onChange });
+
+  let reconcileTimer: NodeJS.Timeout | undefined;
+  const reconcileState = (): void => {
+    const present = new Set<string>();
+    for (const e of watcher.store.list()) {
+      if (e.status === 'ok') present.add(e.key);
+      else if (e.id !== undefined) present.add(e.id); // a temporarily broken card keeps its owner state
+    }
+    state.reconcile(present).catch((err: unknown) => logger.warn(`state reconcile failed: ${err instanceof Error ? err.message : String(err)}`));
+  };
 
   let boundPort = 0;
   let stopped: Promise<void> | undefined;
@@ -87,6 +98,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
 
   const stop = (): Promise<void> => {
     stopped ??= (async () => {
+      if (reconcileTimer) clearInterval(reconcileTimer);
       watcher.stop();
       archive.stop();
       await events.flush().catch(() => {});
@@ -140,6 +152,9 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     writeFileSync(portFilePath(env), `${boundPort}\n`);
     watcher.start();
     archive.start();
+    reconcileState();
+    reconcileTimer = setInterval(reconcileState, RECONCILE_INTERVAL_MS);
+    reconcileTimer.unref();
   } catch (err) {
     await stop();
     throw err;
@@ -153,6 +168,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     stop,
     events: events.events,
     warnings,
+    config,
     address: () => srv.address() as AddressInfo,
   };
 }

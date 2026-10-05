@@ -2,6 +2,8 @@
 import type { OkEntry } from '../feed/ingest.js';
 import type { StateStore } from '../state/store.js';
 import type { Clock } from '../clock.js';
+import { envelope } from '../feed/ingest.js';
+import { sameInstant } from '../instant.js';
 import { completeWriteBack } from './writeback.js';
 
 export type ActionType = 'dismiss' | 'complete';
@@ -35,9 +37,9 @@ export type ActionHandler = (req: ActionRequest, deps: ActionDeps) => Promise<Ac
 const dismiss: ActionHandler = async ({ entry, itemId, checked, updatedAt }, { state }) => {
   if (!checked) return { ok: false, status: 400, error: 'dismiss cannot be unchecked' };
   const cur = Object.hasOwn(state.get().checks, entry.key) ? state.get().checks[entry.key] : undefined;
-  const same = cur !== undefined && Date.parse(cur.updatedAt) === Date.parse(updatedAt);
+  const same = cur !== undefined && sameInstant(cur.updatedAt, updatedAt);
   const items = same ? cur.items : [];
-  if (!items.includes(itemId)) await state.setChecks(entry.key, String(entry.card['updatedAt']), [...items, itemId]);
+  if (!items.includes(itemId)) await state.setChecks(entry.key, envelope(entry.card).updatedAt, [...items, itemId]);
   return { ok: true };
 };
 
