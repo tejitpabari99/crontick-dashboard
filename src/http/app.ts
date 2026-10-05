@@ -8,6 +8,7 @@ import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';
 import type { Snapshot } from '../shared/api-types.js';
 import { hostGuard, mutationGuard } from './guards.js';
+import { mountMutations } from './mutations.js';
 import { serveStatic } from './static.js';
 
 export interface AppContext {
@@ -17,6 +18,10 @@ export interface AppContext {
   cards: CardStore;
   warnings: Warnings;
   dataDir: string;
+  feedDir: string;
+  doneDir: string;
+  /** Re-ingest one feed file synchronously (after server-side moves/writes). */
+  refreshFeed: (file: string) => void;
   uiDir: string;
   getPort: () => number;
   /** POST /api/shutdown: called after the response is queued. */
@@ -62,7 +67,8 @@ export function createApp(ctx: AppContext): Hono {
     return c.json({ ok: true });
   });
 
-  // TODO(Task 8/9): mount mutation routes here (tick, done, hidden, layout, card actions).
+  mountMutations(app, ctx);
+  // TODO(Task 9): card actions route.
 
   app.all('*', serveStatic(ctx.uiDir));
   return app;

@@ -8,7 +8,7 @@ import { createConfigReader, resolvePort } from '../config.js';
 import { createArchive } from '../feed/archive.js';
 import { createCardEvents, type CardEvents } from '../feed/events.js';
 import { createFeedWatcher } from '../feed/watcher.js';
-import { archiveDir, dataDir as dataDirOf, ensureDirs, feedDir, portFilePath } from '../paths.js';
+import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
 import { createStateStore } from '../state/store.js';
 import { createWarnings, type Warnings } from '../state/warnings.js';
 import { createApp } from './app.js';
@@ -103,6 +103,9 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     cards: watcher.store,
     warnings,
     dataDir,
+    feedDir: feedDir(env),
+    doneDir: doneDir(env),
+    refreshFeed: (f) => watcher.processFile(f),
     uiDir: opts.uiDir,
     getPort: () => boundPort,
     requestShutdown: () => void stop().then(() => opts.onShutdown?.()),
