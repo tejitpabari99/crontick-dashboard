@@ -2,3 +2,4 @@
 import './markdown/index.ts';
 import './table/index.ts';
 import './list/index.ts';
+import './kpi/index.ts';

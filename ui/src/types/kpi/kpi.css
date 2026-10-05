@@ -1,0 +1,34 @@
+.kpi-root { container-type: inline-size; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.kpi-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.kpi-root--single .kpi-grid { grid-template-columns: 1fr; }
+.kpi-root--full .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.kpi-tile { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.kpi-tile-link { display: flex; flex-direction: column; gap: 2px; color: inherit; text-decoration: none; min-width: 0; }
+.kpi-tile-link:hover { text-decoration: none; }
+.kpi-label { font-size: var(--fs-meta); color: var(--text-muted); }
+.kpi-valrow { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.kpi-value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; min-width: 0; }
+.kpi-root--single .kpi-value { font-size: 2.25rem; }
+.kpi-root--full .kpi-value { font-size: 2.5rem; }
+@container (min-width: 360px) { .kpi-root--multi .kpi-value { font-size: 1.875rem; } }
+.kpi-unit { font-size: var(--fs-meta); color: var(--text-muted); }
+.kpi-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: var(--fs-meta); }
+.kpi-state--ok { color: var(--positive); }
+.kpi-state--fail { color: var(--negative); }
+.kpi-state--warn, .kpi-state--pending { color: var(--text-muted); }
+.kpi-state--pending [aria-hidden] { display: inline-block; animation: kpi-pulse 2s ease-in-out infinite; }
+.kpi-trend { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kpi-trend--positive { color: var(--positive); }
+.kpi-trend--negative { color: var(--negative); }
+.kpi-trend--flat { color: var(--text-muted); }
+.kpi-value--fade { animation: kpi-fade 200ms ease; }
+@keyframes kpi-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kpi-pulse { 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) {
+  .kpi-value--fade, .kpi-state--pending [aria-hidden] { animation: none !important; }
+}
+.kpi-alert { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: var(--fs-base); }
+.kpi-alert-line { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
+.kpi-alert-label { color: var(--text-muted); }
+.kpi-alert-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi-more, .kpi-empty { font-size: var(--fs-meta); color: var(--text-muted); margin: 0; }
