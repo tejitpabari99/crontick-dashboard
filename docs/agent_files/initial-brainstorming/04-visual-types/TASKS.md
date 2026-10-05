@@ -10,8 +10,8 @@ Source of truth: [PRD.md](PRD.md). Five domain-agnostic React bodies registered 
 |---|---|---|---|
 | 1 | Shared helpers and styles | 03#1, 03#5, 03#10, 01#2 | done |
 | 2 | markdown type | 1, 01#4 | done |
-| 3 | Table pure logic | 1, 01#5 | in-progress |
-| 4 | table component | 3, 03#6, 03#10 | todo |
+| 3 | Table pure logic | 1, 01#5 | done |
+| 4 | table component | 3, 03#6, 03#10 | in-progress |
 | 5 | table fullscreen filter | 4 | todo |
 | 6 | list rendering, due, links | 1, 01#5 | todo |
 | 7 | list item actions | 6, 03#3 | todo |
