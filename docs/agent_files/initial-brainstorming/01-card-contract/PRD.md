@@ -14,7 +14,7 @@ Agents write cards freehand. Without a precise, machine-checkable contract, 02/0
 
 ## Goals / Non-Goals
 Goals: exact envelope + data shapes with examples; one validator; stable formats; forward-compatible; cross-platform-safe ids.
-Non-Goals: runtime state (visibility, stale, Done, Now — 02); rendering (03/04); archive/retention enforcement (02); a `write` CLI, Push API, embed/video types, UI inputs (futures.md); TickTick call mechanics (05).
+Non-Goals: runtime state (visibility, stale, Done, Now — 02); rendering (03/04); archive/retention enforcement (02); a `write` CLI, Push API, embed/video types, UI inputs (futures.md); any TickTick access (agent-side only; dashboard never queries or calls TickTick, owner decision 2026-10-05).
 
 ## Requirements
 
@@ -26,38 +26,45 @@ Non-Goals: runtime state (visibility, stale, Done, Now — 02); rendering (03/04
 | `type` | yes | `markdown\|table\|list\|kpi\|media` | Unknown string = Broken "unknown type" (forward-compat: server tolerates, never crashes) |
 | `title` | yes | non-empty string ≤200 | |
 | `updatedAt` | yes | RFC 3339 / ISO 8601 with offset or `Z` | Change resets Done (D14). Agent-authored, not file mtime |
-| `priority` | no | integer 0–5, default 2 | ≤1 collapses (D22); Now threshold in config (02 owns; default [OPEN-7], working value 3) |
+| `priority` | no | integer 0–5, default 2 | ≤1 collapses (D22); Now threshold in config (02 owns; default 3, [RESOLVED] owner 2026-10-05) |
 | `notify` | no | bool, default false | |
-| `show` | no | `{cron: string, for?: duration}` | See formats. `for` default: [OPEN-3] |
+| `show` | no | `{cron: string, for?: duration}` | See formats. `for` omitted = window lasts until the end of that local day (owner 2026-10-05). **Cards without `show` are always visible** (no window; never hidden by time). |
 | `staleAfter` | no | duration | Format validated here; enforcement = 02 |
 | `retention` | no | duration | Archive only |
 | `size` | no | `S\|M\|L`, default `M` | Hint |
 | `error` | no | string\|null, default null | Non-empty string = Broken (D19). Empty string normalized to null |
 | `data` | yes* | per-type object | *May be omitted/ignored when `error` is set non-null, so an agent can write a failure card without data |
 
-Additional properties allowed everywhere (envelope and `data`, D9): validator preserves them untouched in `card`, never rejects or strips. Reserved for future: any key starting `x-` is guaranteed never to be used by the contract.
+Additional properties allowed everywhere (envelope, `data`, rows, items, cells' objects, D9): validator preserves them untouched in `card`, never rejects or strips. Reserved for future: any key starting `x-` is guaranteed never to be used by the contract.
+
+### Expandable format (general principle)
+Types are generic, not domain-specific. Agents add columns, fields and extra per-item/per-row keys freely and never need a new schema or type: unknown keys are preserved (and rewritten untouched by the server write-back, 02), table columns are free-form, any table cell can carry its own link, list items can carry secondary links. A new schema is needed only for a genuinely new visual (D7). Example: an email table adds a second link per row by adding a cell `{text:"Unsubscribe", link:"https://..."}` next to the row-level "open email" `link`; a TickTick list item carries `ticktick:{taskId,projectId}` as an agent-private extra.
 
 ### Alerts
-`kind=alert` valid types: `markdown`, `list`, `kpi` (compact strip items). `table`/`media` on an alert = schema-invalid. Alerts ignore `show.for` semantics beyond `show.cron` gating [OPEN-4: do alerts honor `show` at all?]; `size` ignored for alerts.
+`kind=alert` valid types: `markdown`, `list`, `kpi` (compact strip items). `table`/`media` on an alert = schema-invalid. Alerts honor `show` like panels: an alert with `show` only appears inside its window (no `show` = always; [RESOLVED] owner 2026-10-05); `size` ignored for alerts.
 
 ### Per-type `data` (all `link` = see Link rules)
 | Type | Required | Optional | Notes |
 |---|---|---|---|
 | `markdown` | `text` (string ≤100k) | — | CommonMark + GFM; raw HTML not rendered (04: sanitize) |
-| `table` | `columns: string[]` (1–50), `rows: {cells: Cell[], link?}[]` | `columns` may also be `{key?,label,sort?: "text"\|"number"\|"date"}` objects; `defaultSort?: {column: int, dir}`; `searchable?: bool` (default true) | `Cell = string\|number\|boolean\|null`. `cells.length` must equal `columns.length` (else Broken). Search = substring over `String(cell)`; sort type inferred (number→numeric, ISO date→date, else text) unless `sort` given; filter = per-column value match, derived by 04 from cells (no filter schema needed) |
-| `list` | `items: {text, id?, checked?, link?, action?}[]` | `subtitle` per item; `emptyText` | Checkbox shown iff `action` present. `id` required when `action` present (unique within card). `checked?` = initial state (bool) |
-| `kpi` | `value` (string\|number) | `label`, `unit`, `state?: "ok"\|"pending"\|"fail"\|"warn"` , `trend?: {delta: number, dir?: "up"\|"down"\|"flat", good?: "up"\|"down"}`, `link?` | State renders ✅/⏳/❌/⚠ ; `value` may be text ("Deployed"). Multi-metric: `items: kpi[]` [OPEN-5] |
-| `media` | `items: {src, alt?, caption?, link?}[]` (1–50) | `layout?: "grid"\|"single"` | `src` = `http(s)` URL or `data:image/*` only (no `file:`); GIFs = image. Video src rejected (futures) |
+| `table` | `columns: string[]` (1–50), `rows: {cells: Cell[], link?}[]` | `columns` may also be `{key?,label,sort?: "text"\|"number"\|"date"}` objects (free-form: agents choose any columns); `defaultSort?: {column: int, dir}`; `searchable?: bool` (default true) | `Cell = string\|number\|boolean\|null\|{text: string\|number\|boolean\|null, link?: Link}` (cell-level link; `text` is what is displayed, searched and sorted; `cellText(cell)` helper exported). Row-level `link` stays and coexists with cell links. `cells.length` must equal `columns.length` (else Broken). Search = substring over `String(cellText(cell))`; sort type inferred (number→numeric, ISO date→date, else text) unless `sort` given; filter = per-column value match, derived by 04 from cells (no filter schema needed) |
+| `list` | `items: ListItem[]`, `ListItem = {text, id?, subtitle?, checked?, checkedAt?, due?, link?, links?, action?}` | `emptyText` | Checkbox shown iff `action` present. `id` required when `action` present (unique within card). `checked?` bool, `checkedAt?` ISO timestamp: see Actions. `due?` = ISO date `YYYY-MM-DD` (calendar day in `config.timezone`) or RFC 3339 datetime with offset; 04 shows relative/overdue. `links?: {text, link}[]` (<=5) = secondary links beside the main `link` (e.g. "Unsubscribe"). Agent chooses which tasks to list (only the important ones); the dashboard never queries any task system |
+| `kpi` | `items: KpiMetric[]` (1–12) | — | `KpiMetric = {value: string\|number, label?, unit?, state?: "ok"\|"pending"\|"fail"\|"warn", trend?: {delta: number, dir?: "up"\|"down"\|"flat", good?: "up"\|"down"}, link?}`. State renders ✅/⏳/❌/⚠ ; `value` may be text ("Deployed"). **Single shape**: canonical = `items`; the flat single-metric form (`value`, `label`, ... at top level of `data`) is accepted shorthand and normalized by the validator to `items:[{...}]` (like `dismiss`), so 04 only ever sees `items`. Both forms present = schema-invalid. [RESOLVED: several metrics per card, owner 2026-10-05] |
+| `media` | `items: {src, alt?, caption?, link?}[]` (1–50) | `layout?: "grid"\|"single"` | `src` = `http(s)` URL or `data:image/*` only (no `file:`, no local image files in v1: [DEFERRED] owner 2026-10-05); GIFs = image. Video src rejected (futures) |
 
-`action` shape: `{ "type": "dismiss" }` or `{ "type": "ticktick.complete", "taskId": string, "projectId": string }` (both required — matches TickTick MCP complete_task needs; confirm in 05 [OPEN-2]). `dismiss` = local tick, no remote call. Unknown action type = schema-invalid (fixed set, D8). Shorthand string `"dismiss"` accepted and normalized.
+**Actions.** `action` shape: `{ "type": "dismiss" }` or `{ "type": "complete" }` (fixed set, D8; unknown type = schema-invalid; shorthand strings `"dismiss"`/`"complete"` accepted and normalized). Both need `item.id`.
+- `dismiss` = local tick kept in dashboard state (02 `state.json`), file untouched, one-way.
+- `complete` = **write-back action** (owner decision 2026-10-05, supersedes D18's TickTick MCP client): ticking makes the server write the state into the card file itself: item gets `checked: true` and `checkedAt` (ISO timestamp with offset) (02 owns the atomic write). Unticking sets `checked: false` and removes `checkedAt`. `updatedAt` is never touched by the server. The card file is the hand-off: the owning agent reads it on its next run, acts on items with `checked: true` (e.g. completes the TickTick task via its own MCP access, using agent-private extras such as `ticktick: {taskId, projectId}` on the item; extras are preserved), then rewrites the card (new `updatedAt`). The contract knows nothing about TickTick.
+- `checked`/`checkedAt` semantics: `checked` = current state (initial value if agent-authored); `checkedAt` is set by the server on tick (agents may also set it); `checkedAt` without `checked:true` is ignored. `checked:false` and absent are equivalent.
 
-Link rules: `link` is a URL string ≤2048; allowed schemes `http`, `https`, `mailto`, plus Outlook `ms-outlook:` [OPEN-6]. `javascript:`, `data:`, `file:` rejected (contract-level security; 04 adds `rel=noopener`).
+Link rules: **every agent-provided link is clickable** (row `link`, cell `link`, item `link`, item `links[]`, kpi `link`, media `link`, markdown links). A `Link` is a URL string ≤2048; allowed schemes `http`, `https`, `mailto`, `ms-outlook` ([RESOLVED] owner 2026-10-05). `javascript:`, `data:` (for links), `file:` and any other scheme are rejected (contract-level security; 03 `CardLink` re-checks, 04 adds `rel=noopener`). `data:image/*` stays valid only as media/markdown image `src`.
 
 ### Formats
 - **Duration**: `^[1-9]\d*(m|h|d|w)$` (`30m`,`12h`,`26h`,`7d`,`2w`); no compound, no seconds, max 3650d. Helper `parseDuration → ms`.
-- **Cron** (`show.cron`): standard 5-field, parsed with **croner** (same lib/dialect as sibling crontick; `@daily`-style aliases and 6-field seconds rejected). Evaluated in `config.timezone` (02), default server local timezone; `show.cron` = window start, `for` = length. Validator checks parseability only. Helper `windowActive(show, now, opts?: {timezone?: string})` lives here so 02 and tests share one implementation (02 calls it with `config.timezone`; owns the `show.for`-omitted default once [OPEN-3] is decided). No `show.tz` field in the contract (timezone = 02 `config.timezone` only).
+- **Cron** (`show.cron`): standard 5-field, parsed with **croner** (same lib/dialect as sibling crontick; `@daily`-style aliases and 6-field seconds rejected). Evaluated in `config.timezone` (02), default server local timezone; `show.cron` = window start, `for` = length. Validator checks parseability only. Helper `windowActive(show, now, opts?: {timezone?: string})` lives here so 02 and tests share one implementation (02 calls it with `config.timezone`); `show.for` omitted = until end of that local day (implemented here in the helper). No `show.tz` field in the contract (timezone = 02 `config.timezone` only).
 - **Timestamps**: `updatedAt` must parse and include offset/`Z`; naive local times = schema-invalid. Future skew > 5 min: valid, 02 may warn.
 - **Priority**: integer 0–5.
+- **List `due`**: `YYYY-MM-DD` or RFC 3339 with offset/`Z`; anything else = schema-invalid.
 
 ### Broken at contract level vs runtime
 | Contract-level (validator returns `broken`) | Runtime (02) |
@@ -101,13 +108,16 @@ Never throws. `message` is human-readable one-liner shown in the Broken card; `i
 | C7 | `error` is not a validation failure | ok + `card.error` | broken | Keeps valid-file vs agent-declared-failure distinct |
 
 ## Risks / Open Questions
-- [OPEN-1] Windows-safe 64-char id vs agents wanting email-like ids: confirm lowercase-only is acceptable (resolve in design review; default as specced).
-- [RESOLVED: 05 confirmed `complete_task(project_id, task_id)`; `taskId`+`projectId` both required, adapter maps camel to snake] was OPEN-2. Live-server re-check stays a 05 spike.
-- [OPEN-3] Default `show.for` when omitted needs owner call; 02 consumes via `windowActive`. Recommendation: until end of that local day (02 already assumes it); alt fixed 24h.
-- [OPEN-4] Do alerts honor `show`? Recommendation: yes, cron-gated like panels (02 already applies the window to every kind).
-- [OPEN-5] kpi multi-metric (`items`) in v1 or one metric per card? Recommendation: one per card, defer (04 implements one).
-- [OPEN-6] Outlook deep links: `https://outlook.office.com/...` fine; native `ms-outlook:` scheme allowlist needs owner confirm. Recommendation: ship http/https/mailto only; `ms-outlook:` is a one-line add later (03/04 `CardLink` follows this list).
-- [OPEN-7] Now-priority threshold default: 01 originally said 4, 02 said 3. Owner call (02 owns the config key). Recommendation: 3 (0-5 scale, default priority 2, so 3+ = deliberately raised; still calm because it only counts inside `show` windows).
+- [RESOLVED: lowercase-only ids accepted (owner 2026-10-05)] was OPEN-1.
+- [RESOLVED: TickTick MCP client dropped (owner superseded D18 2026-10-05); `complete` is a generic write-back action, TickTick ids are agent-private extras] was OPEN-2.
+- [RESOLVED: `show.for` omitted = until end of that local day; no `show` = always visible (owner 2026-10-05)] was OPEN-3.
+- [RESOLVED: alerts honor `show` (owner 2026-10-05)] was OPEN-4.
+- [RESOLVED: kpi `items: KpiMetric[]`, flat single form normalized to items (owner 2026-10-05)] was OPEN-5.
+- [RESOLVED: `ms-outlook` allowlisted with http/https/mailto; 03/04 `CardLink` follows (owner 2026-10-05)] was OPEN-6.
+- [RESOLVED: Now threshold default 3 (owner 2026-10-05); 02 owns the config key] was OPEN-7.
+- [RESOLVED: cell-level `link` (Cell object), list `links[]`, list `due` added to schema (owner 2026-10-05)].
+- [DEFERRED] Local image files (media = http(s)/`data:image` only in v1).
+- [OPEN-8] Untick of a `complete` item after the agent already completed it in TickTick only changes the file; agent's next rewrite is authoritative. Recommendation: allow untick (as specced); skill tells agents to rewrite the whole card each run.
 - [RESOLVED: 02 adopts `validateCardFile(text,{filename})` and its `ValidationResult`; no `validateCardText`/`partial`; `broken.id` replaces `partial.id`] validator API.
 - [RESOLVED: 02 passes filename and handles `id-mismatch` as a Broken card keyed `file:<name>`] id vs filename.
 - [RESOLVED: list `checked` = item.checked (data) union snapshot `checked` ids (server-confirmed) union optimistic; 02/03/04 aligned] .
@@ -119,7 +129,9 @@ Never throws. `message` is human-readable one-liner shown in the Broken card; `i
 ## Acceptance Criteria
 - Each of the 5 `templates/*.example.json` validates `ok`; each has a negative fixture per rule (missing field, bad id incl. `CON`, `A/b`, uppercase; bad duration `7 days`; 6-field cron; naive timestamp; table row/column length mismatch; unknown action; `javascript:` link; table on alert).
 - Truncated JSON → `broken/malformed-json`; `[]` → `not-object`; unknown `type` → `unknown-type` with `id` populated.
-- Card with extra envelope and data keys → `ok`, extras present in output.
+- Card with extra envelope and data keys → `ok`, extras present in output (also extras on rows, items, kpi metrics).
+- kpi: `items` form ok; flat form normalizes to `items` of length 1; both forms present → schema-invalid. Table: cell `{text,link}` ok, `cellText` used for search/sort; cell link `javascript:` → broken. List: `due` date/datetime ok, `due:"tomorrow"` → broken; `links[]` ok; `complete` action without `item.id` → broken; `{type:"ticktick.complete"}` → broken. Links: `ms-outlook:` ok, `mailto:` ok, `data:`/`file:`/`ftp:` broken.
+- Card without `show` has no window; alert with `show` validates ok.
 - `error:"x"` card → `ok` with `card.error==="x"`; `staleAfter` never evaluated by validator.
 - `gen-schemas` output equals committed `schemas/`; CI diff test passes; schemas load in a stock JSON Schema validator (spot check) and accept all examples.
 - `validateCardFile` never throws on fuzzed input (binary, empty, 5 MB).

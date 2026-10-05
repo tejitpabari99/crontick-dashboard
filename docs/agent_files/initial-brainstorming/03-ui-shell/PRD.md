@@ -13,7 +13,7 @@ A single-page React app that renders 02's snapshot: slim header, Now zone, fixed
 Agent-written cards are only valuable if they surface on time, on top, without crowding (kill criteria, §2). The shell must make crowding structurally hard (compact defaults, collapse, no auto-reorder), make failure visible (D19), and give 04 a stable frame so types stay tiny components.
 
 ## Goals / Non-Goals
-Goals: scope items 1–8 of SP03; spatial memory preserved; every state recoverable (hidden, Done); keyboard/AA basics; works offline from CDNs (no external fonts/scripts).
+Goals: scope items 1–8 of SP03; spatial memory preserved; every state recoverable (hidden, Done); never show stale data (D19: server down = "Server down" state only); keyboard/AA basics; works offline from CDNs (no external fonts/scripts).
 Non-Goals (futures.md / D31): mobile layout, multi-page, embed, extra theme presets, SSE, weather, UI → agent inputs, history viewer, OS notifications (05), type internals (04), server logic (02).
 
 ## Requirements
@@ -35,17 +35,20 @@ Non-Goals (futures.md / D31): mobile layout, multi-page, embed, extra theme pres
 - Drag handle = card title bar only (body stays text-selectable); resize handle bottom-right.
 
 ### Card frame (all panels, Now panels, fullscreen)
-- Title bar: title (truncate, tooltip), priority marker (≥ threshold only), actions on hover/focus (always visible on touch-less focus): fullscreen, Done, hide, overflow-free (4 buttons max). Body scrolls internally (`overflow:auto`), never grows the card (crowding guard).
+- Title bar: title (truncate, tooltip), **relative "updated 2h ago"** (muted meta from `updatedAt`; native `title` tooltip = absolute local time; one shared 60 s ticker re-renders all instances, paused while the tab is hidden and refreshed on `visibilitychange`; formats: `just now`, `Nm ago`, `Nh ago`, `Nd ago`), priority marker (≥ threshold only), actions on hover/focus (always visible on touch-less focus): fullscreen, Done, hide, overflow-free (4 buttons max). Body scrolls internally (`overflow:auto`), never grows the card (crowding guard).
 - **Broken** (D19, `status:'broken'`): negative-tinted frame, icon, reason text (`message`), `updatedAt`/file hint if provided; **no data region ever rendered**. Hide and Done stay available; Done on Broken allowed (02 acks by `updatedAt`).
 - **Notify highlight**: a `notify` card whose `updatedAt` ≠ locally recorded `seen[id]` shows accent ring + dot, clears on click/focus or 1 s of ≥50% viewport visibility, then writes `seen[id]` (localStorage, try/catch). First visit ever: all notify cards unseen. In-page only; OS toast = 05.
-- **Link affordance**: shell provides `<CardLink href>` (used by 04): opens `target=_blank rel="noopener noreferrer"`, trailing ↗ icon on hover, `focus-visible` ring. Only schemes the contract allows are rendered as anchors (defence in depth: re-check against the 01 link allowlist, `http|https|mailto` until 01 [OPEN-6] adds `ms-outlook`; otherwise plain text).
+- **Link affordance**: shell provides `<CardLink href>` (used by 04; every agent-provided link is clickable). `http|https|mailto` open `target=_blank rel="noopener noreferrer"`; `ms-outlook:` opens via a plain anchor (OS handler; no `target`). Trailing ↗ glyph always visible (muted-tinted), full on hover, `focus-visible` ring. Only schemes the 01 allowlist allows (`http`, `https`, `mailto`, `ms-outlook`) render as anchors (defence in depth re-check; `javascript:`, `data:`, `file:`, anything else → plain text, never an anchor).
+  - **Visited indication (Glance borrow, pure CSS `:visited`, no JS/state)**: link text and ↗ use accent (`--primary`) while unvisited (`a:not(:visited)`), muted text colour once visited, ↗ tinted the same way. Privacy limits: browsers only expose colour for `:visited` (no layout/opacity), so only colour changes; `mailto:` and `ms-outlook:` are never reported visited (stay accent); `:visited` also resets when the user clears history; per-row dimming is [DEFERRED] (needs JS-tracked seen links, see README deferred list).
+  - Long link text uses the shared 2-line clamp + `title` tooltip (04 shared styles).
+- **Spinner delay**: any loading spinner (initial load, refetch, mutation in flight) renders only after 150 ms; faster completions show none (no flash).
 - **Motion on change**: card whose `updatedAt` changed since previous snapshot gets a 600 ms accent background fade; mounting cards fade/scale-in 120 ms; all disabled under `prefers-reduced-motion`.
 
 ### Hidden & Done recovery
 Hide = `PUT /api/cards/:id/hidden`; unhide only via header `Hidden (n)` popover (list of titles with Unhide buttons) or search results ("Hidden" badge, Unhide action). Unhidden card returns to its stored slot (or auto-placement if none). Done recoverable via tray chip. Both counts visible in UI at all times when non-zero.
 
 ### Global search (D24)
-Header input (`/` or `Ctrl/Cmd+K` focuses, `Esc` clears). Case-insensitive, whitespace-split tokens, AND semantics, over: `title` + registry `searchText(data)` per type (Broken: title + message only). Scope = every card in snapshot (alerts, Now, grid, tray, hidden); window-hidden cards are not in the snapshot so not searchable (02).
+Header input (`/`, `S` (when focus is not in an input/textarea/contenteditable) or `Ctrl/Cmd+K` focuses; `Esc` clears the text, a second `Esc` (or Esc on empty) blurs). Case-insensitive, whitespace-split tokens, AND semantics, over: `title` + registry `searchText(data)` per type (Broken: title + message only). Scope = every card in snapshot (alerts, Now, grid, tray, hidden); window-hidden cards are not in the snapshot so not searchable (02).
 - **Effect**: no reflow. Non-matching cards dim to 30% and are `inert`-free but de-emphasised; matches keep full opacity with accent outline; header shows `n matches`; Enter/Shift+Enter cycles matches (scroll + focus). Tray/hidden matches listed in the search dropdown with open/unhide.
 - **Interplay with 04's table search**: shell passes the global string as prop `query`; table (and list) *highlight and pre-filter rows* by it; the table's own box applies *additionally* (AND). Clearing global clears the pre-filter only. Fullscreen inherits both.
 
@@ -62,8 +65,8 @@ Glance-style tokens (D25): per theme `--bg: H S L`, `--primary: H S L`, `--posit
 ### Data loading & connection
 - Poll `GET /api/snapshot` with `If-None-Match`; interval = `snapshot.config.pollIntervalMs` clamped 15–60 s (default 30 s before first load); immediate refetch on tab regain-visibility and after any mutation; pause while tab hidden *except* one slow tick (60 s) to keep title count fresh.
 - 304 → no re-render. Snapshot structurally shared so unchanged cards don't re-render.
-- **Optimistic mutations**: done/undone, hide/unhide, tick, layout, list-item action apply a local patch immediately (the `onItemAction` promise resolves on success, rejects with the server message on rollback/409/502), send with `Content-Type: application/json` + `X-Crontick-Dashboard: 1`, then refetch; on error roll back and show a toast with server `error`. `409` (item action, `updatedAt` mismatch) → silent refetch + toast "card updated". `502` (e.g. TickTick) → item reverts, toast shows error. A `200` whose item appears in snapshot `pendingItems` renders as pending (queued), not checked-and-done.
-- **Server down** (2 consecutive failures, or > 2× interval since last success): banner "Server unreachable — retrying", connection dot red, grid dimmed to 50% with last-update time; mutations disabled; backoff 5→10→30 s; auto-recovers on first success. (Honors D19 spirit: stale data is never presented as live.)
+- **Optimistic mutations**: done/undone, hide/unhide, tick, layout, list-item action (tick and untick; `complete` write-back and `dismiss`) apply a local patch immediately (the `onItemAction` promise resolves on success, rejects with the server message on rollback/409/500), send with `Content-Type: application/json` + `X-Crontick-Dashboard: 1`, then refetch; on error roll back and show a toast with server `error`. `409` (item action: `updatedAt` mismatch or write-back conflict, 02) → item reverts, silent refetch + toast "card updated, try again". `500` (write-back failed) → item reverts, toast shows the error. On `200` the refetched snapshot carries `item.checked`/`checkedAt` from the file.
+- **Server down** (owner decision 2026-10-05; D19 literal): after 2 consecutive failures, or > 2× interval since last success, or a failed first load, the UI shows **only** a clear full-page "Server down" state (icon, "Server down", "Retrying every N s…", hint `crontick-dashboard daemon start`). **No cards, no zones, no cached or stale data, no dimmed grid.** The store drops the last snapshot from memory and discards optimistic patches and pending layout writes; header reduced to theme toggle + red connection dot (search, Hidden popover, badges removed); `document.title` = "Server down"; backoff 5→10→30 s; auto-recovers on first success (full UI returns, no reload).
 - Empty state (no cards): short hint showing `crontick-dashboard info` for the feed path.
 - Errors in a type component are contained by a per-card error boundary → frame shows "Render error" (not a blank page).
 
@@ -89,7 +92,7 @@ ui/tests/  (vitest)   tests/smoke/ (browser)
 - Deps: `react`, `react-dom`, `react-grid-layout`; no router, no data-fetching or state lib (store = `useSyncExternalStore`). UI imports 01/02 types with `import type` only, so zod/Node code never enters the bundle.
 
 ### Interface consumed from 02 (and assumed)
-`GET /api/snapshot` exactly as 02 (incl. Broken `reason`+`message`, `checked`, `pendingItems`); mutations exactly as 02 §Mutations. Shared DTO types (`Snapshot`, `ViewCard`, `LayoutItem`) live in `src/shared/api-types.ts`, owned by 02, imported with `import type`.
+`GET /api/snapshot` exactly as 02 (incl. Broken `reason`+`message`, `checked`); mutations exactly as 02 §Mutations. Shared DTO types (`Snapshot`, `ViewCard`, `LayoutItem`) live in `src/shared/api-types.ts`, owned by 02, imported with `import type`.
 
 ### Interface provided to 04 — client type registry
 ```ts
@@ -99,8 +102,8 @@ export interface CardTypeProps<D> {
   data: D;                   // 01-inferred data type for this type (never present for Broken)
   mode: 'grid' | 'now' | 'alert' | 'fullscreen';
   query: string;             // global search string ('' when none)
-  checked: ReadonlySet<string>;  // item.checked (data) + snapshot `checked` ids + optimistic
-  pending: ReadonlySet<string>;  // snapshot `pendingItems` (queued by an integration, 05) + in-flight optimistic
+  checked: ReadonlySet<string>;  // item.checked (data; includes `complete` write-backs) + snapshot `checked` ids (dismiss) + optimistic
+  pending: ReadonlySet<string>;  // item ids with an action request in flight (shell-tracked)
   onItemAction(itemId: string): Promise<void>; // shell does optimistic update, POST, rollback
 }
 export interface CardTypeDef<D> {
@@ -126,19 +129,20 @@ export function registerCardType<T extends TypeName>(type: T, def: CardTypeDef<D
 | U6 | Search | Dim non-matches in place + cycle; no reflow | Filter out; separate results page | Preserves spatial memory; find-in-place |
 | U7 | Now panels | Rendered in Now zone, not in grid | Duplicate in both | Matches 02 (`grid` excludes them) and D12 |
 | U8 | Data layer | Own `useSyncExternalStore` store | react-query/SWR | One endpoint; ETag + optimistic simple enough |
-| U9 | Server-down | Dim + banner, mutations off | Hide everything; keep silently | Never present stale as live |
+| U9 | Server-down | Only a "Server down" state, snapshot dropped (owner 2026-10-05) | Dimmed grid + banner | D19: never show old data; nothing stale can leak |
+| U13 | Visited links | CSS `:visited` colour only (accent unvisited, muted visited) | JS seen-link store; row dimming | Zero state, Glance-proven; privacy limits accepted; row dim deferred |
 | U10 | Fullscreen | `<dialog>` modal + hash | Route; in-grid expand | Free a11y, deep-linkable, no layout change |
 | U11 | Alerts | Tick only; no hide/collapse | Same frame as panels | Unmissable (D11) |
 | U12 | Tests | vitest (+jsdom, testing-library) for logic/components; one Playwright smoke | Cypress; no smoke | Matches repo; brainstorm Verification asks one smoke |
 
 ## Risks / Open Questions
 - [RESOLVED: `src/shared/api-types.ts`, owned by 02] was OPEN-1.
-- [RESOLVED: 02 snapshot carries Broken `reason` + `message`, plus `pendingItems`] was OPEN-2.
+- [RESOLVED: 02 snapshot carries Broken `reason` + `message` (`pendingItems` dropped 2026-10-05)] was OPEN-2.
 - [RESOLVED: 02 includes `data` for ok cards in every zone] was OPEN-3.
-- [OPEN-4] Server-down: dim-and-keep with banner (specced) vs blank grid; owner call given D19 wording ("never show old data"). Recommendation: dim-and-keep + banner with last-update time; blank only if owner wants D19 literal.
+- [RESOLVED: server down = only a "Server down" state, no cards/stale data (owner 2026-10-05, D19)] was OPEN-4; dimmed-grid design dropped.
 - [RESOLVED: `#card=<id>` = scroll + highlight, `#card=<id>&view=full` = fullscreen; both specced above] 05 deep-link request.
 - [RESOLVED: Vite emits `ui/dist`; 06 copies to `dist/ui`] build handoff.
-- [OPEN] Link scheme allowlist (`ms-outlook:`) follows 01 [OPEN-6].
+- [RESOLVED: link allowlist `http|https|mailto|ms-outlook` (owner 2026-10-05), `CardLink` follows 01] was link-scheme open item.
 - [OPEN-5] `react-grid-layout` major (v1 + `@types` vs v2 hooks API) — pick at task time after checking React 19 support.
 - [OPEN-6] Smoke runner: Playwright (needs browser download in CI) vs puppeteer-core + system Chrome.
 - [RESOLVED: placement in UI, saved via PUT] D21 per 02 Decision 10.
@@ -146,14 +150,14 @@ export function registerCardType<T extends TypeName>(type: T, def: CardTypeDef<D
 - Risk: crowding with many cards — mitigated by compact sizes, collapse, search dim, Done/hide; revisit after 2-week real use.
 - Risk: compaction-on-render shifts neighbours when a Now card returns (accepted; slots persisted).
 
-## Reconciliation 01 / 02 / 05 (resolved 2026-10-05; follow 01 for card shape, 02 for API)
+## Reconciliation 01 / 02 (05 = notifications only) (resolved 2026-10-05; follow 01 for card shape, 02 for API)
 | Item | Resolution |
 |---|---|
 | Validator | 02 adopts 01 `validateCardFile`; UI unaffected |
-| Now threshold default | OPEN (owner), 02 config `nowPriorityThreshold`; UI reads `snapshot.config` only |
-| `show.for` omitted / `show.tz` / alerts honor `show` | server-side (02/01); UI unaffected |
-| Item `checked` | UI: `item.checked` OR id in snapshot `checked` OR optimistic |
-| Pending items | `pendingItems` -> `pending` prop; clock badge (05 UI contract, rendered by 04) |
+| Now threshold default | 3 (owner 2026-10-05), 02 config `nowPriorityThreshold`; UI reads `snapshot.config` only |
+| `show.for` omitted (end of local day) / `show.tz` / alerts honor `show` | resolved 2026-10-05; server-side (02/01); UI unaffected |
+| Item `checked` | UI: `item.checked` (incl. `complete` write-backs) OR id in snapshot `checked` (dismiss) OR optimistic |
+| Pending items | `pendingItems` removed (TickTick rework 2026-10-05); `pending` prop = in-flight only |
 | `size` | UI treats missing as M |
 | Alerts | 01 allows markdown/list/kpi only; 04 `allowedModes`; Now alert strip never receives table/media |
 
@@ -165,8 +169,12 @@ export function registerCardType<T extends TypeName>(type: T, def: CardTypeDef<D
 - Broken fixture never shows `data` content even if the snapshot erroneously includes it.
 - Hide → appears in Hidden popover → Unhide restores slot. Tray chip click reopens.
 - Global search `dana` dims non-matching cards, matches stay in place, counts match number; table gets `query` prop; Esc clears; layout unchanged.
-- Server stopped → banner within 2 poll intervals, mutations disabled; restart → recovers without reload.
-- Optimistic failure (mock 502/409) rolls back and toasts.
+- Server stopped → within 2 poll intervals the page shows only "Server down": zero card elements in the DOM, no cached titles/data anywhere (assert), no dimmed grid; restart → full UI returns without reload.
+- Visited links: CSS rule present (`a:not(:visited)` accent, `:visited` muted, ↗ tinted); `javascript:`/`data:`/`file:` hrefs render as plain text; `mailto:`/`ms-outlook:` anchors render with no `target`/visited styling expectations; `http(s)` get `rel="noopener noreferrer"`.
+- Title bar shows "updated 2h ago" for `updatedAt` 2 h in the past, ticks to "3h ago" without refetch (fake timers, 60 s tick), does not tick while `document.hidden`, refreshes on visibility.
+- Pressing `S` (not in an input) focuses search, `Esc` blurs; typing `s` inside an input does not steal focus.
+- Spinner not rendered for a request resolving in <150 ms; rendered after 150 ms.
+- Optimistic failure (mock 500/409) rolls back and toasts.
 - Theme: first paint matches `prefers-color-scheme`; toggle persists; no flash; both presets pass AA contrast test for text/muted/primary-on-bg.
 - Registry test: every 01 type has a registered def; unknown type renders fallback without crash; a throwing component is contained by the error boundary.
 - Axe-style check (vitest + `jest-axe` or equivalent) on shell with fixtures: no critical violations.

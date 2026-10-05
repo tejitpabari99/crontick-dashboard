@@ -1,6 +1,6 @@
 ---
 status: draft
-summary: crontick-dashboard CLI (start, daemon, info, validate, templates), npm package/build layout, and the SKILL.md that teaches agents to write cards.
+summary: crontick-dashboard CLI (start, daemon, info, validate, templates, skill install), npm package/build layout, and the SKILL.md that teaches agents to write cards.
 date: 2026-10-05
 ---
 # PRD: CLI, packaging & Claude skill (06)
@@ -14,7 +14,7 @@ Owner installs once and runs `crontick-dashboard start`; agents (crontick jobs, 
 
 ## Goals / Non-Goals
 Goals: D27 command set; deterministic package contents; reproducible build; agent-ready skill; install verified per OS.
-Non-Goals: autostart/service install (D27, D31); a `write`/push CLI (futures.md); server internals (02), UI (03/04), notifications/TickTick (05); card schema (01); Docker/per-OS installers (D28); npm publish and git remote (owner).
+Non-Goals: autostart/service install (D27, D31); a `write`/push CLI (futures.md); server internals (02), UI (03/04), notifications (05); card schema (01); any TickTick command (removed 2026-10-05); Docker/per-OS installers (D28); npm publish and git remote (owner).
 
 ## Requirements
 **Commands** (all take `--help`; errors = one red line on stderr, no stack unless `--verbose`/`CRONTICK_DASHBOARD_VERBOSE=1`; `NO_COLOR` honored)
@@ -27,10 +27,10 @@ Non-Goals: autostart/service install (D27, D31); a `write`/push CLI (futures.md)
 | `info` | Works with daemon stopped. Prints: version, data dir, **feed dir**, URL (or "not running"), config path, templates dir, schemas dir, skill path. `--json` for agents. | 0 |
 | `validate <file...>` | Reads each file (`-` = stdin, no filename check) and calls `validateCardFile(text,{filename})`. Human output: `OK id (type, kind)` + warnings, or `BROKEN reason: message` + one line per `issues[]` (`path: message`). `--json` prints an array of `{file, result}` (01 `ValidationResult` verbatim). | 0 all ok; 1 any broken; 2 usage/unreadable file |
 | `templates [type]` | No arg: table of types (`listTypes()`), allowed kinds, example path. `<type>`: prints `getExample(type)`; `--schema` prints its JSON Schema; `--path` prints file paths. Unknown type → exit 2 listing valid types. | 0/2 |
-| `ticktick connect [--token] [--port N]` / `ticktick status` / `ticktick disconnect` | Command group registered here; logic is 05's `src/integrations/ticktick/cli.ts`, runs without the daemon (OAuth loopback, API token via stdin, or `--port` for SSH-forwarded headless sign-in). `status` also reports queued intents. | 0 ok; 1 failed |
+| `skill install [--dir <skillsDir>] [--force]` | Copies the packaged `SKILL.md` into `<skillsDir>/crontick-dashboard/SKILL.md`; default `<skillsDir>` = `~/.claude/skills` (`os.homedir()`, so `%USERPROFILE%\.claude\skills` on Windows). Cross-platform, **copy not symlink**, creates missing dirs, writes tmp+rename. **Idempotent**: destination identical → "already up to date" (exit 0); absent → install; present but different → refuse with a message unless `--force` (overwrite). Prints the destination path and version. Needs no daemon and does not touch the feed dir. | 0 installed/up to date; 1 differs without `--force` or write failed; 2 usage |
 | `--version`, `--help` | Standard | 0 |
 
-**Config keys** read by 02 `config.ts` and documented by `info`/README: `port`, `retentionDefault`, `nowPriorityThreshold`, `pollIntervalMs`, `timezone`, `notifications.os` (`auto|on|off`, 05), `ticktick.mode` (`auto|mcp|intent`, 05).
+**Config keys** read by 02 `config.ts` and documented by `info`/README: `port`, `retentionDefault`, `nowPriorityThreshold`, `pollIntervalMs`, `timezone`, `notifications.os` (`auto|on|off`, 05).
 
 `validate` is the agent's pre-write check; it must not need a running server or touch the feed dir.
 
@@ -42,16 +42,18 @@ Non-Goals: autostart/service install (D27, D31); a `write`/push CLI (futures.md)
 **Skill** (`src/skill/SKILL.md`, shipped). Frontmatter mirrors crontick: `name: crontick-dashboard`, `description` (trigger phrases: "show on my dashboard", "write a dashboard card", "raise an alert", "notify me"), `allowed-tools: shell`. Sections:
 1. Purpose / when to use; identity of the feed dir: **run `crontick-dashboard info --json` and use `feedDir`; never guess a path**.
 2. Card envelope (field table condensed from 01, links to `schemas/envelope.json`) + minimal example.
-3. Per-type pointers: `crontick-dashboard templates <type>` and `templates <type> --schema`; one-line "use for" per type (markdown, table, list, kpi, media); `link` on rows/items (deep links, D8); `action` only `dismiss` / `ticktick.complete`.
-4. Workflow: build JSON → `crontick-dashboard validate file` → write atomically (write `<id>.json.tmp` in the feed dir then rename to `<id>.json`; 02 ignores `*.tmp`) → rewrite same id to update (bump `updatedAt`, which resets Done, D14).
+3. Per-type pointers: `crontick-dashboard templates <type>` and `templates <type> --schema`; one-line "use for" per type (markdown, table, list, kpi, media); `link` on rows/items (deep links, D8; every link is clickable; schemes `http|https|mailto|ms-outlook` only); `action` only `dismiss` (local tick) / `complete` (write-back, see below). `kpi` takes `data.items` (several metrics per card).
+4. Workflow: **if `<feedDir>/<id>.json` already exists, read it first and act on every list item with `checked: true` (e.g. complete the matching task in TickTick with your own access, using the item's agent-private extras such as `ticktick: {taskId, projectId}`), then write the new card** (dropping or re-marking handled items) → build JSON → `crontick-dashboard validate file` → write atomically (write `<id>.json.tmp` in the feed dir then rename to `<id>.json`; 02 ignores `*.tmp`) → rewrite same id to update (bump `updatedAt`, which resets Done, D14). The dashboard server may edit the file between your runs: it only sets `checked`/`checkedAt` on a ticked item (never `updatedAt`), preserving your extras.
 5. Id rules (01: lowercase slug, `[a-z0-9._-]`, ≤64, equals filename stem, no Windows-reserved names).
 6. Alert vs panel: alerts persist until ticked, only markdown/list/kpi, unmissable; panels live in the grid; priority meaning (≥ Now threshold surfaces during `show` window; ≤1 collapses).
-7. `show` (`cron` 5-field + `for` duration), `staleAfter` (set it for recurring jobs: stale = Broken, never old data, D19), `retention`, `notify: true` only for things that must interrupt.
+7. `show` (`cron` 5-field + `for` duration; **`for` omitted = window lasts until the end of that local day; a card without `show` is always visible**; alerts honor `show` too, so an alert with `show` appears only inside its window), `staleAfter` (set it for recurring jobs: stale = Broken, never old data, D19), `retention`, `notify: true` only for things that must interrupt.
 8. Failure: write `error: "<reason>"` rather than stale data; `data` may then be omitted.
-9. Gotchas: extras allowed but preserved untouched; never delete other agents' files; no UI inputs; cards never trigger jobs (D17); durations are single-unit (`26h`).
+9. **Expandable format (extending without a new schema).** Types are generic; add columns/fields/keys freely, extras are preserved. Example, an email table with two links per row: `columns:["From","Subject","Unsubscribe"]`, `rows:[{cells:["Dana","Invoice",{"text":"Unsubscribe","link":"https://…/unsub"}], link:"https://outlook.office.com/mail/deeplink/read/…"}]` (row `link` = "open email", the cell link = "unsubscribe"; both clickable). Cells can be `string|number|boolean|null|{text,link?}`; list items can carry `links:[{text,link}]` for secondary links; kpi cards list several metrics in `items`.
+10. **Task lists (TickTick etc.).** `list` items with `action:{type:"complete"}` get a checkbox; ticking writes `checked:true`+`checkedAt` into the card file. You (the agent) decide which tasks appear: list only the important ones (the dashboard never queries TickTick); give each item an `id`, optional `due` (ISO date/datetime, shown relative/overdue) and put task identifiers in an extra field (e.g. `ticktick:{taskId,projectId}`). On the next run, per step 4, read the card, complete ticked tasks, rewrite the card.
+11. Gotchas: extras allowed but preserved untouched; never delete other agents' files; no UI inputs; cards never trigger jobs (D17); durations are single-unit (`26h`).
 The skill must not restate full schemas (drift); it links to `templates`/`schemas` and a CI test checks every template/type named in SKILL.md exists in `listTypes()`.
 
-**Owner install of the skill.** crontick documents no installer (its plugin/skill installer was removed, ADR 0002); the file simply ships in the package. v1: README gives copy instructions; `info` prints the skill path. Copy (not symlink) is the documented default (symlinks need privileges on Windows) into `~/.claude/skills/crontick-dashboard/SKILL.md` (Windows: `%USERPROFILE%\.claude\skills\...`); re-copy after upgrades. Whether to add `crontick-dashboard skill install` is [OPEN-3].
+**Owner install of the skill.** `crontick-dashboard skill install` (above) is the supported path ([RESOLVED] owner 2026-10-05); the owner runs it himself on each machine, nothing is installed during design/implementation. It copies (not symlinks; symlinks need privileges on Windows) the shipped `SKILL.md`; re-run with `--force` after upgrades if it reports a difference. `info` also prints the skill path and README documents the manual copy as a fallback.
 
 ## Architecture
 **Repo layout (cross-cutting assumption; 01/02 file ownership kept as they stated, 02's modules are flat under `src/`):**
@@ -59,7 +61,7 @@ The skill must not restate full schemas (drift); it links to `templates`/`schema
 package.json  tsup.config.ts  tsconfig.json  eslint.config.js  vitest.config.ts
 src/contract/   (01)           src/cli/ (06)            src/skill/SKILL.md (06)
 src/{paths,config,lifecycle}.ts, src/{state,feed,compute,actions,http,shared}/  (02, server; shared/api-types.ts = type-only DTOs)
-src/integrations/{notify,ticktick}/  (05)
+src/integrations/notify/  (05)
 src/index.ts    library export: contract only (validateCardFile, listTypes, getExample, types)
 ui/             (03/04) Vite+React app; own tsconfig; builds to ui/dist (03 confirmed)
 schemas/ templates/   (01, generated/committed)      scripts/  tests/{contract,server,cli,e2e}/
@@ -85,27 +87,27 @@ dist/           cli/index.js  server/index.js  index.js  index.d.ts  ui/   (buil
 | P3 | UI build handoff | Vite → `ui/dist`, tsup `onSuccess` copy to `dist/ui` | Vite emits into `dist` | tsup `clean` would delete it |
 | P4 | Asset lookup | Walk up to package root; UI by relative path from entry | Embed assets in bundle | Plain files; inspectable; trivial in tarball |
 | P5 | validate exit codes | 0 ok / 1 broken / 2 usage-IO; `--json` emits 01 result verbatim | 0/1 only | Agents can tell "bad card" from "bad invocation" |
-| P6 | Skill delivery | Ships in package, copied by owner | Auto-install on `npm i` | No postinstall; owner controls `~/.claude` |
+| P6 | Skill delivery | Ships in package; owner runs `skill install` (copy, idempotent, `--force`) | Auto-install on `npm i`; manual copy only | No postinstall; owner controls `~/.claude`; cross-platform one command |
 | P7 | Skill content | Pointers to `templates`/`schemas`, no duplicated schemas | Inline full schemas | Single source (01) |
 | P8 | Install smoke | Real tarball into scratch dir, 3-OS CI | `--dry-run` only | Proves it runs, as crontick |
 | P9 | Windows spawn | `windowsHide:true` added to crontick's recipe | Copy exactly | Avoids a flashing console window |
 
 ## Manual steps (owner only)
-- Add git remote; create the GitHub repo (also needed for `provenance`).
-- `npm publish` (npm login/2FA), choose package scope/availability of the name `crontick-dashboard`.
-- Copy `SKILL.md` into `~/.claude/skills/crontick-dashboard/` on each machine (until [OPEN-3]).
+- (git remote already exists: origin github.com/tejitpabari99/crontick-dashboard.)
+- `npm publish` (npm login/2FA; optional, alternatively `npm i -g .` from a clone), choose package scope/availability of the name `crontick-dashboard`.
+- Run `crontick-dashboard skill install` on each machine.
 - Windows/macOS manual smoke of `daemon start` (+ OS notification, with 05).
-- TickTick sign-in (`ticktick connect`) and creating the intents applier crontick job (05).
+- Create the crontick job for the agent that reads ticked list items and completes them in TickTick (see README).
 
 ## Risks / Open Questions
 **01 vs 02 mismatches (06 builds on 01's interface; 02 must align):**
 - [RESOLVED: 02 adopts 01 `validateCardFile`; `partial` dropped] was OPEN-1.
-- [OPEN-2] Now threshold default (01 said 4, 02 says 3) and `show.for` omitted default: owner calls tracked in 01 [OPEN-3]/[OPEN-7]; skill text uses "see `templates`" wording until settled. Resolved: `id`≠filename = Broken handled by 02; `show.tz` does not exist.
+- [RESOLVED: Now threshold default 3; `show.for` omitted = end of local day; no `show` = always visible; alerts honor `show` (owner 2026-10-05); skill states these] was OPEN-2. `id`≠filename = Broken handled by 02; `show.tz` does not exist.
 - [RESOLVED: `DEFAULT_PORT = 47616` exported by 02 `config.ts`; `info` and README quote it, never hard-code] was OPEN-4.
 - [RESOLVED: 02 owns `src/lifecycle.ts`, spawns `dist/server/index.js`; requirements recorded in 02] was OPEN-5.
 - [RESOLVED: flat 02 layout plus `src/shared`, `src/integrations`; layout block above] was OPEN-6.
-- [OPEN-3] Add `crontick-dashboard skill install [--dir]` (copy, `--force`, prints destination)? Proposed yes if cheap; default v1 = docs only. Owner call.
-- [OPEN-7] `info --json` field names are a contract for the skill; freeze at task time: `{version, dataDir, feedDir, url|null, running, configPath, templatesDir, schemasDir, skillPath}` plus 05 additions `{intentsDir, queuedIntents, notifications:{mode,reason}}`.
+- [RESOLVED: `crontick-dashboard skill install [--dir] [--force]` added (owner 2026-10-05)] was OPEN-3.
+- [OPEN-7] `info --json` field names are a contract for the skill; freeze at task time: `{version, dataDir, feedDir, url|null, running, configPath, templatesDir, schemasDir, skillPath}` plus 05 addition `{notifications:{mode,reason}}` (intents fields removed 2026-10-05).
 - [RESOLVED: no autostart] D27/D31.
 - [RESOLVED: Node >=22.5 kept] D28, though dashboard does not use `node:sqlite`; parity with crontick.
 - [DEFERRED] `--open` browser flag, shell completions, `crontick-dashboard doctor`, npx-only usage docs.
@@ -120,5 +122,6 @@ dist/           cli/index.js  server/index.js  index.js  index.d.ts  ui/   (buil
 - `daemon start` twice = one process; `daemon status` exit 0 then, 3 after `daemon stop`; port file removed; occupied default port yields fallback notice and correct URL.
 - `start` while a daemon runs refuses and prints the running URL.
 - `verify-package-install` passes on ubuntu, macos, windows (Node 22 and 24) in CI.
-- SKILL.md CI test: frontmatter present; every type and CLI command it names exists; contains tmp+rename and `validate`-before-write guidance.
+- SKILL.md CI test: frontmatter present; every type and CLI command it names exists; contains tmp+rename and `validate`-before-write guidance, the "read existing card and act on `checked:true` items before overwriting" step, the `show` defaults (`for` omitted = end of day; no `show` = always visible), the cell-link email-table example and the `due`/important-tasks-only guidance.
+- `skill install` into a temp `--dir`: first run installs (file equals packaged `SKILL.md`), second run is a no-op exit 0, modified destination exits 1 without `--force` and is overwritten with it, missing parent dirs created, no symlink created, works with a Windows-style home (tested via `--dir`/injected homedir); `ticktick` is not a command (exit 2).
 - Running `npm run build` from clean checkout then `node dist/cli/index.js start` serves the UI.
