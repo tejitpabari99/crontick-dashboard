@@ -8,7 +8,7 @@ date: 2026-10-05
 
 ## 1. TL;DR
 
-Local single-user dashboard. Agents (crontick Claude jobs, Claude sessions) write one JSON file per card into a feed folder; dashboard renders them as generic visual types (markdown, table, list, kpi, media) in a drag/resize grid, with a "Now" zone on top for alerts and time-windowed high-priority cards. Custom build (React + Vite + TS + react-grid-layout + small Node server), shipped as npm global package with a crontick-style CLI, runs on 127.0.0.1 on the same machine as the agents (Linux/Windows/macOS). Homarr rejected after owner review; Glance-style themes/columns borrowed for look.
+Local single-user dashboard. Agents (crontick Claude jobs, Claude sessions) write one JSON file per card into a feed folder; dashboard renders them as generic visual types (markdown, table, list, kpi, media) in a drag/resize grid, with a "Now" zone on top for alerts and time-windowed high-priority cards. Custom build (React + Vite + TS + react-grid-layout + small Node server), shipped as npm global package with a crontick-style CLI, runs on 127.0.0.1 on the same machine as the agents (Linux/Windows/macOS). Homarr rejected after owner review. Glance tried and liked: its themes/layout are the visual inspiration, but Glance itself is overkill (too many features) and lacks local file support, so it is not used.
 
 ## 2. Problem
 
@@ -58,12 +58,12 @@ Kill criteria (owner abandons if):
 | 22 | Anti-crowding: per-card `size` hint (S/M/L), compact default, fullscreen for detail; priority ≤ 1 panels collapse to title chip until clicked; no hard cap | Hard card cap | Crowding is a kill criterion; cap would drop info |
 | 23 | No UI → agent inputs in v1. UI does only search/filter/sort/tick/done/hide/open link. Card config (e.g. weather location) lives in card file | Input widgets in UI | YAGNI; agent owns config |
 | 24 | Global search across all cards (plus per-table search) | Per-table search only | Find anything fast |
-| 25 | Light + dark themes. Calm, Linear/Raycast-like, one accent color, good typography, subtle motion on data change; slim header (date, alert count, weather later). Glance-inspired: HSL theme tokens + default narrow–wide–narrow column arrangement on the grid. Owner unsure until tried | Themes beyond light/dark in v1; committing to Glance look now | Tokens make swapping cheap; look unverified |
+| 25 | Light + dark themes. Calm, Linear/Raycast-like, one accent color, good typography, subtle motion on data change; slim header (date, alert count, weather later). Glance-inspired: HSL theme tokens + default narrow–wide–narrow column arrangement on the grid. Owner tried Glance and likes its look | Themes beyond light/dark in v1; using Glance itself | Tokens make swapping cheap; Glance overkill + no local support; borrow look only |
 | 26 | Keep drag/resize/fullscreen grid (react-grid-layout); layout persisted in `state.json` | Fixed layout | Core feel; owner wants it |
 | 27 | Run model: started manually via CLI, crontick-style (`crontick-dashboard start`, `daemon start|stop|status`, `info` prints feed path + URL, `validate <file>`, `templates`). No autostart/service install in v1 | Autostart at login; agent-triggered demand-start | Autostart needs more thought; keep v1 simple |
 | 28 | Packaging: npm global package `crontick-dashboard`, Node ≥22.5, Windows/macOS/Linux. Data dir via `env-paths` with `CRONTICK_DASHBOARD_HOME` override (mirrors crontick `src/paths.ts`). Fixed default port on 127.0.0.1, free-port fallback + port file (like crontick) | Docker; per-OS installers | Matches crontick conventions; no Docker on VPS |
 | 29 | Stack: React + Vite + TS + react-grid-layout frontend; small Node server (file watch, validate, compute visibility/broken/Now, serve, ticks, archive, OS notify, TickTick MCP client). Page polls 30-60s (SSE if too slow) | Heavier framework/backend | Small, fits requirements |
-| 30 | Build choice: custom build decided. Homarr rejected after owner reviewed repo + demo: too crowded, app-management feel, no way to add local personal output, overkill features (stocks etc.). Node-RED Dashboard 2 not pursued. Glance/Dashy display-only (research) | Homarr; Node-RED Dashboard 2; Glance; Dashy | See research doc; owner's own review of Homarr |
+| 30 | Build choice: custom build decided. Homarr rejected after owner reviewed repo + demo: too crowded, app-management feel, no way to add local personal output, overkill features (stocks etc.). Node-RED Dashboard 2 not pursued. Glance tried by owner: look liked and borrowed, but overkill (too many features) and no local file support. Dashy display-only (research) | Homarr; Node-RED Dashboard 2; Glance; Dashy | See research doc; owner's own review of Homarr |
 | 31 | v1 cuts: multi-page, mobile layout, embed, inline video, history viewer, autostart, UI inputs, push to phone, weather | Ship all | YAGNI; weather = good 2nd-week widget |
 | 32 | No throwaway prototype; validate by real use | Week-long static prototype | Owner is starting crontick usage now |
 
@@ -152,7 +152,7 @@ Calm, Linear/Raycast-like; one accent; good typography; subtle motion on data ch
 - Layout = pages of columns, `size: small | full`; typical narrow–wide–narrow. Borrow as default arrangement on our grid (we add drag/resize).
 - Feel = dense, flat, low-chrome cards, compact typography. Borrow the density; our compact default + S/M/L.
 - Glance is display-only; no alerts/Now/Done. Borrow the look only.
-- Unverified for this owner; owner tries Glance demo.
+- Owner tried Glance and likes it. Borrow theme/layout inspiration only; Glance itself is overkill and lacks local file support.
 
 ### CLI
 
@@ -190,10 +190,8 @@ Calm, Linear/Raycast-like; one accent; good typography; subtle motion on data ch
 | Polling latency for watcher alerts | Measure; switch to SSE |
 | Missed notifications while server not started | Accepted for v1; revisit autostart |
 | Cross-platform OS notifications flaky | Test node-notifier (or equivalent) on Win + mac early |
-| Glance-like look unverified | Owner tries Glance demo; theme tokens make swapping cheap |
 
 ## Owner-only tasks
 
 - TickTick MCP sign-in (once).
 - Add git remote.
-- Try Glance demo to confirm look.
