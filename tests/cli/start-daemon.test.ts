@@ -9,6 +9,8 @@ import { createStartRegister } from '../../src/cli/commands/start.js';
 import { CliError, type CliContext, type CliIo } from '../../src/cli/io.js';
 import { isPidAlive } from '../../src/pid.js';
 import { pidFilePath } from '../../src/paths.js';
+import { ENV_HOME, ENV_PORT, ENV_UI_DIR } from '../../src/constants/env.js';
+import { loopbackUrl } from '../../src/utils/loopback.js';
 
 let data: string;
 let ui: string;
@@ -41,7 +43,7 @@ beforeEach(() => {
   ui = mkdtempSync(join(tmpdir(), 'cli-sd-ui-'));
   writeFileSync(join(ui, 'index.html'), '<html>SPA</html>');
   port += 1;
-  env = { ...process.env, CRONTICK_DASHBOARD_HOME: data, CRONTICK_DASHBOARD_PORT: String(port), CRONTICK_DASHBOARD_UI_DIR: ui };
+  env = { ...process.env, [ENV_HOME]: data, [ENV_PORT]: String(port), [ENV_UI_DIR]: ui };
 });
 afterEach(async () => {
   const pid = Number.parseInt(existsSync(pidFilePath(env)) ? readFileSync(pidFilePath(env), 'utf8') : '', 10);
@@ -69,7 +71,7 @@ describe('daemon commands', () => {
 
     const a = await exec(['daemon', 'start']);
     expect(a.code).toBe(0);
-    expect(a.out).toContain(`http://127.0.0.1:${port}`);
+    expect(a.out).toContain(`${loopbackUrl(port)}`);
     const pid = Number.parseInt(readFileSync(pidFilePath(env), 'utf8'), 10);
     const b = await exec(['daemon', 'start']);
     expect(b.code).toBe(0);
@@ -80,7 +82,7 @@ describe('daemon commands', () => {
     expect(st.code).toBe(0);
     expect(st.out).toContain(String(pid));
     const sj = JSON.parse((await exec(['daemon', 'status', '--json'])).out) as { running: boolean; pid: number; url: string };
-    expect(sj).toMatchObject({ running: true, pid, url: `http://127.0.0.1:${port}` });
+    expect(sj).toMatchObject({ running: true, pid, url: `${loopbackUrl(port)}` });
 
     const stop = await exec(['daemon', 'stop']);
     expect(stop.code).toBe(0);
@@ -92,7 +94,7 @@ describe('daemon commands', () => {
     await exec(['daemon', 'start']);
     const s = await exec(['start']);
     expect(s.code).toBe(1);
-    expect(s.err).toContain(`http://127.0.0.1:${port}`);
+    expect(s.err).toContain(`${loopbackUrl(port)}`);
     await exec(['daemon', 'stop']);
   }, 60_000);
 
@@ -118,11 +120,11 @@ describe('start (foreground)', () => {
     });
     for (let i = 0; i < 200 && !existsSync(pidFilePath(env)); i++) await new Promise((r) => setTimeout(r, 25));
     for (let i = 0; i < 400 && !armed; i++) await new Promise((r) => setTimeout(r, 25));
-    expect((await fetch(`http://127.0.0.1:${port}/api/health`)).ok).toBe(true);
+    expect((await fetch(`${loopbackUrl(port)}/api/health`)).ok).toBe(true);
     fire();
     const c = await done;
     expect(c.code).toBe(0);
-    expect(c.out).toContain(`http://127.0.0.1:${port}`);
+    expect(c.out).toContain(`${loopbackUrl(port)}`);
     expect(c.out).toContain(join(data, 'feed'));
     expect(existsSync(pidFilePath(env))).toBe(false);
   }, 30_000);

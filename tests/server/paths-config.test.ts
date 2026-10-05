@@ -6,14 +6,18 @@ import {
   archiveDir, configPath, dataDir, doneDir, ensureDirs, feedDir, lockFilePath, logFilePath,
   pidFilePath, portFilePath, statePath,
 } from '../../src/paths.js';
-import { DEFAULT_PORT, createConfigReader, loadConfig, resolvePort } from '../../src/config.js';
+import { createConfigReader, loadConfig, resolvePort } from '../../src/config.js';
 import { fakeClock, realClock } from '../../src/clock.js';
+import { ENV_HOME, ENV_PORT } from '../../src/constants/env.js';
+import { DEFAULT_NOTIFY_OS, DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION } from '../../src/constants/config.js';
+import { DEFAULT_PORT } from '../../src/constants/http.js';
+import { POLL_DEFAULT_MS, POLL_MAX_MS, POLL_MIN_MS } from '../../src/constants/poll.js';
 
 let home: string;
 let env: NodeJS.ProcessEnv;
 beforeEach(() => {
   home = join(mkdtempSync(join(tmpdir(), 'cd-')), 'data');
-  env = { CRONTICK_DASHBOARD_HOME: home };
+  env = { [ENV_HOME]: home };
 });
 afterEach(() => rmSync(join(home, '..'), { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
@@ -62,18 +66,17 @@ describe('config', () => {
     const r = loadConfig(env);
     expect(r.warnings).toEqual([]);
     expect(r.config).toEqual({
-      port: DEFAULT_PORT, retentionDefault: '7d', nowPriorityThreshold: 3, pollIntervalMs: 30000,
-      timezone: sysTz, notifications: { os: 'auto' },
+      port: DEFAULT_PORT, retentionDefault: DEFAULT_RETENTION, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS,
+      timezone: sysTz, notifications: { os: DEFAULT_NOTIFY_OS },
     });
-    expect(DEFAULT_PORT).toBe(47616);
     write({});
     expect(loadConfig(env).warnings).toEqual([]);
   });
   it('accepts valid values', () => {
-    write({ port: 5000, retentionDefault: '2w', nowPriorityThreshold: 4, pollIntervalMs: 1000, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
+    write({ port: 5000, retentionDefault: '2w', nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
     const r = loadConfig(env);
     expect(r.warnings).toEqual([]);
-    expect(r.config).toMatchObject({ port: 5000, retentionDefault: '2w', nowPriorityThreshold: 4, pollIntervalMs: 1000, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
+    expect(r.config).toMatchObject({ port: 5000, retentionDefault: '2w', nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
   });
   it.each([
     ['port', 'abc', 'port'],
@@ -81,6 +84,8 @@ describe('config', () => {
     ['retentionDefault', 'forever', 'retentionDefault'],
     ['nowPriorityThreshold', 9, 'nowPriorityThreshold'],
     ['pollIntervalMs', -5, 'pollIntervalMs'],
+    ['pollIntervalMs', POLL_MIN_MS - 1, 'pollIntervalMs'],
+    ['pollIntervalMs', POLL_MAX_MS + 1, 'pollIntervalMs'],
     ['timezone', 'Mars/Base', 'timezone'],
     ['notifications', { os: 'maybe' }, 'notifications.os'],
   ])('bad %s falls back with warning', (key, val, name) => {
@@ -88,7 +93,7 @@ describe('config', () => {
     const r = loadConfig(env);
     expect(r.warnings).toHaveLength(1);
     expect(r.warnings[0]).toContain(name);
-    expect(r.config).toMatchObject({ port: DEFAULT_PORT, retentionDefault: '7d', nowPriorityThreshold: 3, pollIntervalMs: 30000, timezone: sysTz, notifications: { os: 'auto' } });
+    expect(r.config).toMatchObject({ port: DEFAULT_PORT, retentionDefault: DEFAULT_RETENTION, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS, timezone: sysTz, notifications: { os: DEFAULT_NOTIFY_OS } });
   });
   it('one bad field does not affect others', () => {
     write({ port: 'x', nowPriorityThreshold: 5 });
@@ -107,9 +112,9 @@ describe('config', () => {
     write({ port: 5000 });
     const { config } = loadConfig(env);
     expect(resolvePort(config, env)).toBe(5000);
-    expect(resolvePort(config, { ...env, CRONTICK_DASHBOARD_PORT: '6000' })).toBe(6000);
-    expect(resolvePort(config, { ...env, CRONTICK_DASHBOARD_PORT: 'junk' })).toBe(5000);
-    expect(resolvePort(loadConfig({ CRONTICK_DASHBOARD_HOME: join(home, 'x') }).config, {})).toBe(DEFAULT_PORT);
+    expect(resolvePort(config, { ...env, [ENV_PORT]: '6000' })).toBe(6000);
+    expect(resolvePort(config, { ...env, [ENV_PORT]: 'junk' })).toBe(5000);
+    expect(resolvePort(loadConfig({ [ENV_HOME]: join(home, 'x') }).config, {})).toBe(DEFAULT_PORT);
   });
   it('reader reloads only when mtime changes', () => {
     write({ nowPriorityThreshold: 2 });

@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import { daemonStart, daemonStatus, daemonStop, type DaemonStartOptions } from '../../lifecycle.js';
+import { errorMessage } from '../../utils/errors.js';
 import { packageAssets } from '../assets.js';
 import { CliError, type CliContext } from '../io.js';
 
@@ -31,7 +32,7 @@ export function createDaemonRegister(deps: DaemonDeps = {}) {
         try {
           r = await daemonStart(o);
         } catch (err) {
-          throw new CliError(err instanceof Error ? err.message : String(err), 1);
+          throw new CliError(errorMessage(err), 1);
         }
         ctx.io.stdout(`${r.alreadyRunning ? 'already running' : 'started'}: ${r.url} (pid ${r.pid}, port ${r.port})\n`);
         ctx.io.stdout(`Log: ${r.logPath}\n`);

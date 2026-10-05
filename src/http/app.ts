@@ -1,5 +1,6 @@
 /** Hono app: security envelope + read routes. Mutation routes (Tasks 8/9) attach in `mountMutations`. */
 import { Hono } from 'hono';
+import { APP_NAME } from '../constants/app.js';
 import type { ActionDeps } from '../actions/registry.js';
 import type { Clock } from '../clock.js';
 import type { ConfigReader } from '../config.js';
@@ -56,7 +57,7 @@ export function createApp(ctx: AppContext): Hono {
   const app = new Hono();
   app.use('*', hostGuard(ctx.getPort));
 
-  app.get('/api/health', (c) => c.json({ app: 'crontick-dashboard', pid: process.pid, dataDir: ctx.dataDir }));
+  app.get('/api/health', (c) => c.json({ app: APP_NAME, pid: process.pid, dataDir: ctx.dataDir }));
 
   app.get('/api/snapshot', (c) => {
     const snap = buildSnapshot(ctx);

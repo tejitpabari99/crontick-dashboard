@@ -5,12 +5,16 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { type Clock, realClock } from '../clock.js';
 import { type ConfigReader, createConfigReader, resolvePort } from '../config.js';
+import { LOOPBACK_HOST } from '../constants/http.js';
+import { RECONCILE_INTERVAL_MS } from '../constants/state.js';
 import { createArchive } from '../feed/archive.js';
 import { createCardEvents, type CardEvents } from '../feed/events.js';
 import { envelope } from '../feed/ingest.js';
 import { createFeedWatcher } from '../feed/watcher.js';
 import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
 import { claimPidFile, releasePidFile } from '../pid.js';
+import { errorMessage } from '../utils/errors.js';
+import { loopbackUrl } from '../utils/loopback.js';
 import { createStateStore } from '../state/store.js';
 import { createWarnings, type Warnings } from '../state/warnings.js';
 import type { ActionDeps } from '../actions/registry.js';
@@ -62,7 +66,6 @@ export interface RunningServer {
   address(): AddressInfo;
 }
 
-const RECONCILE_INTERVAL_MS = 3_600_000;
 const nullLogger: ServerLogger = { info: () => {}, warn: () => {} };
 
 export async function startServer(opts: StartServerOptions): Promise<RunningServer> {
@@ -128,7 +131,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     if (stopped) return;
     const p: Promise<void> = state
       .reconcile(present)
-      .catch((err: unknown) => logger.warn(`state reconcile failed: ${err instanceof Error ? err.message : String(err)}`))
+      .catch((err: unknown) => logger.warn(`state reconcile failed: ${errorMessage(err)}`))
       .finally(() => reconciles.delete(p));
     reconciles.add(p);
   };
@@ -182,7 +185,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
         new Promise<number>((resolve, reject) => {
           const onError = (err: Error): void => reject(err);
           srv.once('error', onError);
-          srv.listen(port, '127.0.0.1', () => {
+          srv.listen(port, LOOPBACK_HOST, () => {
             srv.off('error', onError);
             resolve((srv.address() as AddressInfo).port);
           });
@@ -202,9 +205,9 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     throw err;
   }
 
-  logger.info(`crontick-dashboard listening on http://127.0.0.1:${boundPort}`);
+  logger.info(`crontick-dashboard listening on ${loopbackUrl(boundPort)}`);
   return {
-    url: `http://127.0.0.1:${boundPort}`,
+    url: loopbackUrl(boundPort),
     port: boundPort,
     dataDir,
     stop,

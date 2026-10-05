@@ -1,9 +1,8 @@
 /** fs.watch wiring for the feed ingest: flat watch, 200 ms per-file debounce, periodic rescan. */
 import { watch, mkdirSync, type FSWatcher } from 'node:fs';
-import { createFeedIngest, isFeedFile, type FeedIngest, type FeedIngestOptions, type Timers } from './ingest.js';
-
-export const DEBOUNCE_MS = 200;
-export const RESCAN_MS = 10_000;
+import { FEED_DEBOUNCE_MS, FEED_RESCAN_MS } from '../constants/feed.js';
+import { realTimers, type TimeoutTimers } from '../utils/timers.js';
+import { createFeedIngest, isFeedFile, type FeedIngest, type FeedIngestOptions } from './ingest.js';
 
 export interface FeedWatcherOptions extends FeedIngestOptions {
   debounceMs?: number;
@@ -17,12 +16,9 @@ export interface FeedWatcher extends FeedIngest {
 }
 
 export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
-  const timers: Timers = opts.timers ?? {
-    setTimeout: (fn, ms) => setTimeout(fn, ms),
-    clearTimeout: (h) => clearTimeout(h as NodeJS.Timeout),
-  };
+  const timers: TimeoutTimers = opts.timers ?? realTimers;
   const ingest = createFeedIngest({ ...opts, timers });
-  const debounce = opts.debounceMs ?? DEBOUNCE_MS;
+  const debounce = opts.debounceMs ?? FEED_DEBOUNCE_MS;
   const pending = new Map<string, unknown>();
   let watcher: FSWatcher | undefined;
   let rescanTimer: unknown;
@@ -43,7 +39,7 @@ export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
   function tickRescan(): void {
     if (!running) return;
     ingest.rescan();
-    rescanTimer = timers.setTimeout(tickRescan, opts.rescanMs ?? RESCAN_MS);
+    rescanTimer = timers.setTimeout(tickRescan, opts.rescanMs ?? FEED_RESCAN_MS);
     (rescanTimer as { unref?: () => void } | undefined)?.unref?.();
   }
 
@@ -66,7 +62,7 @@ export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
       } catch {
         /* watch unsupported: rescan only */
       }
-      rescanTimer = timers.setTimeout(tickRescan, opts.rescanMs ?? RESCAN_MS);
+      rescanTimer = timers.setTimeout(tickRescan, opts.rescanMs ?? FEED_RESCAN_MS);
       (rescanTimer as { unref?: () => void } | undefined)?.unref?.();
     },
     stop() {

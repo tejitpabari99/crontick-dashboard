@@ -6,6 +6,7 @@ import { sameInstant } from '../instant.js';
 import { actionRegistry } from '../actions/registry.js';
 import type { AppContext } from './app.js';
 import { buildSnapshot } from './app.js';
+import { errorMessage } from '../utils/errors.js';
 
 const BodySchema = z.object({
   itemId: z.string().min(1),
@@ -43,7 +44,7 @@ export function mountActions(app: Hono, ctx: AppContext): void {
       );
       if (!res.ok) return c.json({ error: res.error }, res.status);
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+      return c.json({ error: errorMessage(err) }, 500);
     }
     return c.json({ rev: buildSnapshot(ctx).rev });
   });

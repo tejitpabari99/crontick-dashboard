@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeClock } from '../../src/clock.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
 import type { Snapshot } from '../../src/shared/api-types.js';
+import { ENV_HOME } from '../../src/constants/env.js';
+import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.js';
+import { loopbackUrl } from '../../src/utils/loopback.js';
 
 let data: string;
 let ui: string;
@@ -43,15 +46,15 @@ afterEach(async () => {
 });
 
 const boot = async (): Promise<RunningServer> =>
-  (running = await startServer({ env: { CRONTICK_DASHBOARD_HOME: data }, clock, uiDir: ui, port: 0 }));
+  (running = await startServer({ env: { [ENV_HOME]: data }, clock, uiDir: ui, port: 0 }));
 const act = (s: RunningServer, id: string, body: unknown) =>
-  fetch(`http://127.0.0.1:${s.port}/api/cards/${id}/actions`, {
+  fetch(`${loopbackUrl(s.port)}/api/cards/${id}/actions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+    headers: { 'Content-Type': 'application/json', [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
     body: JSON.stringify(body),
   });
 const snap = async (s: RunningServer): Promise<Snapshot> =>
-  (await (await fetch(`http://127.0.0.1:${s.port}/api/snapshot`)).json()) as Snapshot;
+  (await (await fetch(`${loopbackUrl(s.port)}/api/snapshot`)).json()) as Snapshot;
 const checkedOf = async (s: RunningServer, id: string) =>
   (await snap(s)).cards[id]?.checked;
 
@@ -183,7 +186,7 @@ describe('complete write-back', () => {
     writeFileSync(feed('l1.json'), rawCard());
     let fired = 0;
     running = await startServer({
-      env: { CRONTICK_DASHBOARD_HOME: data },
+      env: { [ENV_HOME]: data },
       clock,
       uiDir: ui,
       port: 0,
@@ -207,7 +210,7 @@ describe('complete write-back', () => {
     writeFileSync(feed('l1.json'), rawCard());
     const agent = rawCard('2026-06-01T11:00:00Z');
     running = await startServer({
-      env: { CRONTICK_DASHBOARD_HOME: data },
+      env: { [ENV_HOME]: data },
       clock,
       uiDir: ui,
       port: 0,
@@ -225,7 +228,7 @@ describe('complete write-back', () => {
     let calls = 0;
     const sleeps: number[] = [];
     running = await startServer({
-      env: { CRONTICK_DASHBOARD_HOME: data },
+      env: { [ENV_HOME]: data },
       clock,
       uiDir: ui,
       port: 0,
@@ -246,7 +249,7 @@ describe('complete write-back', () => {
     writeFileSync(feed('l1.json'), rawCard());
     calls = -100;
     running = await startServer({
-      env: { CRONTICK_DASHBOARD_HOME: data },
+      env: { [ENV_HOME]: data },
       clock,
       uiDir: ui,
       port: 0,

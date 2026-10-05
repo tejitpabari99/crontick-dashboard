@@ -1,17 +1,19 @@
 /**
- * Data directory path resolution. Precedence: CRONTICK_DASHBOARD_HOME env var >
+ * Data directory path resolution. Precedence: the ENV_HOME env var >
  * platform default via env-paths (suffix '').
  */
 import envPaths from 'env-paths';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { APP_NAME } from './constants/app.js';
+import { ENV_HOME } from './constants/env.js';
 
 type Env = NodeJS.ProcessEnv;
 
 export function dataDir(env: Env = process.env): string {
-  const override = env['CRONTICK_DASHBOARD_HOME'];
+  const override = env[ENV_HOME];
   if (override) return override;
-  return envPaths('crontick-dashboard', { suffix: '' }).data;
+  return envPaths(APP_NAME, { suffix: '' }).data;
 }
 export const feedDir = (env: Env = process.env): string => join(dataDir(env), 'feed');
 export const doneDir = (env: Env = process.env): string => join(dataDir(env), 'feed', 'done');

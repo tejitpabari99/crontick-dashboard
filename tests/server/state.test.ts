@@ -5,13 +5,15 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeClock } from '../../src/clock.js';
 import { createStateStore } from '../../src/state/store.js';
+import { ENV_HOME } from '../../src/constants/env.js';
+import { MS_PER_DAY } from '../../src/constants/time.js';
 
-const DAY = 86_400_000;
+const DAY = MS_PER_DAY;
 let dir: string;
 let env: NodeJS.ProcessEnv;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'state-'));
-  env = { CRONTICK_DASHBOARD_HOME: dir };
+  env = { [ENV_HOME]: dir };
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 

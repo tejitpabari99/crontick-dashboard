@@ -1,11 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command } from 'commander';
-import { DEFAULT_PORT, loadConfig } from '../../config.js';
+import { loadConfig } from '../../config.js';
+import { DEFAULT_PORT } from '../../constants/http.js';
 import { resolveNotifyGate } from '../../integrations/notify/gate.js';
 import { daemonStatus, type DaemonStatus } from '../../lifecycle.js';
 import { configPath, dataDir, feedDir } from '../../paths.js';
-import { packageAssets } from '../assets.js';
+import { packageAssets, packageVersion } from '../assets.js';
 import type { CliContext } from '../io.js';
 
 export interface InfoDeps {
@@ -35,12 +34,11 @@ export function createInfoRegister(deps: InfoDeps = { daemonStatus }) {
       .action(async (opts: { json?: boolean }) => {
         const env = ctx.io.env as NodeJS.ProcessEnv;
         const assets = packageAssets();
-        const pkg = JSON.parse(readFileSync(join(assets.root, 'package.json'), 'utf8')) as { version: string };
         const status = await deps.daemonStatus({ env });
         const { config } = loadConfig(env);
         const gate = resolveNotifyGate({ configValue: config.notifications.os, env, platform: process.platform });
         const info: InfoJson = {
-          version: pkg.version,
+          version: packageVersion(),
           dataDir: dataDir(env),
           feedDir: feedDir(env),
           url: status.running ? (status.url ?? null) : null,

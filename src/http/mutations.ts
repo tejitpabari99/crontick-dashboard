@@ -5,6 +5,7 @@ import { basename, extname, join } from 'node:path';
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import { envelope } from '../feed/ingest.js';
+import { errnoCode, errorMessage } from '../utils/errors.js';
 import type { AppContext } from './app.js';
 import { buildSnapshot } from './app.js';
 
@@ -26,13 +27,13 @@ async function moveToDone(ctx: AppContext, file: string): Promise<void> {
   try {
     await rename(src, dest);
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
+    const code = errnoCode(err);
     if (code === 'ENOENT') return;
     if (code !== 'EXDEV') throw err;
     try {
       await copyFile(src, dest);
     } catch (e2) {
-      if ((e2 as NodeJS.ErrnoException).code === 'ENOENT') return;
+      if (errnoCode(e2) === 'ENOENT') return;
       throw e2;
     }
     await unlink(src).catch((e3: NodeJS.ErrnoException) => {
@@ -44,7 +45,7 @@ async function moveToDone(ctx: AppContext, file: string): Promise<void> {
 export function mountMutations(app: Hono, ctx: AppContext): void {
   const ok = (c: Context) => c.json({ rev: buildSnapshot(ctx).rev });
   const fail = (c: Context, err: unknown) =>
-    c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+    c.json({ error: errorMessage(err) }, 500);
 
   /** Ids this server already moved to done/: a repeated tick is an idempotent 200 (ids never reach the filesystem). */
   const ticked = new Set<string>();

@@ -5,12 +5,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeClock } from '../../src/clock.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
 import type { Snapshot } from '../../src/shared/api-types.js';
+import { ENV_HOME } from '../../src/constants/env.js';
+import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.js';
+import { loopbackUrl } from '../../src/utils/loopback.js';
 
 let data: string;
 let ui: string;
 let running: RunningServer | undefined;
 const clock = fakeClock('2026-06-01T12:00:00Z');
-const env = (): NodeJS.ProcessEnv => ({ CRONTICK_DASHBOARD_HOME: data });
+const env = (): NodeJS.ProcessEnv => ({ [ENV_HOME]: data });
 const feed = (n: string): string => join(data, 'feed', n);
 const card = (id: string, kind: 'panel' | 'alert', updatedAt: string) =>
   JSON.stringify({ id, kind, type: 'markdown', title: id, updatedAt, data: { text: 'hi' } });
@@ -30,13 +33,13 @@ afterEach(async () => {
 
 const boot = async (): Promise<RunningServer> => (running = await startServer({ env: env(), clock, uiDir: ui, port: 0 }));
 const call = (s: RunningServer, method: string, path: string, body?: unknown) =>
-  fetch(`http://127.0.0.1:${s.port}${path}`, {
+  fetch(`${loopbackUrl(s.port)}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+    headers: { 'Content-Type': 'application/json', [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 const snap = async (s: RunningServer): Promise<Snapshot> =>
-  (await (await fetch(`http://127.0.0.1:${s.port}/api/snapshot`)).json()) as Snapshot;
+  (await (await fetch(`${loopbackUrl(s.port)}/api/snapshot`)).json()) as Snapshot;
 async function until(fn: () => Promise<boolean>): Promise<void> {
   for (let i = 0; i < 100 && !(await fn()); i++) await new Promise((r) => setTimeout(r, 50));
 }

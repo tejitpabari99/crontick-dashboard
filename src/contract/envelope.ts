@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ID_PATTERN } from '../constants/contract.js';
 import { cronSchema, durationSchema, timestampSchema } from './formats.js';
 
 /** Known card types. Per-type validation and unknown-type handling live elsewhere (registry). */
@@ -8,7 +9,7 @@ export type KnownType = (typeof KNOWN_TYPES)[number];
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
 
 function isValidId(v: string): boolean {
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)) return false;
+  if (!ID_PATTERN.test(v)) return false;
   if (v.endsWith('.')) return false;
   // Windows reserves the name before the first dot, with or without extension.
   return !WINDOWS_RESERVED.test(v.split('.')[0]!);
@@ -16,7 +17,7 @@ function isValidId(v: string): boolean {
 
 export const idSchema = z.string().refine(isValidId, {
   message:
-    'id must match ^[a-z0-9][a-z0-9._-]{0,63}$, not end with ".", and not be a Windows reserved name (con, prn, aux, nul, com1-9, lpt1-9)',
+    `id must match ${ID_PATTERN.source}, not end with ".", and not be a Windows reserved name (con, prn, aux, nul, com1-9, lpt1-9)`,
 });
 
 export const showSchema = z.looseObject({

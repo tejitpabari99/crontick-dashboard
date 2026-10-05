@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { APP_NAME } from '../../src/constants/app.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { NotBuiltError, packageAssets, resolveUiDir } from '../../src/cli/assets.js';
+import { NotBuiltError, packageAssets, packageVersion, resolveUiDir } from '../../src/cli/assets.js';
 
 const dirs: string[] = [];
 const tmp = (): string => {
@@ -67,5 +68,14 @@ describe('resolveUiDir', () => {
       expect((e as NotBuiltError).code).toBe('NOT_BUILT');
       expect((e as Error).message).toContain('run npm run build');
     }
+  });
+});
+
+describe('packageVersion', () => {
+  it('reads version from the package.json found by walking up', () => {
+    const root = tmp();
+    mkdirSync(join(root, 'a', 'b'), { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: APP_NAME, version: '9.8.7' }));
+    expect(packageVersion(join(root, 'a', 'b'))).toBe('9.8.7');
   });
 });

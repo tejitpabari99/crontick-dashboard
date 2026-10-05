@@ -5,7 +5,11 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { MAX_BYTES, validateCardFile, type Card, type BrokenReason } from '../contract/validate.js';
+import { MAX_CARD_BYTES } from '../constants/contract.js';
+import { FEED_SETTLE_DELAYS_MS } from '../constants/feed.js';
+import { errnoCode, errorMessage } from '../utils/errors.js';
+import { realTimers, type TimeoutTimers } from '../utils/timers.js';
+import { validateCardFile, type Card, type BrokenReason } from '../contract/validate.js';
 
 export type StoredReason = BrokenReason | 'duplicate-id';
 
@@ -71,14 +75,9 @@ export interface IngestInfo {
   selfWrite: boolean;
 }
 
-export interface Timers {
-  setTimeout(fn: () => void, ms: number): unknown;
-  clearTimeout(handle: unknown): void;
-}
-
 export interface FeedIngestOptions {
   feedDir: string;
-  timers?: Timers;
+  timers?: TimeoutTimers;
   onIngest?: (info: IngestInfo) => void;
   onChange?: (change: CardChange) => void;
 }
@@ -99,13 +98,6 @@ export interface FeedIngest {
   /** Cancel pending settling timers. */
   dispose(): void;
 }
-
-export const SETTLE_DELAYS_MS = [250, 1000, 3000] as const;
-
-const realTimers: Timers = {
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h as NodeJS.Timeout),
-};
 
 export function isFeedFile(name: string): boolean {
   return /\.json$/i.test(name) && !name.startsWith('.') && !/\.tmp$/i.test(name);
@@ -144,17 +136,17 @@ function readFeedFile(path: string): ReadResult {
     try {
       const st = statSync(path);
       if (st.isDirectory()) return { kind: 'dir' };
-      if (st.size > MAX_BYTES) return { kind: 'toolarge', mtimeMs: st.mtimeMs, size: st.size };
+      if (st.size > MAX_CARD_BYTES) return { kind: 'toolarge', mtimeMs: st.mtimeMs, size: st.size };
       const buf = readFileSync(path);
       return { kind: 'read', mtimeMs: st.mtimeMs, size: st.size, buf };
     } catch (e) {
       last = e;
-      const code = (e as NodeJS.ErrnoException).code ?? '';
+      const code = errnoCode(e) ?? '';
       if (code === 'ENOENT') return { kind: 'gone' };
       if (!RETRY_CODES.has(code)) break;
     }
   }
-  return { kind: 'error', mtimeMs: 0, size: 0, message: last instanceof Error ? last.message : String(last) };
+  return { kind: 'error', mtimeMs: 0, size: 0, message: errorMessage(last) };
 }
 
 const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex');
@@ -280,9 +272,9 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     let attempt = 0;
     if (cur && !restart) attempt = cur.attempt;
     if (cur) timers.clearTimeout(cur.timer);
-    const delay = SETTLE_DELAYS_MS[attempt] as number;
+    const delay = FEED_SETTLE_DELAYS_MS[attempt] as number;
     // Delays are cumulative from first failure: 250ms, 1s, 3s.
-    const wait = attempt === 0 ? delay : delay - (SETTLE_DELAYS_MS[attempt - 1] as number);
+    const wait = attempt === 0 ? delay : delay - (FEED_SETTLE_DELAYS_MS[attempt - 1] as number);
     const s: Settling = {
       mtimeMs,
       attempt,
@@ -306,7 +298,7 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
       settle(name, mtime, true); // file still being written: restart the schedule
       return;
     }
-    if (s.attempt + 1 >= SETTLE_DELAYS_MS.length) {
+    if (s.attempt + 1 >= FEED_SETTLE_DELAYS_MS.length) {
       finalizeBroken(name, r);
       return;
     }

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { daemonStart, daemonStatus, daemonStop, runForeground } from '../../src/lifecycle.js';
 import { isPidAlive } from '../../src/pid.js';
 import { lockFilePath, logFilePath, pidFilePath, portFilePath } from '../../src/paths.js';
+import { ENV_HOME, ENV_PORT, ENV_UI_DIR } from '../../src/constants/env.js';
+import { loopbackUrl } from '../../src/utils/loopback.js';
 
 let data: string;
 let ui: string;
@@ -18,7 +20,7 @@ beforeEach(() => {
   ui = mkdtempSync(join(tmpdir(), 'lc-ui-'));
   writeFileSync(join(ui, 'index.html'), '<html>SPA</html>');
   port += 1;
-  env = { ...process.env, CRONTICK_DASHBOARD_HOME: data, CRONTICK_DASHBOARD_PORT: String(port), CRONTICK_DASHBOARD_UI_DIR: ui };
+  env = { ...process.env, [ENV_HOME]: data, [ENV_PORT]: String(port), [ENV_UI_DIR]: ui };
 });
 afterEach(async () => {
   const pid = Number.parseInt(existsSync(pidFilePath(env)) ? readFileSync(pidFilePath(env), 'utf8') : '', 10);
@@ -39,7 +41,7 @@ describe('daemon lifecycle', () => {
     expect((await daemonStatus({ env })).running).toBe(false);
     const r = await daemonStart(opts());
     expect(r.alreadyRunning).toBe(false);
-    expect(r.url).toBe(`http://127.0.0.1:${port}`);
+    expect(r.url).toBe(`${loopbackUrl(port)}`);
     expect(existsSync(logFilePath(env))).toBe(true);
     expect(existsSync(lockFilePath(env))).toBe(false);
     const st = await daemonStatus({ env });

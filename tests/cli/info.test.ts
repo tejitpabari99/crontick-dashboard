@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PORT } from '../../src/config.js';
+import { DEFAULT_PORT } from '../../src/constants/http.js';
 import { createInfoRegister } from '../../src/cli/commands/info.js';
 import { run, type CliContext, type CliIo } from '../../src/cli/main.js';
+import { ENV_HOME } from '../../src/constants/env.js';
 
 function cap(env: Record<string, string | undefined> = {}) {
   const c = { out: '', err: '', io: undefined as unknown as CliIo };
@@ -23,7 +24,7 @@ const home = (): string => mkdtempSync(join(tmpdir(), 'info-'));
 describe('info', () => {
   it('--json emits exactly the frozen fields with daemon stopped', async () => {
     const h = home();
-    const c = cap({ CRONTICK_DASHBOARD_HOME: h });
+    const c = cap({ [ENV_HOME]: h });
     expect(await run(['info', '--json'], c.io)).toBe(0);
     const j = JSON.parse(c.out) as Record<string, unknown>;
     expect(Object.keys(j).sort()).toEqual(
@@ -44,7 +45,7 @@ describe('info', () => {
   });
 
   it('version matches --version', async () => {
-    const a = cap({ CRONTICK_DASHBOARD_HOME: home() });
+    const a = cap({ [ENV_HOME]: home() });
     await run(['info', '--json'], a.io);
     const b = cap();
     await run(['--version'], b.io);
@@ -52,7 +53,7 @@ describe('info', () => {
   });
 
   it('human output has all labels and the default port', async () => {
-    const c = cap({ CRONTICK_DASHBOARD_HOME: home() });
+    const c = cap({ [ENV_HOME]: home() });
     expect(await run(['info'], c.io)).toBe(0);
     for (const l of ['Version', 'Data dir', 'Feed dir', 'URL', 'Config', 'Templates', 'Schemas', 'Skill', 'Notifications']) {
       expect(c.out).toContain(l);
@@ -62,7 +63,7 @@ describe('info', () => {
   });
 
   it('running daemon reports url and running (injected status)', async () => {
-    const c = cap({ CRONTICK_DASHBOARD_HOME: home() });
+    const c = cap({ [ENV_HOME]: home() });
     let code = 0;
     const ctx: CliContext = { io: c.io, setExitCode: (n) => void (code = n), verbose: () => false };
     const program = new Command().exitOverride();
@@ -74,7 +75,7 @@ describe('info', () => {
     expect(j.running).toBe(true);
     expect(j.url).toBe('http://127.0.0.1:5555');
     expect(code).toBe(0);
-    const h = cap({ CRONTICK_DASHBOARD_HOME: home() });
+    const h = cap({ [ENV_HOME]: home() });
     const p2 = new Command().exitOverride();
     createInfoRegister({ daemonStatus: async () => ({ running: true, url: 'http://127.0.0.1:5555', dataDir: 'x' }) })(p2, { ...ctx, io: h.io });
     await p2.parseAsync(['info'], { from: 'user' });

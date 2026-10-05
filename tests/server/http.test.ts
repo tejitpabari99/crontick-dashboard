@@ -8,6 +8,9 @@ import { fakeClock } from '../../src/clock.js';
 import { bindPort } from '../../src/http/bind-port.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
 import { portFilePath } from '../../src/paths.js';
+import { ENV_HOME } from '../../src/constants/env.js';
+import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.js';
+import { loopbackUrl } from '../../src/utils/loopback.js';
 
 let data: string;
 let ui: string;
@@ -16,7 +19,7 @@ let blockers: Server[] = [];
 const clock = fakeClock('2026-06-01T12:00:00Z');
 const notices: string[] = [];
 const logger = { info: (m: string) => void notices.push(m), warn: (m: string) => void notices.push(m) };
-const env = (): NodeJS.ProcessEnv => ({ CRONTICK_DASHBOARD_HOME: data });
+const env = (): NodeJS.ProcessEnv => ({ [ENV_HOME]: data });
 
 beforeEach(() => {
   data = mkdtempSync(join(tmpdir(), 'http-data-'));
@@ -40,7 +43,7 @@ async function boot(port = 0): Promise<RunningServer> {
   return running;
 }
 const get = (s: RunningServer, path: string, headers: Record<string, string> = {}) =>
-  fetch(`http://127.0.0.1:${s.port}${path}`, { headers });
+  fetch(`${loopbackUrl(s.port)}${path}`, { headers });
 
 /** Raw request so we control the Host header. */
 function raw(port: number, method: string, path: string, headers: Record<string, string>): Promise<{ status: number; headers: Record<string, unknown>; body: string }> {
@@ -79,7 +82,7 @@ describe('http server', () => {
     const addr = s.address();
     expect(addr.address).toBe('127.0.0.1');
     expect(readFileSync(portFilePath(env()), 'utf8').trim()).toBe(String(s.port));
-    expect(s.url).toBe(`http://127.0.0.1:${s.port}`);
+    expect(s.url).toBe(`${loopbackUrl(s.port)}`);
     await s.stop();
     running = undefined;
     expect(existsSync(portFilePath(env()))).toBe(false);
@@ -96,11 +99,11 @@ describe('http server', () => {
 
   it('mutation guard needs JSON content-type and X-Crontick-Dashboard', async () => {
     const s = await boot();
-    const url = `http://127.0.0.1:${s.port}/api/shutdown`;
+    const url = `${loopbackUrl(s.port)}/api/shutdown`;
     expect((await fetch(url, { method: 'POST' })).status).toBe(403);
     expect((await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })).status).toBe(403);
-    expect((await fetch(url, { method: 'POST', headers: { 'X-Crontick-Dashboard': '1' } })).status).toBe(403);
-    expect((await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Crontick-Dashboard': '1' } })).status).toBe(403);
+    expect((await fetch(url, { method: 'POST', headers: { [MUTATION_HEADER]: MUTATION_HEADER_VALUE } })).status).toBe(403);
+    expect((await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain', [MUTATION_HEADER]: MUTATION_HEADER_VALUE } })).status).toBe(403);
     expect(existsSync(portFilePath(env()))).toBe(true);
   });
 
@@ -108,9 +111,9 @@ describe('http server', () => {
     let called = 0;
     running = await startServer({ env: env(), clock, uiDir: ui, logger, port: 0, onShutdown: () => void called++ });
     const s = running;
-    const r = await fetch(`http://127.0.0.1:${s.port}/api/shutdown`, {
+    const r = await fetch(`${loopbackUrl(s.port)}/api/shutdown`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+      headers: { 'Content-Type': 'application/json', [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
     });
     expect(r.status).toBe(200);
     for (let i = 0; i < 50 && existsSync(portFilePath(env())); i++) await new Promise((r2) => setTimeout(r2, 20));

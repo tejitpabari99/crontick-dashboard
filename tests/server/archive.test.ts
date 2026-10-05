@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createArchive, type Archive, type ArchiveTimers } from '../../src/feed/archive.js';
+import { createArchive, type Archive } from '../../src/feed/archive.js';
 import { createFeedIngest } from '../../src/feed/ingest.js';
 import { fakeClock, type FakeClock } from '../../src/clock.js';
+import { MS_PER_DAY } from '../../src/constants/time.js';
+import type { IntervalTimers } from '../../src/utils/timers.js';
 
-const DAY = 86_400_000;
+const DAY = MS_PER_DAY;
 let root: string;
 let feed: string;
 let arch: string;
@@ -29,7 +31,7 @@ const versions = (id: string) => (existsSync(join(arch, id)) ? readdirSync(join(
 
 function setup(retentionDefault = '7d') {
   let hourly: (() => void) | undefined;
-  const timers: ArchiveTimers = {
+  const timers: IntervalTimers = {
     setInterval: (fn) => {
       hourly = fn;
       return 1;

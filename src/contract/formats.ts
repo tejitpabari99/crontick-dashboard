@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { Cron } from 'croner';
+import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, MS_PER_WEEK } from '../constants/time.js';
 
 // Pure helpers: no Node-only or DOM APIs.
 
 const DURATION_RE = /^[1-9]\d*(m|h|d|w)$/;
-const MAX_DURATION_MS = 3650 * 86_400_000;
-const UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 } as const;
+const MAX_DURATION_MS = 3650 * MS_PER_DAY;
+const UNIT_MS = { m: MS_PER_MINUTE, h: MS_PER_HOUR, d: MS_PER_DAY, w: MS_PER_WEEK } as const;
 
 /** Parse a duration like `30m`, `12h`, `7d`, `2w` to milliseconds. Throws if invalid. */
 export function parseDuration(value: string): number {
@@ -142,7 +143,7 @@ export function windowActive(
     const midnight = new Cron('0 0 * * *', { ...cronOpts, paused: true }).previousRuns(1, new Date(now.getTime() + 1000))[0];
     // midnight is the latest local 00:00 at or before now; fall back to 24h if unavailable
     // look back from midnight - 1ms so a start at exactly 00:00 (exclusive nextRun) still counts
-    lookbackFrom = new Date((midnight ?? new Date(now.getTime() - 86_400_000)).getTime() - 1);
+    lookbackFrom = new Date((midnight ?? new Date(now.getTime() - MS_PER_DAY)).getTime() - 1);
   }
   // Window is active iff a start occurrence exists in (lookbackFrom, now].
   const start = new Cron(show.cron, { ...cronOpts, paused: true }).nextRun(lookbackFrom);

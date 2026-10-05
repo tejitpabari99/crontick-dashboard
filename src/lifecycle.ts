@@ -7,16 +7,24 @@ import { spawn } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { APP_NAME } from './constants/app.js';
+import { MUTATION_HEADER, MUTATION_HEADER_VALUE, JSON_CONTENT_TYPE } from './constants/http.js';
+import {
+  LIFECYCLE_POLL_MS,
+  LOCK_STALE_MS,
+  SHUTDOWN_REQUEST_TIMEOUT_MS,
+  STARTUP_TIMEOUT_MS,
+  STOP_TIMEOUT_MS,
+} from './constants/lifecycle.js';
 import { probeHealth } from './http/bind-port.js';
 import { startServer, type RunningServer, type ServerLogger, type StartServerOptions } from './http/server.js';
 import { isPidAlive, readPidFile, readPortFile } from './pid.js';
 import { dataDir as dataDirOf, ensureDirs, lockFilePath, logFilePath, pidFilePath, portFilePath } from './paths.js';
+import { errnoCode } from './utils/errors.js';
+import { loopbackHost, loopbackUrl } from './utils/loopback.js';
+import { sleep } from './utils/sleep.js';
 
 type Env = NodeJS.ProcessEnv;
-
-const POLL_MS = 50;
-const LOCK_STALE_MS = 60_000;
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** Production default: dist/server/index.js next to the built lifecycle module (dist/lifecycle.js). */
 export const defaultServerEntry = (): string => resolve(dirname(fileURLToPath(import.meta.url)), 'server/index.js');
@@ -75,14 +83,14 @@ export async function daemonStatus(opts: DaemonOptions = {}): Promise<DaemonStat
   if (pid !== undefined && port !== undefined && isPidAlive(pid)) {
     const h = await healthOf(port);
     if (h && (h.pid === undefined || h.pid === pid)) {
-      return { running: true, pid, port, url: `http://127.0.0.1:${port}`, dataDir };
+      return { running: true, pid, port, url: loopbackUrl(port), dataDir };
     }
   }
   if (pid !== undefined && isPidAlive(pid)) {
     // Live pid: never remove its files (a second server could then start on the same data dir).
     // Port file but no healthy answer => busy/unhealthy server, still running. No port file => still starting.
     if (port === undefined) return { running: false, dataDir };
-    return { running: true, pid, port, url: `http://127.0.0.1:${port}`, dataDir, unhealthy: true };
+    return { running: true, pid, port, url: loopbackUrl(port), dataDir, unhealthy: true };
   }
   rmSync(pidFilePath(env), { force: true });
   rmSync(portFilePath(env), { force: true });
@@ -91,7 +99,7 @@ export async function daemonStatus(opts: DaemonOptions = {}): Promise<DaemonStat
 
 async function healthOf(port: number): Promise<{ pid?: number } | undefined> {
   const occ = await probeHealth(port);
-  if (occ.kind !== 'crontick-dashboard') return undefined;
+  if (occ.kind !== APP_NAME) return undefined;
   return occ.pid === undefined ? {} : { pid: occ.pid };
 }
 
@@ -114,7 +122,7 @@ export async function runForeground(
 /** `daemon start`: idempotent detached start; serialized by an exclusive daemon.lock. */
 export async function daemonStart(opts: DaemonStartOptions = {}): Promise<DaemonStartResult> {
   const env = opts.env ?? process.env;
-  const timeoutMs = opts.startupTimeoutMs ?? 15_000;
+  const timeoutMs = opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS;
   const serverEntry = opts.serverEntry ?? defaultServerEntry();
   const logPath = logFilePath(env);
   const dataDir = dataDirOf(env);
@@ -160,7 +168,7 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
         if (raced.running) return toStartResult(raced, true, logPath);
         throw new Error(`daemon exited during startup (code ${String(exited)}); see log: ${logPath}`);
       }
-      await sleep(POLL_MS);
+      await sleep(LIFECYCLE_POLL_MS);
     }
     try {
       if (child.pid !== undefined) process.kill(child.pid, 'SIGKILL');
@@ -180,20 +188,20 @@ function toStartResult(st: DaemonStatus, alreadyRunning: boolean, logPath: strin
 /** `daemon stop`: POST /api/shutdown, then SIGTERM / SIGKILL after the timeout. Not running = success. */
 export async function daemonStop(opts: DaemonStopOptions = {}): Promise<DaemonStopResult> {
   const env = opts.env ?? process.env;
-  const timeoutMs = opts.stopTimeoutMs ?? 5_000;
+  const timeoutMs = opts.stopTimeoutMs ?? STOP_TIMEOUT_MS;
   const st = await daemonStatus({ env });
   if (!st.running || st.pid === undefined || st.port === undefined) {
     return { running: false, stopped: false, mode: 'already-stopped' };
   }
   const { pid, port } = st;
-  const host = `127.0.0.1:${port}`;
+  const host = loopbackHost(port);
   let accepted = false;
   try {
     const res = await fetch(`http://${host}/api/shutdown`, {
       method: 'POST',
-      headers: { Host: host, 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+      headers: { Host: host, 'Content-Type': JSON_CONTENT_TYPE, [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
       body: '{}',
-      signal: AbortSignal.timeout(2_000),
+      signal: AbortSignal.timeout(SHUTDOWN_REQUEST_TIMEOUT_MS),
     });
     accepted = res.ok;
   } catch {
@@ -216,7 +224,7 @@ async function waitDead(pid: number, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!isPidAlive(pid)) return true;
-    await sleep(POLL_MS);
+    await sleep(LIFECYCLE_POLL_MS);
   }
   return !isPidAlive(pid);
 }
@@ -238,11 +246,11 @@ async function acquireLock(path: string, deadline: number): Promise<void> {
       closeSync(fd);
       return;
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      if (errnoCode(err) !== 'EEXIST') throw err;
     }
     removeIfStale(path);
     if (Date.now() >= deadline) throw new Error(`timed out waiting for ${path}; remove it if no daemon start is running`);
-    await sleep(POLL_MS);
+    await sleep(LIFECYCLE_POLL_MS);
   }
 }
 

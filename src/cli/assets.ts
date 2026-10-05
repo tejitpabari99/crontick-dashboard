@@ -2,8 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-export const PACKAGE_NAME = 'crontick-dashboard';
+import { APP_NAME } from '../constants/app.js';
 
 export class NotBuiltError extends Error {
   readonly code = 'NOT_BUILT';
@@ -25,14 +24,14 @@ const toDir = (from: string | URL): string => {
   return /\.[cm]?[jt]s$/.test(p) ? dirname(p) : p;
 };
 
-/** Walk up from `from` (dir, path, or file URL; default this module) to the package.json named crontick-dashboard. */
+/** Walk up from `from` (dir, path, or file URL; default this module) to the package.json named after the app. */
 export function packageAssets(from: string | URL = import.meta.url): PackageAssets {
   let dir = resolve(toDir(from));
   for (;;) {
     const file = join(dir, 'package.json');
     if (existsSync(file)) {
       try {
-        if ((JSON.parse(readFileSync(file, 'utf8')) as { name?: string }).name === PACKAGE_NAME) {
+        if ((JSON.parse(readFileSync(file, 'utf8')) as { name?: string }).name === APP_NAME) {
           return {
             root: dir,
             schemasDir: join(dir, 'schemas'),
@@ -45,9 +44,15 @@ export function packageAssets(from: string | URL = import.meta.url): PackageAsse
       }
     }
     const parent = dirname(dir);
-    if (parent === dir) throw new Error(`could not locate ${PACKAGE_NAME} package root from ${toDir(from)}`);
+    if (parent === dir) throw new Error(`could not locate ${APP_NAME} package root from ${toDir(from)}`);
     dir = parent;
   }
+}
+
+/** The package.json `version` of the running package. */
+export function packageVersion(from: string | URL = import.meta.url): string {
+  const root = packageAssets(from).root;
+  return (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string }).version;
 }
 
 /** UI dir for entries living one level under dist/ (dist/cli, dist/server): `<entryDir>/../ui`. Throws NOT_BUILT if absent. */

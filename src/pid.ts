@@ -1,7 +1,10 @@
 /** pid file helpers: one server per data dir, enforced by a pid file the server process writes itself. */
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { APP_NAME } from './constants/app.js';
 import { probeHealth } from './http/bind-port.js';
 import { pidFilePath, portFilePath } from './paths.js';
+import { errnoCode } from './utils/errors.js';
+import { parsePort } from './utils/port.js';
 
 type Env = NodeJS.ProcessEnv;
 
@@ -10,7 +13,7 @@ export function isPidAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    return (err as NodeJS.ErrnoException).code === 'EPERM'; // exists, not ours
+    return errnoCode(err) === 'EPERM'; // exists, not ours
   }
 }
 
@@ -25,8 +28,7 @@ export function readPidFile(env: Env = process.env): number | undefined {
 
 export function readPortFile(env: Env = process.env): number | undefined {
   try {
-    const n = Number.parseInt(readFileSync(portFilePath(env), 'utf8').trim(), 10);
-    return Number.isInteger(n) && n > 0 && n <= 65535 ? n : undefined;
+    return parsePort(readFileSync(portFilePath(env), 'utf8').trim());
   } catch {
     return undefined;
   }
@@ -42,8 +44,8 @@ export async function claimPidFile(env: Env = process.env): Promise<void> {
   if (other !== undefined && other !== process.pid && isPidAlive(other)) {
     const port = readPortFile(env);
     const occ = port === undefined ? undefined : await probeHealth(port);
-    if (port === undefined || occ?.kind === 'crontick-dashboard') {
-      throw new Error(`ALREADY_RUNNING: a crontick-dashboard server (pid ${other}) already owns this data dir`);
+    if (port === undefined || occ?.kind === APP_NAME) {
+      throw new Error(`ALREADY_RUNNING: a ${APP_NAME} server (pid ${other}) already owns this data dir`);
     }
   }
   writeFileSync(pidFilePath(env), `${process.pid}\n`);

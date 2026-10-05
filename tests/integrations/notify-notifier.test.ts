@@ -4,6 +4,7 @@ import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { fakeClock } from '../../src/clock.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
 import type { Card } from '../../src/contract/validate.js';
+import { NOTIFY_BURST_WINDOW_MS, NOTIFY_MAX_BODY } from '../../src/constants/notify.js';
 
 function bus() {
   const ls: Record<string, Set<CardEventListener>> = {};
@@ -79,10 +80,10 @@ describe('notifier', () => {
     expect(() => b.emit('card:new', card())).not.toThrow();
     await new Promise((r) => setTimeout(r, 0));
   });
-  it('truncates body to 140 chars', () => {
+  it('truncates body to NOTIFY_MAX_BODY chars', () => {
     const { b, adapter } = setup();
     b.emit('card:new', card({ data: { text: 'a'.repeat(500) } }));
-    expect(adapter.calls[0]!.body).toHaveLength(140);
+    expect(adapter.calls[0]!.body).toHaveLength(NOTIFY_MAX_BODY);
     expect(adapter.calls[0]!.body.endsWith('…')).toBe(true);
   });
 });
@@ -168,7 +169,7 @@ describe('burst control', () => {
     emit(4, { priority: 1 });
     emit(5, { priority: 5 });
     emit(6, { priority: 5, kind: 'panel' });
-    advance(10_000);
+    advance(NOTIFY_BURST_WINDOW_MS);
     expect(adapter.calls).toHaveLength(4);
     expect(adapter.calls[3]!.title).toBe('4 more updates on your dashboard');
     expect(adapter.calls[3]!.body).toBe('High priority: T3, T5');
@@ -176,7 +177,7 @@ describe('burst control', () => {
   it('new window after expiry starts fresh', () => {
     const { adapter, advance, emit } = burst();
     for (let i = 0; i < 4; i++) emit(i);
-    advance(10_000);
+    advance(NOTIFY_BURST_WINDOW_MS);
     expect(adapter.calls).toHaveLength(4);
     for (let i = 10; i < 13; i++) emit(i);
     expect(adapter.calls).toHaveLength(7);
@@ -185,7 +186,7 @@ describe('burst control', () => {
   it('single overflow uses singular', () => {
     const { adapter, advance, emit } = burst();
     for (let i = 0; i < 4; i++) emit(i);
-    advance(10_000);
+    advance(NOTIFY_BURST_WINDOW_MS);
     expect(adapter.calls[3]!.title).toBe('1 more update on your dashboard');
   });
   it('dispose flushes pending summary and clears timers', () => {

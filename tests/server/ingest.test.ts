@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFeedIngest, type CardChange, type IngestInfo } from '../../src/feed/ingest.js';
 import { createFeedWatcher } from '../../src/feed/watcher.js';
+import { MAX_CARD_BYTES } from '../../src/constants/contract.js';
+import { FEED_SETTLE_DELAYS_MS } from '../../src/constants/feed.js';
 
 let dir: string;
 beforeEach(() => {
@@ -65,7 +67,7 @@ describe('feed ingest', () => {
     put('a.json', full.slice(0, 20));
     ing.processFile('a.json');
     expect(ing.store.get('a')).toBeUndefined();
-    vi.advanceTimersByTime(250); // retry 1, still truncated
+    vi.advanceTimersByTime(FEED_SETTLE_DELAYS_MS[0]); // retry 1, still truncated
     expect(ing.store.list()).toHaveLength(0);
     vi.advanceTimersByTime(500);
     put('a.json', full, Date.now() / 1000 + 10);
@@ -95,11 +97,11 @@ describe('feed ingest', () => {
     const { ing } = setup();
     put('a.json', '{"id', 1000);
     ing.processFile('a.json');
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(FEED_SETTLE_DELAYS_MS[0]);
     put('a.json', '{"id":', 2000);
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(FEED_SETTLE_DELAYS_MS[0]);
     put('a.json', '{"id":"a"', 3000);
-    vi.advanceTimersByTime(3000 - 500);
+    vi.advanceTimersByTime(FEED_SETTLE_DELAYS_MS[2] - 2 * FEED_SETTLE_DELAYS_MS[0]);
     expect(ing.store.list()).toHaveLength(0);
     vi.advanceTimersByTime(1000);
     expect(ing.store.get('file:a.json')?.status).toBe('broken');
@@ -123,7 +125,7 @@ describe('feed ingest', () => {
 
   it('oversized file is Broken too-large without reading', () => {
     const { ing } = setup();
-    put('big.json', 'x'.repeat(1024 * 1024 + 1));
+    put('big.json', 'x'.repeat(MAX_CARD_BYTES + 1));
     ing.processFile('big.json');
     expect(ing.store.get('file:big.json')).toMatchObject({ status: 'broken', reason: 'too-large' });
   });
