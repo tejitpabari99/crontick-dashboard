@@ -15,8 +15,8 @@ Source of truth: docs/agent_files/initial-brainstorming/06-cli-packaging-skill/P
 | 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | done |
 | 6 | `start` and `daemon` commands | 2, 3, 02#11 | done |
 | 7 | `skill install` command | 2, 3 | done |
-| 8 | SKILL.md and its CI test | 4, 5, 7 | in-progress |
-| 9 | Package verify scripts | 4, 5, 6, 7, 8 | todo |
+| 8 | SKILL.md and its CI test | 4, 5, 7 | done |
+| 9 | Package verify scripts | 4, 5, 6, 7, 8 | in-progress |
 | 10 | CI workflow and README install section | 9 | todo |
 
 ## Task 1 — Complete package metadata and toolchain
