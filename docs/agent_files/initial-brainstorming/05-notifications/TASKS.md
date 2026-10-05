@@ -14,7 +14,7 @@ Source of truth: [PRD.md](PRD.md). OS notifications only (TickTick was removed 2
 | 4 | Notifier core: events to toasts | 2, 3, 02#6 | done |
 | 5 | Burst control | 4 | done |
 | 6 | Failure isolation + warnings | 4, 02#6 | done |
-| 7 | Server wiring + acceptance suite | 5, 6, 02#7, 02#10 | in-progress |
+| 7 | Server wiring + acceptance suite | 5, 6, 02#7, 02#10 | done |
 
 ## Task 1 — Win/mac notification spike (decides adapter)
 What it is / what it means: Resolved OPEN-2: `node-notifier` is the default but unverified on real machines (unmaintained ~4 years); this early task settles the adapter before any other code depends on it.
