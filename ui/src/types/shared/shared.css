@@ -1,0 +1,34 @@
+.clamp-1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.show-more {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--primary);
+  cursor: pointer;
+}
+.show-more:hover { text-decoration: underline; }
+mark {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+/* Type-level motion (kpi cross-fade, list check-off) is opt-in via .type-motion and off when reduced. */
+.type-motion { transition: opacity 200ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .type-motion, .type-motion * { transition: none !important; animation: none !important; }
+}
