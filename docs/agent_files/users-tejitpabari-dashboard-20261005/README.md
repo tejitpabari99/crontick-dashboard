@@ -10,5 +10,5 @@ date: 2026-10-05
 
 | Doc | Purpose | Status |
 |-----|---------|--------|
-| research-2026-10-05.md | Survey of open-source modular dashboards | in progress |
-| brainstorm (TBD) | Requirements + decision log | pending |
+| research-2026-10-05.md | Survey of open-source modular dashboards | done |
+| brainstorm.md | Requirements + decision log | approved |
