@@ -12,8 +12,8 @@ Source of truth: [PRD.md](PRD.md). Each task includes its vitest tests (real tem
 | 2 | State store (serial writer) | 1 | done |
 | 3 | Feed ingest + watcher | 1, 01 done | done |
 | 4 | Archive + retention | 3 | done |
-| 5 | computeSnapshot + shared DTOs | 2, 3, 01 done | in-progress |
-| 6 | Events, warnings, notified | 3, 4 | todo |
+| 5 | computeSnapshot + shared DTOs | 2, 3, 01 done | done |
+| 6 | Events, warnings, notified | 3, 4 | in-progress |
 | 7 | HTTP server, security, startServer | 5, 6 | todo |
 | 8 | Mutations: tick, done, hidden, layout | 2, 7 | todo |
 | 9 | Action registry + dismiss | 8 | todo |
