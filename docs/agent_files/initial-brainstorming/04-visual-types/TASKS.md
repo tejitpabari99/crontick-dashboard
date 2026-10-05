@@ -13,8 +13,8 @@ Source of truth: [PRD.md](PRD.md). Five domain-agnostic React bodies registered 
 | 3 | Table pure logic | 1, 01#5 | done |
 | 4 | table component | 3, 03#6, 03#10 | done |
 | 5 | table fullscreen filter | 4 | done |
-| 6 | list rendering, due, links | 1, 01#5 | in-progress |
-| 7 | list item actions | 6, 03#3 | todo |
+| 6 | list rendering, due, links | 1, 01#5 | done |
+| 7 | list item actions | 6, 03#3 | in-progress |
 | 8 | kpi type | 1, 01#4 | todo |
 | 9 | media type | 1, 01#4 | todo |
 | 10 | Registration hub, fixtures, a11y, registry test | 2, 4, 5, 7, 8, 9, 01#7, 03#5 | todo |
