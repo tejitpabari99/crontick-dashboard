@@ -13,8 +13,8 @@ Source of truth: docs/agent_files/initial-brainstorming/06-cli-packaging-skill/P
 | 3 | CLI skeleton and `validate` | 1, 01 done | done |
 | 4 | `templates` command | 2, 3 | done |
 | 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | done |
-| 6 | `start` and `daemon` commands | 2, 3, 02#11 | in-progress |
-| 7 | `skill install` command | 2, 3 | todo |
+| 6 | `start` and `daemon` commands | 2, 3, 02#11 | done |
+| 7 | `skill install` command | 2, 3 | in-progress |
 | 8 | SKILL.md and its CI test | 4, 5, 7 | todo |
 | 9 | Package verify scripts | 4, 5, 6, 7, 8 | todo |
 | 10 | CI workflow and README install section | 9 | todo |
