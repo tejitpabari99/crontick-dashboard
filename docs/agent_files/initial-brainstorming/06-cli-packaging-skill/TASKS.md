@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 summary: 10 tasks — package/toolchain completion, build pipeline and asset lookup, CLI skeleton + validate, templates, info, start/daemon, skill install, SKILL.md, package verify scripts, CI + README.
 date: 2026-10-05
 ---
@@ -8,8 +8,8 @@ Source of truth: docs/agent_files/initial-brainstorming/06-cli-packaging-skill/P
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Complete package metadata and toolchain | 01#1 | todo |
-| 2 | Build pipeline, UI copy, `packageAssets()` | 1, 02#7, 03#12 | todo |
+| 1 | Complete package metadata and toolchain | 01#1 | done |
+| 2 | Build pipeline, UI copy, `packageAssets()` | 1, 02#7, 03#12 | in-progress |
 | 3 | CLI skeleton and `validate` | 1, 01 done | todo |
 | 4 | `templates` command | 2, 3 | todo |
 | 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | todo |
