@@ -1,0 +1,31 @@
+.fullscreen {
+  width: min(96vw, 1400px);
+  height: 92vh;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.35);
+}
+.fullscreen::backdrop {
+  background: hsl(0 0% 0% / 0.5);
+}
+.fullscreen[open] {
+  display: flex;
+  flex-direction: column;
+}
+.fullscreen .card-frame {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+}
+.fullscreen__close {
+  align-self: flex-end;
+  margin: 4px 6px 0;
+}
+.card-highlight {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
