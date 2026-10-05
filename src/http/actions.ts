@@ -40,7 +40,7 @@ export function mountActions(app: Hono, ctx: AppContext): void {
     try {
       const res = await actionRegistry[type as keyof typeof actionRegistry](
         { entry, itemId, checked: body.data.checked ?? true, updatedAt },
-        { state: ctx.state, clock: ctx.clock, feedDir: ctx.feedDir, refreshFeed: ctx.refreshFeed },
+        { state: ctx.state, clock: ctx.clock, feedDir: ctx.feedDir, refreshFeed: ctx.refreshFeed, selfWrites: ctx.selfWrites, ...ctx.actionTestDeps },
       );
       if (!res.ok) return c.json({ error: res.error }, res.status);
     } catch (err) {

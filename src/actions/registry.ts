@@ -2,6 +2,7 @@
 import type { OkEntry } from '../feed/ingest.js';
 import type { StateStore } from '../state/store.js';
 import type { Clock } from '../clock.js';
+import { completeWriteBack } from './writeback.js';
 
 export type ActionType = 'dismiss' | 'complete';
 
@@ -18,6 +19,12 @@ export interface ActionDeps {
   clock: Clock;
   feedDir: string;
   refreshFeed: (file: string) => void;
+  /** Watcher's file -> hash registry of server writes (self-write detection). */
+  selfWrites: Map<string, string>;
+  /** Test seams. */
+  rename?: (from: string, to: string) => void;
+  sleep?: (ms: number) => Promise<void>;
+  hooks?: { beforeCompare?: () => void };
 }
 
 /** `ok` -> 200 `{rev}`; `error` -> that HTTP status with `{error}`. Thrown errors become 500. */
@@ -34,7 +41,6 @@ const dismiss: ActionHandler = async ({ entry, itemId, checked, updatedAt }, { s
   return { ok: true };
 };
 
-/** Slot for Task 10 (write-back into the card file). */
-const complete: ActionHandler = () => Promise.resolve({ ok: false, status: 501, error: 'not implemented' });
+const complete: ActionHandler = completeWriteBack;
 
 export const actionRegistry: Record<ActionType, ActionHandler> = { dismiss, complete };

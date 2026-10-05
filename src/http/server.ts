@@ -11,6 +11,7 @@ import { createFeedWatcher } from '../feed/watcher.js';
 import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
 import { createStateStore } from '../state/store.js';
 import { createWarnings, type Warnings } from '../state/warnings.js';
+import type { ActionDeps } from '../actions/registry.js';
 import { createApp } from './app.js';
 import { bindPort, probeHealth } from './bind-port.js';
 import { assertUiBuilt } from './static.js';
@@ -30,6 +31,8 @@ export interface StartServerOptions {
   port?: number;
   /** Called after POST /api/shutdown finished stopping (server entry exits the process here). */
   onShutdown?: () => void;
+  /** Test seams for complete write-back (rename/sleep/hooks). */
+  actionTestDeps?: Pick<ActionDeps, 'rename' | 'sleep' | 'hooks'>;
 }
 
 export interface RunningServer {
@@ -106,6 +109,8 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     feedDir: feedDir(env),
     doneDir: doneDir(env),
     refreshFeed: (f) => watcher.processFile(f),
+    selfWrites: watcher.selfWrites,
+    ...(opts.actionTestDeps ? { actionTestDeps: opts.actionTestDeps } : {}),
     uiDir: opts.uiDir,
     getPort: () => boundPort,
     requestShutdown: () => void stop().then(() => opts.onShutdown?.()),

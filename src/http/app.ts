@@ -1,5 +1,6 @@
 /** Hono app: security envelope + read routes. Mutation routes (Tasks 8/9) attach in `mountMutations`. */
 import { Hono } from 'hono';
+import type { ActionDeps } from '../actions/registry.js';
 import type { Clock } from '../clock.js';
 import type { ConfigReader } from '../config.js';
 import { computeSnapshot } from '../compute/snapshot.js';
@@ -23,6 +24,10 @@ export interface AppContext {
   doneDir: string;
   /** Re-ingest one feed file synchronously (after server-side moves/writes). */
   refreshFeed: (file: string) => void;
+  /** Watcher self-write registry (file -> hash of bytes the server wrote). */
+  selfWrites: Map<string, string>;
+  /** Test seams for write-back. */
+  actionTestDeps?: Pick<ActionDeps, 'rename' | 'sleep' | 'hooks'>;
   uiDir: string;
   getPort: () => number;
   /** POST /api/shutdown: called after the response is queued. */

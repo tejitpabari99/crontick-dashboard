@@ -344,7 +344,9 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     if (!parsed.ok && (parsed.reason === 'malformed-json' || parsed.reason === 'unreadable')) return 'settling';
     clearSettling(name);
     const rec: FileRec = { name, hash, mtimeMs: r.mtimeMs, size: r.size, parsed };
-    if (parsed.ok) {
+    // Same bytes and mtime already ingested (e.g. watcher event after a synchronous write-back refresh): no hook call.
+    const prevRec = recs.get(name);
+    if (parsed.ok && !(prevRec?.hash === hash && prevRec.mtimeMs === r.mtimeMs)) {
       const selfWrite = selfWrites.get(name) === hash;
       if (selfWrite) selfWrites.delete(name);
       try {
