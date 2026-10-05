@@ -4,7 +4,7 @@
  * Subscribes to `card:new` / `card:changed`; only cards with `notify:true` produce a toast.
  * 02 already guarantees non-Broken, in-window, changed-`updatedAt` and dedupes via `notified`,
  * so there is no dedupe here. All deliveries go through the single `dispatch()` seam:
- * Task 5 (burst control) wraps/replaces it, Task 6 (failure isolation + warnings) hardens it.
+ * Task 5 (burst control) wraps/replaces it, Task 6 hardens deliver() (failure isolation + warnings).
  *
  * Body = one plain-text line (<=140 chars), never the card `data` beyond that line:
  *  markdown: first non-empty line, markdown syntax stripped
@@ -43,7 +43,9 @@ export interface NotifierOptions {
   adapter: NotifyAdapter;
   getPort: () => number;
   /** Boolean or a resolved gate result (Task 3). Function form is re-read per event. */
-  gate: boolean | { enabled: boolean } | (() => boolean | { enabled: boolean });
+  gate: GateValue | (() => GateValue);
+  /** Optional warnings registry (02 `server.warnings`): off-state + delivery-failure warnings. */
+  warnings?: { set(key: string, message: string): void; clear(key: string): void };
   logger?: { warn(msg: string): void };
   /** Burst-window time source (default real clock). */
   clock?: Clock;
@@ -52,9 +54,22 @@ export interface NotifierOptions {
   getThreshold?: () => number;
 }
 
+export type GateValue = boolean | { enabled: boolean; mode?: 'on' | 'off'; reason?: string; warning?: string };
+
+export interface NotifierStatus {
+  enabled: boolean;
+  mode: 'on' | 'off';
+  reason: string;
+}
+
 export interface Notifier {
+  /** Current resolved gate (for 06 `info`). */
+  status(): NotifierStatus;
   dispose(): void;
 }
+
+export const WARN_OFF = 'notifications';
+export const WARN_DELIVERY = 'notifications-delivery';
 
 export function stripMarkdown(line: string): string {
   return line
@@ -119,23 +134,60 @@ export function summarize(card: Card): string {
 }
 
 export function createNotifier(opts: NotifierOptions): Notifier {
+  const gateValue = (): GateValue => (typeof opts.gate === 'function' ? opts.gate() : opts.gate);
   const gateOn = (): boolean => {
-    const g = typeof opts.gate === 'function' ? opts.gate() : opts.gate;
+    const g = gateValue();
     return typeof g === 'boolean' ? g : g.enabled;
   };
+  const status = (): NotifierStatus => {
+    const g = gateValue();
+    const enabled = typeof g === 'boolean' ? g : g.enabled;
+    const mode = typeof g === 'boolean' ? (enabled ? 'on' : 'off') : (g.mode ?? (enabled ? 'on' : 'off'));
+    const reason = typeof g === 'boolean' ? 'set by caller' : (g.reason ?? 'unspecified');
+    return { enabled, mode, reason };
+  };
+  const safe = (fn: () => void): void => {
+    try {
+      fn();
+    } catch {
+      /* isolation: never propagate */
+    }
+  };
+  const logWarn = (msg: string): void => safe(() => opts.logger?.warn(msg));
+
+  /** Keep the off-state warning in sync with the gate (set when off, cleared when on). */
+  function syncGateWarning(): void {
+    safe(() => {
+      if (!opts.warnings) return;
+      const g = gateValue();
+      const st = status();
+      if (st.enabled) {
+        opts.warnings.clear(WARN_OFF);
+        return;
+      }
+      const extra = typeof g === 'object' && g.warning ? ` (${g.warning})` : '';
+      opts.warnings.set(WARN_OFF, `OS notifications are ${st.mode}: ${st.reason}${extra}`);
+    });
+  }
 
   const clock = opts.clock ?? realClock;
   const timers = opts.timers ?? realTimers;
   const threshold = (): number => opts.getThreshold?.() ?? 3;
 
-  /** Raw adapter call. Task 6 hardens failure isolation/warnings here. */
+  /** Raw adapter call, fully isolated: sync throw, rejection or bad return are logged, never retried or propagated. */
   function deliver(payload: NotifyPayload): void {
+    const fail = (err: unknown): void => {
+      logWarn(`notify failed: ${String(err)}`);
+      safe(() => opts.warnings?.set(WARN_DELIVERY, 'OS notification delivery failed (see log); cleared on next success'));
+    };
+    const ok = (): void => safe(() => opts.warnings?.clear(WARN_DELIVERY));
     try {
-      void opts.adapter.notify(payload).catch((err: unknown) => {
-        opts.logger?.warn(`notify failed: ${String(err)}`);
-      });
+      const r: unknown = opts.adapter.notify(payload);
+      if (r !== null && typeof r === 'object' && typeof (r as Promise<void>).then === 'function') {
+        (r as Promise<void>).then(ok, fail);
+      } else ok();
     } catch (err) {
-      opts.logger?.warn(`notify failed: ${String(err)}`);
+      fail(err);
     }
   }
 
@@ -179,6 +231,15 @@ export function createNotifier(opts: NotifierOptions): Notifier {
   }
 
   function handle({ card }: CardEventPayload): void {
+    try {
+      handleInner(card);
+    } catch (err) {
+      logWarn(`notify failed: ${String(err)}`);
+    }
+  }
+
+  function handleInner(card: Card): void {
+    syncGateWarning();
     const e = envelope(card);
     if (e.notify !== true || !gateOn()) return;
     dispatch(
@@ -191,8 +252,10 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     );
   }
 
+  syncGateWarning();
   const offs = [opts.events.on('card:new', handle), opts.events.on('card:changed', handle)];
   return {
+    status,
     /** Unsubscribes, clears timers, and flushes any pending summary (nothing silently dropped). */
     dispose: () => {
       offs.forEach((off) => off());
