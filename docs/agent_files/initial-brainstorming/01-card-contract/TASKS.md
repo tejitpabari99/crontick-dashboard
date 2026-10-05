@@ -14,8 +14,8 @@ Source of truth: docs/agent_files/initial-brainstorming/01-card-contract/PRD.md.
 | 4 | Type schemas: markdown, kpi, media | 2, 3 | done |
 | 5 | Type schemas: table, list (cells, links, actions) | 2, 3 | done |
 | 6 | Registry and `validateCardFile` | 4, 5 | done |
-| 7 | Templates and generated JSON Schemas | 6 | in-progress |
-| 8 | Negative fixtures, fuzz, portability tests | 6, 7 | todo |
+| 7 | Templates and generated JSON Schemas | 6 | done |
+| 8 | Negative fixtures, fuzz, portability tests | 6, 7 | in-progress |
 
 ## Task 1 — Minimal repo scaffold
 What it is / what it means: Greenfield repo has no package yet; 01 needs build, test and lint to land code. 06 owns the final layout (package.json, tsup, tsconfig, eslint, vitest configs) and completes it later; this task must not diverge from it.
