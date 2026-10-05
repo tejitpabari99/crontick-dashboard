@@ -18,8 +18,8 @@ Source of truth: [PRD.md](PRD.md). Each task includes its vitest tests (real tem
 | 8 | Mutations: tick, done, hidden, layout | 2, 7 | done |
 | 9 | Action registry + dismiss | 8 | done |
 | 10 | complete write-back + self-write detection | 9, 3 | done |
-| 11 | Lifecycle (daemon, port, pid) | 7 | in-progress |
-| 12 | End-to-end acceptance suite | 8, 10, 11 | todo |
+| 11 | Lifecycle (daemon, port, pid) | 7 | done |
+| 12 | End-to-end acceptance suite | 8, 10, 11 | in-progress |
 
 ## Task 1 — Paths, config, clock
 What it is / what it means: Foundations every other module uses: data-dir resolution, config loading, injectable time.
