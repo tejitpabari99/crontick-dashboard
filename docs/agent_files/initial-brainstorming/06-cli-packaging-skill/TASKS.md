@@ -11,8 +11,8 @@ Source of truth: docs/agent_files/initial-brainstorming/06-cli-packaging-skill/P
 | 1 | Complete package metadata and toolchain | 01#1 | done |
 | 2 | Build pipeline, UI copy, `packageAssets()` | 1, 02#7, 03#12 | done |
 | 3 | CLI skeleton and `validate` | 1, 01 done | done |
-| 4 | `templates` command | 2, 3 | in-progress |
-| 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | todo |
+| 4 | `templates` command | 2, 3 | done |
+| 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | in-progress |
 | 6 | `start` and `daemon` commands | 2, 3, 02#11 | todo |
 | 7 | `skill install` command | 2, 3 | todo |
 | 8 | SKILL.md and its CI test | 4, 5, 7 | todo |
