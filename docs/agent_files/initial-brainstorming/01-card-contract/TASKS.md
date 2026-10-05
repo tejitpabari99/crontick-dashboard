@@ -11,8 +11,8 @@ Source of truth: docs/agent_files/initial-brainstorming/01-card-contract/PRD.md.
 | 1 | Minimal repo scaffold | none | done |
 | 2 | Formats and helpers | 1 | done |
 | 3 | Envelope schema | 2 | done |
-| 4 | Type schemas: markdown, kpi, media | 2, 3 | in-progress |
-| 5 | Type schemas: table, list (cells, links, actions) | 2, 3 | todo |
+| 4 | Type schemas: markdown, kpi, media | 2, 3 | done |
+| 5 | Type schemas: table, list (cells, links, actions) | 2, 3 | in-progress |
 | 6 | Registry and `validateCardFile` | 4, 5 | todo |
 | 7 | Templates and generated JSON Schemas | 6 | todo |
 | 8 | Negative fixtures, fuzz, portability tests | 6, 7 | todo |
