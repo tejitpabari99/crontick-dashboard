@@ -1,6 +1,3 @@
-export const DEFAULT_POLL_MS = 30_000;
-export const MIN_POLL_MS = 15_000;
-export const MAX_POLL_MS = 60_000;
 export const HIDDEN_POLL_MS = 60_000;
 
 /** Retry delays (ms) while the server is down: 5 s, then 10 s, then 30 s. */

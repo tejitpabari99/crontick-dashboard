@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Cron } from 'croner';
+import { LINK_SCHEMES as LINK_SCHEME_LIST } from '../constants/contract.js';
 import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE, MS_PER_WEEK } from '../constants/time.js';
 
 // Pure helpers: no Node-only or DOM APIs.
@@ -83,7 +84,7 @@ export const dueSchema = z
   });
 
 const MAX_LINK = 2048;
-const LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'ms-outlook:']);
+const LINK_SCHEMES = new Set<string>(LINK_SCHEME_LIST);
 const BAD_CHARS = /[\u0000-\u001f\u007f\s]/;
 
 function protocolOf(v: string): string | null {

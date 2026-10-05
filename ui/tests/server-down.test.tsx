@@ -1,3 +1,4 @@
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import axe from 'axe-core';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,7 +41,7 @@ function snapshot(cards: ViewCard[], zones: Partial<Snapshot['zones']>): Snapsho
     serverTime: 't',
     rev: 'r',
     warnings: [],
-    config: { pollIntervalMs: 30000, nowPriorityThreshold: 5 },
+    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
     zones: { alerts: [], now: [], grid: [], tray: [], hidden: [], ...zones },
     cards: Object.fromEntries(cards.map((c) => [c.id, c])),
     layout: [],
@@ -59,7 +60,7 @@ const FIXTURE = snapshot(
     card('tr'),
     card('hi'),
   ],
-  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] },
+  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] }
 );
 
 interface Timer {

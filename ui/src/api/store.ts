@@ -1,18 +1,12 @@
+import { POLL_DEFAULT_MS, POLL_MAX_MS, POLL_MIN_MS } from '../../../src/constants/poll.js';
 import { createClient, type Client } from './client.ts';
 import type { Snapshot } from './types.ts';
 
-import {
-  DEFAULT_POLL_MS,
-  DOWN_AFTER_FAILURES,
-  DOWN_BACKOFF_MS,
-  HIDDEN_POLL_MS,
-  MAX_POLL_MS,
-  MIN_POLL_MS,
-} from '../constants/polling.ts';
+import { DOWN_AFTER_FAILURES, DOWN_BACKOFF_MS, HIDDEN_POLL_MS } from '../constants/polling.ts';
 
 export function clampPollInterval(ms: number | undefined): number {
-  if (typeof ms !== 'number' || !Number.isFinite(ms)) return DEFAULT_POLL_MS;
-  return Math.min(MAX_POLL_MS, Math.max(MIN_POLL_MS, ms));
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return POLL_DEFAULT_MS;
+  return Math.min(POLL_MAX_MS, Math.max(POLL_MIN_MS, ms));
 }
 
 export interface StoreState {
@@ -71,8 +65,7 @@ export function shareStructure<T>(prev: unknown, next: T): T {
     const n = next as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const k of Object.keys(n)) out[k] = shareStructure(p[k], n[k]);
-    const same =
-      Object.keys(out).length === Object.keys(p).length && Object.keys(out).every((k) => out[k] === p[k]);
+    const same = Object.keys(out).length === Object.keys(p).length && Object.keys(out).every((k) => out[k] === p[k]);
     return (same ? prev : out) as T;
   }
   return next;
@@ -91,7 +84,7 @@ export function createSnapshotStore(opts: StoreOptions = {}): SnapshotStore {
     loaded: false,
     lastSuccessAt: null,
     consecutiveFailures: 0,
-    pollIntervalMs: DEFAULT_POLL_MS,
+    pollIntervalMs: POLL_DEFAULT_MS,
     serverDown: false,
     retryMs: DOWN_BACKOFF_MS[0],
   };
