@@ -17,6 +17,14 @@ import type { ActionDeps } from '../actions/registry.js';
 import { createApp } from './app.js';
 import { bindPort, probeHealth } from './bind-port.js';
 import { assertUiBuilt } from './static.js';
+import {
+  createNodeNotifierAdapter,
+  createNotifier,
+  detectNotifySend,
+  resolveNotifyMode,
+  type Notifier,
+  type NotifyAdapter,
+} from '../integrations/notify/index.js';
 
 export interface ServerLogger {
   info(message: string): void;
@@ -35,6 +43,10 @@ export interface StartServerOptions {
   onShutdown?: () => void;
   /** Test seams for complete write-back (rename/sleep/hooks). */
   actionTestDeps?: Pick<ActionDeps, 'rename' | 'sleep' | 'hooks'>;
+  /** OS notification adapter (default: real node-notifier adapter, created lazily on first delivery). */
+  notifyAdapter?: NotifyAdapter;
+  /** Platform used by the notification gate (default process.platform). Mainly for tests. */
+  notifyPlatform?: NodeJS.Platform;
 }
 
 export interface RunningServer {
@@ -46,6 +58,8 @@ export interface RunningServer {
   warnings: Warnings;
   /** Live config reader (`get().config`, mtime-based reload) for consumers such as 05-notifications. */
   config: ConfigReader;
+  /** OS notification state (`status()` for 06 `info`). */
+  notifier: Notifier;
   address(): AddressInfo;
 }
 
@@ -65,6 +79,32 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
   const state = createStateStore({ env, clock });
   const warnings = createWarnings();
   const events = createCardEvents({ state, clock, getTimezone: () => config.get().config.timezone, warnings });
+
+  // Notifier subscribes here, before watcher.start(), so startup-scan events reach it.
+  let boundPort = 0;
+  let notifySendProbe: boolean | undefined;
+  let realAdapter: NotifyAdapter | undefined;
+  const notifyAdapter: NotifyAdapter =
+    opts.notifyAdapter ?? {
+      notify: (payload) => (realAdapter ??= createNodeNotifierAdapter()).notify(payload),
+    };
+  const notifier = createNotifier({
+    events: events.events,
+    adapter: notifyAdapter,
+    getPort: () => boundPort,
+    getThreshold: () => config.get().config.nowPriorityThreshold,
+    warnings,
+    logger,
+    gate: () => {
+      const platform = opts.notifyPlatform ?? process.platform;
+      const configValue = config.get().config.notifications.os;
+      // PATH probe only when it can matter (Linux desktop, auto), cached for the process.
+      const needsProbe =
+        configValue === 'auto' && platform === 'linux' && ((env['DISPLAY'] ?? '') !== '' || (env['WAYLAND_DISPLAY'] ?? '') !== '');
+      if (needsProbe) notifySendProbe ??= detectNotifySend(env);
+      return resolveNotifyMode({ platform, env, notifySendOnPath: needsProbe && notifySendProbe === true, configValue });
+    },
+  });
 
   // eslint-disable-next-line prefer-const -- archive/watcher reference each other through closures
   let watcher: ReturnType<typeof createFeedWatcher>;
@@ -92,13 +132,13 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     state.reconcile(present).catch((err: unknown) => logger.warn(`state reconcile failed: ${err instanceof Error ? err.message : String(err)}`));
   };
 
-  let boundPort = 0;
   let stopped: Promise<void> | undefined;
   const server: Server = createServer();
 
   const stop = (): Promise<void> => {
     stopped ??= (async () => {
       if (reconcileTimer) clearInterval(reconcileTimer);
+      notifier.dispose();
       watcher.stop();
       archive.stop();
       await events.flush().catch(() => {});
@@ -169,6 +209,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     events: events.events,
     warnings,
     config,
+    notifier,
     address: () => srv.address() as AddressInfo,
   };
 }

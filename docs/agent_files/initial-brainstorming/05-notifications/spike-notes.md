@@ -49,3 +49,12 @@ Record results: fill the table above (replace PENDING), paste the JSON output un
 Windows:
 
 macOS:
+
+## Final manual test (owner)
+Run on Windows and macOS (Linux desktop optional) with `npm run build` output and a running server (`notifications.os` = `auto`):
+1. Drop a sample card with `"notify": true` into the feed dir; a toast shows the title and a one-line body.
+2. Click the toast: the browser opens `http://127.0.0.1:<port>/#card=<id>` and highlights the card.
+3. Rewrite the card with a newer `updatedAt`: a second toast. Rewrite with same `updatedAt` / restart server: none.
+4. Deny notification permission (macOS System Settings > Notifications; Windows Settings > Notifications, "Crontick.Dashboard", check Focus Assist): no toast, no server error, in-page highlight still works.
+5. Drop 5 `notify:true` cards within 10 s: 3 toasts + 1 summary toast.
+6. Set `notifications.os` to `off`: no toasts, snapshot warning shows the reason.
