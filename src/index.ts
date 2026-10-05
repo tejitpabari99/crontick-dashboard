@@ -1,2 +1,2 @@
-// Library export: contract only (populated by 01-card-contract).
-export {};
+// Library export: contract (01-card-contract).
+export * from './contract/index.js';
