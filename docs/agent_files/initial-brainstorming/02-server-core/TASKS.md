@@ -14,8 +14,8 @@ Source of truth: [PRD.md](PRD.md). Each task includes its vitest tests (real tem
 | 4 | Archive + retention | 3 | done |
 | 5 | computeSnapshot + shared DTOs | 2, 3, 01 done | done |
 | 6 | Events, warnings, notified | 3, 4 | done |
-| 7 | HTTP server, security, startServer | 5, 6 | in-progress |
-| 8 | Mutations: tick, done, hidden, layout | 2, 7 | todo |
+| 7 | HTTP server, security, startServer | 5, 6 | done |
+| 8 | Mutations: tick, done, hidden, layout | 2, 7 | in-progress |
 | 9 | Action registry + dismiss | 8 | todo |
 | 10 | complete write-back + self-write detection | 9, 3 | todo |
 | 11 | Lifecycle (daemon, port, pid) | 7 | todo |
