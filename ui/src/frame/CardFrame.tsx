@@ -12,6 +12,10 @@ export interface CardFrameProps {
   card: ViewCard;
   mode: Mode;
   query: string;
+  /** Global search active: this card does not match (dim to 30%, no reflow). */
+  dim?: boolean;
+  /** Global search active: this card matches (accent outline). */
+  match?: boolean;
   checked: ReadonlySet<string>;
   pending: ReadonlySet<string>;
   /** `snapshot.config.nowPriorityThreshold`. */
@@ -132,6 +136,8 @@ export function CardFrame(p: CardFrameProps) {
     highlighted && 'card-frame--notify',
     !reduced && 'card-frame--enter',
     flash && 'card-frame--updated',
+    p.dim && 'card-frame--dim',
+    p.match && 'card-frame--match',
   ]
     .filter(Boolean)
     .join(' ');

@@ -125,3 +125,5 @@
     animation: none;
   }
 }
+.card-frame--dim, .alert-strip__row.card-frame--dim { opacity: 0.3; }
+.card-frame--match, .alert-strip__row.card-frame--match { outline: 2px solid var(--ring); outline-offset: -2px; }

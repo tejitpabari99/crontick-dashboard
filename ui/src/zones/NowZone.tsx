@@ -8,6 +8,8 @@ export interface NowZoneProps {
   /** `zones.now` cards, snapshot order. */
   panels: readonly ViewCard[];
   query: string;
+  /** Matching ids while a global search is active; null/undefined = no search. */
+  matchIds?: ReadonlySet<string> | null;
   nowPriorityThreshold: number;
   checked(id: string): ReadonlySet<string>;
   pending(id: string): ReadonlySet<string>;
@@ -25,6 +27,7 @@ export function NowZone(p: NowZoneProps) {
       <AlertStrip
         cards={p.alerts}
         query={p.query}
+        matchIds={p.matchIds ?? null}
         nowPriorityThreshold={p.nowPriorityThreshold}
         checked={p.checked}
         pending={p.pending}
@@ -39,6 +42,8 @@ export function NowZone(p: NowZoneProps) {
                 card={c}
                 mode="now"
                 query={p.query}
+                dim={Boolean(p.matchIds) && !p.matchIds!.has(c.id)}
+                match={Boolean(p.matchIds?.has(c.id))}
                 checked={p.checked(c.id)}
                 pending={p.pending(c.id)}
                 nowPriorityThreshold={p.nowPriorityThreshold}

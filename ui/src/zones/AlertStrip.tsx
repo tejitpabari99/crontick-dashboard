@@ -8,6 +8,8 @@ export interface AlertStripProps {
   /** `zones.alerts` cards, snapshot order. */
   cards: readonly ViewCard[];
   query: string;
+  /** Matching ids while a global search is active; null/undefined = no search. */
+  matchIds?: ReadonlySet<string> | null;
   nowPriorityThreshold: number;
   checked(id: string): ReadonlySet<string>;
   pending(id: string): ReadonlySet<string>;
@@ -23,7 +25,13 @@ export function AlertStrip(p: AlertStripProps) {
         {p.cards.map((c) => {
           const Body = c.status === 'broken' ? undefined : getCardType(c.type)?.Component;
           return (
-            <li key={c.id} className="alert-strip__row" data-card-id={c.id}>
+            <li
+              key={c.id}
+              className={['alert-strip__row', p.matchIds && (p.matchIds.has(c.id) ? 'card-frame--match' : 'card-frame--dim')]
+                .filter(Boolean)
+                .join(' ')}
+              data-card-id={c.id}
+            >
               {c.priority >= p.nowPriorityThreshold ? (
                 <span className="card-frame__priority" data-testid="priority-marker" aria-label="High priority" />
               ) : null}

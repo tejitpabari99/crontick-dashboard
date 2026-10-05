@@ -1,0 +1,28 @@
+.header {
+  position: sticky; top: 0; z-index: 20; min-height: 44px; display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--border);
+}
+.header__brand { font-size: var(--fs-base); margin: 0; }
+.header__date { color: var(--text-muted); font-size: var(--fs-meta); }
+.header__btn, .header__badge, .search-box button, .hidden-popover__panel button {
+  font: inherit; color: inherit; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 2px 8px; cursor: pointer;
+}
+.header__badge { background: var(--negative-soft, var(--surface-2)); font-weight: 600; }
+.header__dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.header__dot--ok { background: hsl(var(--positive)); }
+.header__dot--bad { background: hsl(var(--negative)); }
+.search-box { position: relative; flex: 1; max-width: 420px; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.search-box input { flex: 1; min-width: 0; font: inherit; color: inherit; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px 8px; }
+.search-box__count { color: var(--text-muted); font-size: var(--fs-meta); white-space: nowrap; }
+.search-box__dropdown, .hidden-popover__panel {
+  position: absolute; top: calc(100% + 6px); right: 0; min-width: 260px; margin: 0; padding: 6px; list-style: none;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); z-index: 30;
+}
+.search-box__dropdown li, .hidden-popover__panel li { display: flex; align-items: center; gap: 8px; padding: 3px 2px; }
+.search-box__title, .hidden-popover__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-box__badge { color: var(--text-muted); font-size: var(--fs-meta); }
+.hidden-popover { position: relative; }
+.hidden-popover__panel ul { margin: 0; padding: 0; list-style: none; }
+.toast-host { position: fixed; right: 12px; bottom: 12px; z-index: 50; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.toast { display: flex; gap: 10px; align-items: center; padding: 6px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.toast button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
