@@ -17,8 +17,8 @@ Source of truth: [PRD.md](PRD.md). Each task includes its vitest tests (real tem
 | 7 | HTTP server, security, startServer | 5, 6 | done |
 | 8 | Mutations: tick, done, hidden, layout | 2, 7 | done |
 | 9 | Action registry + dismiss | 8 | done |
-| 10 | complete write-back + self-write detection | 9, 3 | in-progress |
-| 11 | Lifecycle (daemon, port, pid) | 7 | todo |
+| 10 | complete write-back + self-write detection | 9, 3 | done |
+| 11 | Lifecycle (daemon, port, pid) | 7 | in-progress |
 | 12 | End-to-end acceptance suite | 8, 10, 11 | todo |
 
 ## Task 1 — Paths, config, clock
