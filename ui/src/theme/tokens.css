@@ -1,0 +1,21 @@
+/* Derived tokens: pure CSS calc() on the preset components (themes.css).
+   Mirrored by ui/src/theme/derive.ts; keep the constants in sync. */
+:root {
+  --bg: hsl(var(--bg-h) calc(var(--bg-s) * 1%) calc(var(--bg-l) * 1%));
+  --surface-1: hsl(var(--bg-h) calc(var(--bg-s) * 1%) calc((var(--bg-l) + var(--dir) * 3 * var(--contrast)) * 1%));
+  --surface-2: hsl(var(--bg-h) calc(var(--bg-s) * 1%) calc((var(--bg-l) + var(--dir) * 6 * var(--contrast)) * 1%));
+  --border: hsl(var(--bg-h) calc(var(--bg-s) * 1%) calc((var(--bg-l) + var(--dir) * 12 * var(--contrast)) * 1%));
+  --text: hsl(var(--bg-h) calc(var(--bg-s) * var(--text-sat) * 1%) calc((52 + var(--dir) * 40) * 1%));
+  --text-muted: hsl(var(--bg-h) calc(var(--bg-s) * var(--text-sat) * 1%) calc((52 + var(--dir) * 17) * 1%));
+  --primary: hsl(var(--primary-h) calc(var(--primary-s) * 1%) calc(var(--primary-l) * 1%));
+  --accent-soft: hsl(var(--primary-h) calc(var(--primary-s) * 1%) calc(var(--primary-l) * 1%) / 0.16);
+  --ring: hsl(var(--primary-h) calc(var(--primary-s) * 1%) calc(var(--primary-l) * 1%) / 0.7);
+  --positive: hsl(var(--positive-h) calc(var(--positive-s) * 1%) calc(var(--positive-l) * 1%));
+  --negative: hsl(var(--negative-h) calc(var(--negative-s) * 1%) calc(var(--negative-l) * 1%));
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fs-base: 13px;
+  --fs-meta: 12px;
+  --lh: 1.35;
+  --radius: 8px;
+}

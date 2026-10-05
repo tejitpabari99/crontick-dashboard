@@ -1,0 +1,20 @@
+/* Preset inputs (HSL components, no units). Mirrored in ui/src/theme/derive.ts. */
+:root,
+:root[data-theme='dark'] {
+  --dir: 1; /* surfaces move lighter from bg */
+  --bg-h: 230; --bg-s: 15; --bg-l: 14;
+  --primary-h: 256; --primary-s: 85; --primary-l: 72;
+  --positive-h: 150; --positive-s: 55; --positive-l: 52;
+  --negative-h: 4; --negative-s: 75; --negative-l: 62;
+  --contrast: 1.1;
+  --text-sat: 1;
+}
+:root[data-theme='light'] {
+  --dir: -1; /* surfaces move darker from bg */
+  --bg-h: 220; --bg-s: 23; --bg-l: 96;
+  --primary-h: 220; --primary-s: 85; --primary-l: 50;
+  --positive-h: 150; --positive-s: 60; --positive-l: 36;
+  --negative-h: 4; --negative-s: 70; --negative-l: 48;
+  --contrast: 1;
+  --text-sat: 1;
+}

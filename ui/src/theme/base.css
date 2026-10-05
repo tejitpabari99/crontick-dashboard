@@ -1,0 +1,19 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: dark; }
+html[data-theme='light'] { color-scheme: light; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs-base) / var(--lh) var(--font);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3 { font-weight: 600; margin: 0; }
+.meta { font-size: var(--fs-meta); color: var(--text-muted); }
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
