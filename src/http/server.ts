@@ -1,0 +1,147 @@
+/** startServer: wires data dir, state, feed, archive, events and the HTTP listener. */
+import { getRequestListener } from '@hono/node-server';
+import { rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { type Clock, realClock } from '../clock.js';
+import { createConfigReader, resolvePort } from '../config.js';
+import { createArchive } from '../feed/archive.js';
+import { createCardEvents, type CardEvents } from '../feed/events.js';
+import { createFeedWatcher } from '../feed/watcher.js';
+import { archiveDir, dataDir as dataDirOf, ensureDirs, feedDir, portFilePath } from '../paths.js';
+import { createStateStore } from '../state/store.js';
+import { createWarnings, type Warnings } from '../state/warnings.js';
+import { createApp } from './app.js';
+import { bindPort, probeHealth } from './bind-port.js';
+import { assertUiBuilt } from './static.js';
+
+export interface ServerLogger {
+  info(message: string): void;
+  warn(message: string): void;
+}
+
+export interface StartServerOptions {
+  env?: NodeJS.ProcessEnv;
+  clock?: Clock;
+  /** Built UI directory (must contain index.html, else NOT_BUILT). */
+  uiDir: string;
+  logger?: ServerLogger;
+  /** Override the port (0 = OS-assigned). Default: env > config > DEFAULT_PORT. Mainly for tests. */
+  port?: number;
+  /** Called after POST /api/shutdown finished stopping (server entry exits the process here). */
+  onShutdown?: () => void;
+}
+
+export interface RunningServer {
+  url: string;
+  port: number;
+  dataDir: string;
+  stop(): Promise<void>;
+  events: CardEvents;
+  warnings: Warnings;
+  address(): AddressInfo;
+}
+
+const nullLogger: ServerLogger = { info: () => {}, warn: () => {} };
+
+export async function startServer(opts: StartServerOptions): Promise<RunningServer> {
+  const env = opts.env ?? process.env;
+  const clock = opts.clock ?? realClock;
+  const logger = opts.logger ?? nullLogger;
+  assertUiBuilt(opts.uiDir);
+
+  ensureDirs(env);
+  const dataDir = dataDirOf(env);
+  const config = createConfigReader(env);
+  const state = createStateStore({ env, clock });
+  const warnings = createWarnings();
+  const events = createCardEvents({ state, clock, getTimezone: () => config.get().config.timezone, warnings });
+
+  // eslint-disable-next-line prefer-const -- archive/watcher reference each other through closures
+  let watcher: ReturnType<typeof createFeedWatcher>;
+  const archive = createArchive({
+    archiveDir: archiveDir(env),
+    clock,
+    retentionDefault: () => config.get().config.retentionDefault,
+    cards: () => {
+      const m = new Map<string, string | undefined>();
+      for (const e of watcher.store.list()) {
+        if (e.status === 'ok') {
+          const r = e.card['retention'];
+          m.set(e.key, typeof r === 'string' ? r : undefined);
+        }
+      }
+      return m;
+    },
+  });
+  watcher = createFeedWatcher({ feedDir: feedDir(env), onIngest: archive.onIngest, onChange: events.onChange });
+
+  let boundPort = 0;
+  let stopped: Promise<void> | undefined;
+  const server: Server = createServer();
+
+  const stop = (): Promise<void> => {
+    stopped ??= (async () => {
+      watcher.stop();
+      archive.stop();
+      await events.flush().catch(() => {});
+      if (server.listening) {
+        await new Promise<void>((resolve) => {
+          server.close(() => resolve());
+          server.closeAllConnections();
+        });
+      }
+      rmSync(portFilePath(env), { force: true });
+    })();
+    return stopped;
+  };
+
+  const app = createApp({
+    clock,
+    config,
+    state,
+    cards: watcher.store,
+    warnings,
+    dataDir,
+    uiDir: opts.uiDir,
+    getPort: () => boundPort,
+    requestShutdown: () => void stop().then(() => opts.onShutdown?.()),
+  });
+  server.on('request', getRequestListener(app.fetch));
+  const srv = server;
+
+  const preferred = opts.port ?? resolvePort(config.get().config, env);
+  try {
+    const result = await bindPort(preferred, {
+      listen: (port) =>
+        new Promise<number>((resolve, reject) => {
+          const onError = (err: Error): void => reject(err);
+          srv.once('error', onError);
+          srv.listen(port, '127.0.0.1', () => {
+            srv.off('error', onError);
+            resolve((srv.address() as AddressInfo).port);
+          });
+        }),
+      probe: probeHealth,
+      notify: (m) => logger.warn(m),
+    });
+    boundPort = result.port;
+    writeFileSync(portFilePath(env), `${boundPort}\n`);
+    watcher.start();
+    archive.start();
+  } catch (err) {
+    await stop();
+    throw err;
+  }
+
+  logger.info(`crontick-dashboard listening on http://127.0.0.1:${boundPort}`);
+  return {
+    url: `http://127.0.0.1:${boundPort}`,
+    port: boundPort,
+    dataDir,
+    stop,
+    events: events.events,
+    warnings,
+    address: () => srv.address() as AddressInfo,
+  };
+}
