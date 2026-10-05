@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 summary: 10 tasks — package/toolchain completion, build pipeline and asset lookup, CLI skeleton + validate, templates, info, start/daemon, skill install, SKILL.md, package verify scripts, CI + README.
 date: 2026-10-05
 ---
