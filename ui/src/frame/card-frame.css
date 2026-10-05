@@ -1,0 +1,127 @@
+.card-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.card-frame__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  flex: none;
+}
+.card-frame__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-frame__meta {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.card-frame__actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+}
+.card-frame:hover .card-frame__actions,
+.card-frame:focus-within .card-frame__actions {
+  opacity: 1;
+}
+.card-frame__btn {
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font: inherit;
+}
+.card-frame__btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.card-frame__btn:focus-visible {
+  outline: 2px solid var(--ring);
+}
+.card-frame__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 10px 10px;
+}
+.card-frame__priority,
+.card-frame__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.card-frame__priority {
+  background: var(--negative);
+}
+.card-frame__dot {
+  background: var(--primary);
+}
+.card-frame--notify {
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.card-frame--chip {
+  height: auto;
+}
+.card-frame--broken {
+  background: color-mix(in srgb, var(--negative) 12%, var(--surface-1));
+  border-color: var(--negative);
+}
+.card-broken {
+  display: flex;
+  gap: 8px;
+  padding: 4px 10px 10px;
+  color: var(--negative);
+}
+.card-broken__message {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.card-broken__reason {
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+}
+
+@keyframes card-frame-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes card-frame-updated {
+  from {
+    background: var(--accent-soft);
+  }
+}
+.card-frame--enter {
+  animation: card-frame-in 120ms ease-out;
+}
+.card-frame--updated {
+  animation: card-frame-updated 600ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-frame--enter,
+  .card-frame--updated {
+    animation: none;
+  }
+}
