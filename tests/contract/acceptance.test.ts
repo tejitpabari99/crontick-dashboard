@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateCardFile, getExample, listTypes } from '../../src/index.js';
+import { MAX_CARD_BYTES } from '../../src/constants/contract.js';
 
 type R = ReturnType<typeof validateCardFile>;
 const base = {
@@ -212,9 +213,9 @@ describe('AC8 fuzz: never throws', () => {
   });
   it('empty and 5 MB inputs', () => {
     expect(badOf(settle('')).reason).toBe('malformed-json');
-    expect(badOf(settle('x'.repeat(5 * 1024 * 1024))).reason).toBe('too-large');
+    expect(badOf(settle('x'.repeat(5 * MAX_CARD_BYTES))).reason).toBe('too-large');
     expect(badOf(settle('[' + '1,'.repeat(2_500_000) + '1]')).reason).toBe('too-large');
-    expect(badOf(settle('é'.repeat(3 * 1024 * 1024))).reason).toBe('too-large');
+    expect(badOf(settle('é'.repeat(3 * MAX_CARD_BYTES))).reason).toBe('too-large');
   });
   it('deeply nested JSON', () => {
     settle('['.repeat(100000) + ']'.repeat(100000));

@@ -1,3 +1,6 @@
+import { CLOCK_SKEW_MS, ID_PATTERN, MAX_CARD_BYTES } from '../constants/contract.js';
+import { MS_PER_MINUTE } from '../constants/time.js';
+import { errorMessage } from '../utils/errors.js';
 import { envelopeSchema, type Envelope } from './envelope.js';
 import { isRegisteredType, registry } from './registry.js';
 
@@ -21,9 +24,6 @@ export type ValidationResult =
   | { ok: true; card: Card; warnings: string[] }
   | { broken: true; reason: BrokenReason; message: string; issues: Issue[]; id?: string };
 
-export const MAX_BYTES = 1024 * 1024;
-const SKEW_MS = 5 * 60 * 1000;
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 function pointer(path: readonly PropertyKey[]): string {
   return path.map((p) => '/' + String(p).replace(/~/g, '~0').replace(/\//g, '~1')).join('');
@@ -62,7 +62,7 @@ export function validateCardFile(text: string, opts?: { filename?: string }): Va
   try {
     return validate(text, opts);
   } catch (e) {
-    return fail('unreadable', `could not process file: ${e instanceof Error ? e.message : String(e)}`);
+    return fail('unreadable', `could not process file: ${errorMessage(e)}`);
   }
 }
 
@@ -72,8 +72,8 @@ function validate(text: string, opts?: { filename?: string }): ValidationResult 
     return fail('unreadable', 'file is not valid UTF-8 text');
   }
   // Each UTF-16 unit is at most 3 UTF-8 bytes; cheap pre-check before encoding.
-  if (text.length > MAX_BYTES || new TextEncoder().encode(text).length > MAX_BYTES) {
-    return fail('too-large', 'file is larger than 1 MB');
+  if (text.length > MAX_CARD_BYTES || new TextEncoder().encode(text).length > MAX_CARD_BYTES) {
+    return fail('too-large', `file is larger than ${MAX_CARD_BYTES / (1024 * 1024)} MB`);
   }
   const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   if (src.trim() === '') return fail('malformed-json', 'file is empty');
@@ -82,13 +82,13 @@ function validate(text: string, opts?: { filename?: string }): ValidationResult 
   try {
     raw = JSON.parse(src);
   } catch (e) {
-    return fail('malformed-json', `invalid JSON: ${e instanceof Error ? e.message : String(e)}`.replace(/\s*\n\s*/g, ' '));
+    return fail('malformed-json', `invalid JSON: ${errorMessage(e)}`.replace(/\s*\n\s*/g, ' '));
   }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail('not-object', 'top-level JSON value must be an object');
   }
   const obj = raw as Record<string, unknown>;
-  const rawId = typeof obj.id === 'string' && ID_RE.test(obj.id) ? obj.id : undefined;
+  const rawId = typeof obj.id === 'string' && ID_PATTERN.test(obj.id) ? obj.id : undefined;
 
   const env = envelopeSchema.safeParse(obj);
   if (!env.success) {
@@ -126,8 +126,8 @@ function validate(text: string, opts?: { filename?: string }): ValidationResult 
 
   const warnings: string[] = [];
   const t = Date.parse(card.updatedAt);
-  if (!Number.isNaN(t) && t - Date.now() > SKEW_MS) {
-    warnings.push('updatedAt is more than 5 minutes in the future (clock skew?)');
+  if (!Number.isNaN(t) && t - Date.now() > CLOCK_SKEW_MS) {
+    warnings.push(`updatedAt is more than ${CLOCK_SKEW_MS / MS_PER_MINUTE} minutes in the future (clock skew?)`);
   }
   return { ok: true, card: card as Card, warnings };
 }

@@ -7,12 +7,9 @@ import { mkdirSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, utimes
 import { join } from 'node:path';
 import { parseDuration } from '../contract/formats.js';
 import type { Clock } from '../clock.js';
+import { ARCHIVE_FALLBACK_RETENTION_MS, ARCHIVE_PRUNE_INTERVAL_MS } from '../constants/feed.js';
+import { realTimers, type IntervalTimers } from '../utils/timers.js';
 import { envelope, type IngestInfo } from './ingest.js';
-
-export interface ArchiveTimers {
-  setInterval(fn: () => void, ms: number): unknown;
-  clearInterval(handle: unknown): void;
-}
 
 export interface ArchiveOptions {
   archiveDir: string;
@@ -24,7 +21,7 @@ export interface ArchiveOptions {
    * "removed cards" and get default retention with no keep-newest exemption.
    */
   cards: () => Map<string, string | undefined>;
-  timers?: ArchiveTimers;
+  timers?: IntervalTimers;
 }
 
 export interface Archive {
@@ -36,14 +33,6 @@ export interface Archive {
   start(): void;
   stop(): void;
 }
-
-export const PRUNE_INTERVAL_MS = 3_600_000;
-const FALLBACK_RETENTION_MS = 7 * 86_400_000;
-
-const realTimers: ArchiveTimers = {
-  setInterval: (fn, ms) => setInterval(fn, ms),
-  clearInterval: (h) => clearInterval(h as NodeJS.Timeout),
-};
 
 function canonical(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(canonical);
@@ -106,7 +95,7 @@ export function createArchive(opts: ArchiveOptions): Archive {
         /* fall through to default */
       }
     }
-    return FALLBACK_RETENTION_MS;
+    return ARCHIVE_FALLBACK_RETENTION_MS;
   }
 
   function pruneId(id: string, retention: string | undefined, current: boolean): void {
@@ -177,7 +166,7 @@ export function createArchive(opts: ArchiveOptions): Archive {
     onIngest,
     pruneAll,
     start() {
-      if (handle === undefined) handle = timers.setInterval(pruneAll, PRUNE_INTERVAL_MS);
+      if (handle === undefined) handle = timers.setInterval(pruneAll, ARCHIVE_PRUNE_INTERVAL_MS);
     },
     stop() {
       if (handle !== undefined) timers.clearInterval(handle);

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PORT } from '../../src/config.js';
+import { DEFAULT_PORT } from '../../src/constants/http.js';
 
 describe('README', () => {
   it('quotes the default port from DEFAULT_PORT', () => {

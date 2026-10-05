@@ -8,11 +8,14 @@ import { createCardEvents, type CardEventPayload } from '../../src/feed/events.j
 import { createFeedIngest } from '../../src/feed/ingest.js';
 import { createStateStore } from '../../src/state/store.js';
 import { createWarnings } from '../../src/state/warnings.js';
+import { ENV_HOME } from '../../src/constants/env.js';
+import { DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../src/constants/config.js';
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.js';
 
 let feed: string;
 let data: string;
 const clock = fakeClock('2026-06-01T12:00:00Z');
-const env = (): NodeJS.ProcessEnv => ({ CRONTICK_DASHBOARD_HOME: data });
+const env = (): NodeJS.ProcessEnv => ({ [ENV_HOME]: data });
 beforeEach(() => {
   feed = mkdtempSync(join(tmpdir(), 'ev-feed-'));
   data = mkdtempSync(join(tmpdir(), 'ev-data-'));
@@ -141,7 +144,7 @@ describe('warnings registry', () => {
     w.clear('nope');
     expect(w.list()).toEqual(['fs.watch failed again']);
     const state = createStateStore({ env: env(), clock });
-    const cfg = { nowPriorityThreshold: 3, pollIntervalMs: 30000, timezone: 'UTC' };
+    const cfg = { nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS, timezone: 'UTC' };
     const snap = computeSnapshot([], state.get(), cfg, clock.now(), [...state.warnings, ...w.list()]);
     expect(snap.warnings).toEqual(['fs.watch failed again']);
   });

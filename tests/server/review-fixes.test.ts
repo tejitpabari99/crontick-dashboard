@@ -12,6 +12,7 @@ import { startServer, type RunningServer } from '../../src/http/server.js';
 import { daemonStatus } from '../../src/lifecycle.js';
 import { pidFilePath, portFilePath } from '../../src/paths.js';
 import { createStateStore } from '../../src/state/store.js';
+import { ENV_HOME } from '../../src/constants/env.js';
 
 let data: string;
 let ui: string;
@@ -28,7 +29,7 @@ afterEach(async () => {
   rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   rmSync(ui, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
-const env = (): NodeJS.ProcessEnv => ({ CRONTICK_DASHBOARD_HOME: data });
+const env = (): NodeJS.ProcessEnv => ({ [ENV_HOME]: data });
 const card = (id: string, extra: object = {}): string =>
   JSON.stringify({ id, kind: 'panel', type: 'markdown', title: id, updatedAt: '2026-06-01T10:00:00Z', data: { text: 'hi' }, ...extra });
 const waitFor = async (fn: () => boolean, ms = 3000): Promise<void> => {

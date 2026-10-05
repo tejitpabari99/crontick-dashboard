@@ -2,15 +2,15 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { RENAME_TRIES, WRITEBACK_RENAME_BACKOFF_MS } from '../constants/state.js';
 import { sameInstant } from '../instant.js';
+import { retryOnBusy } from '../utils/retry.js';
+import { sleep as realSleep } from '../utils/sleep.js';
 import type { ActionDeps, ActionRequest, ActionResult } from './registry.js';
 
 const CHANGED: ActionResult = { ok: false, status: 409, error: 'card changed, retry' };
-const RENAME_TRIES = 5;
-const BACKOFF_MS = 25;
 
 const sha256 = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex');
-const sleepReal = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** ISO-8601 with the local UTC offset, e.g. 2026-06-01T12:00:00.000+02:00. */
 export function isoLocal(d: Date): string {
@@ -43,7 +43,7 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
   const { entry, itemId, checked } = req;
   const { feedDir, refreshFeed, selfWrites } = deps;
   const rename = deps.rename ?? renameSync;
-  const sleep = deps.sleep ?? sleepReal;
+  const sleep = deps.sleep ?? realSleep;
   const path = join(feedDir, entry.file);
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -103,17 +103,8 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
         refreshFeed(entry.file);
         continue;
       }
-      for (let i = 0; ; i++) {
-        try {
-          rename(tmp, path);
-          renamed = true;
-          break;
-        } catch (e) {
-          const code = (e as NodeJS.ErrnoException).code;
-          if (code !== 'EPERM' || i + 1 >= RENAME_TRIES) throw e;
-          await sleep(BACKOFF_MS * 2 ** i);
-        }
-      }
+      await retryOnBusy(() => rename(tmp, path), { tries: RENAME_TRIES, backoffMs: WRITEBACK_RENAME_BACKOFF_MS, sleep });
+      renamed = true;
     } catch (e) {
       if (selfWrites.get(entry.file) === newHash) selfWrites.delete(entry.file);
       throw e;

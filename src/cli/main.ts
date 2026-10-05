@@ -3,10 +3,10 @@
  * it never calls process.exit and returns the exit code. Commands live in ./commands/<name>.ts and
  * export a `registerX(program, ctx)`; add new ones to COMMANDS below.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Command, CommanderError } from 'commander';
-import { packageAssets } from './assets.js';
+import { APP_NAME } from '../constants/app.js';
+import { ENV_VERBOSE } from '../constants/env.js';
+import { packageVersion } from './assets.js';
 import { CliError, processIo, type CliContext, type CliIo } from './io.js';
 import { registerValidate } from './commands/validate.js';
 import { registerTemplates } from './commands/templates.js';
@@ -20,22 +20,17 @@ export { CliError } from './io.js';
 
 const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate, registerTemplates, registerInfo, registerStart, registerDaemon, registerSkill];
 
-function version(): string {
-  const pkg = JSON.parse(readFileSync(join(packageAssets().root, 'package.json'), 'utf8')) as { version: string };
-  return pkg.version;
-}
-
 export async function run(argv: string[], io: CliIo): Promise<number> {
   let code = 0;
   let verbose = false;
-  const verboseEnv = (): boolean => !!io.env.CRONTICK_DASHBOARD_VERBOSE && io.env.CRONTICK_DASHBOARD_VERBOSE !== '0';
+  const verboseEnv = (): boolean => !!io.env[ENV_VERBOSE] && io.env[ENV_VERBOSE] !== '0';
   const red = (s: string): string => (io.isTTY && !io.env.NO_COLOR ? `\x1b[31m${s}\x1b[0m` : s);
   const ctx: CliContext = { io, setExitCode: (c) => void (code = c), verbose: () => verbose || verboseEnv() };
 
   const program = new Command()
-    .name('crontick-dashboard')
+    .name(APP_NAME)
     .description('Local dashboard for agent-written cards')
-    .version(version())
+    .version(packageVersion())
     .option('--verbose', 'print stack traces on error')
     .exitOverride()
     .configureOutput({ writeOut: (s) => io.stdout(s), writeErr: () => {} });

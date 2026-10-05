@@ -19,6 +19,7 @@ import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';
 import { sameInstant } from '../instant.js';
 import { envelope, type CardChange, type CardEntry } from './ingest.js';
+import { errorMessage } from '../utils/errors.js';
 
 export type CardEventType = 'card:new' | 'card:changed' | 'card:removed';
 export interface CardEventPayload {
@@ -84,7 +85,7 @@ export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
     const p = opts.state
       .setNotified(id, updatedAt)
       .then(() => opts.warnings?.clear('notified'))
-      .catch((err: unknown) => opts.warnings?.set('notified', `could not persist notified state: ${err instanceof Error ? err.message : String(err)}`))
+      .catch((err: unknown) => opts.warnings?.set('notified', `could not persist notified state: ${errorMessage(err)}`))
       .finally(() => void pending.delete(p));
     pending.add(p);
   }

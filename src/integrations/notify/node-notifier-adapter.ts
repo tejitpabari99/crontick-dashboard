@@ -1,10 +1,10 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import type { EventEmitter } from 'node:events';
 import nodeNotifier from 'node-notifier';
+import { LOOPBACK_HOST } from '../../constants/http.js';
+import { NOTIFY_AUMID, NOTIFY_DELIVERY_GRACE_MS } from '../../constants/notify.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
 
-export const AUMID = 'Crontick.Dashboard';
-const DEFAULT_GRACE_MS = 1500;
 const UNSAFE_CHARS = /[\s&|^<>%"'`]/;
 
 type NotifyCallback = (err: Error | null, response?: unknown) => void;
@@ -34,7 +34,7 @@ export function isSafeOpenUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  return u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost');
+  return u.protocol === 'http:' && (u.hostname === LOOPBACK_HOST || u.hostname === 'localhost');
 }
 
 export function openUrlArgs(platform: NodeJS.Platform, url: string): [string, string[]] {
@@ -47,7 +47,7 @@ export function createNodeNotifierAdapter(opts: NodeNotifierOptions = {}): Notif
   const notifier = opts.notifier ?? (nodeNotifier as unknown as NotifierLike);
   const spawn = opts.spawn ?? (nodeSpawn as unknown as SpawnLike);
   const platform = opts.platform ?? process.platform;
-  const graceMs = opts.deliveryGraceMs ?? DEFAULT_GRACE_MS;
+  const graceMs = opts.deliveryGraceMs ?? NOTIFY_DELIVERY_GRACE_MS;
 
   function open(url: string): void {
     if (!isSafeOpenUrl(url)) return;
@@ -83,7 +83,7 @@ export function createNodeNotifierAdapter(opts: NodeNotifierOptions = {}): Notif
           // wait:true enables click reporting on win32/mac, but keeps the callback open
           // until click/timeout there; so resolve after a grace period instead.
           const emitter = notifier.notify(
-            { title, message: body, appID: AUMID, wait: true },
+            { title, message: body, appID: NOTIFY_AUMID, wait: true },
             (err, response) => {
               if (err) return settle(err);
               if (response === 'activate' || response === 'clicked') onClick();

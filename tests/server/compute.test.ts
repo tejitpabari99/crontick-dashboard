@@ -4,9 +4,11 @@ import type { BrokenEntry, CardEntry, OkEntry } from '../../src/feed/ingest.js';
 import type { StateData } from '../../src/state/store.js';
 import type { DashboardConfig } from '../../src/config.js';
 import type { Card } from '../../src/contract/validate.js';
+import { DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION } from '../../src/constants/config.js';
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.js';
 
 const config: DashboardConfig = {
-  port: 1, retentionDefault: '7d', nowPriorityThreshold: 3, pollIntervalMs: 30000,
+  port: 1, retentionDefault: DEFAULT_RETENTION, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS,
   timezone: 'UTC', notifications: { os: 'auto' },
 };
 const state = (p: Partial<StateData> = {}): StateData => ({
@@ -32,7 +34,7 @@ describe('computeSnapshot', () => {
   it('basic shape, grid zone, data present', () => {
     const s = snap([ok('a')]);
     expect(s.serverTime).toBe(NOW.toISOString());
-    expect(s.config).toEqual({ pollIntervalMs: 30000, nowPriorityThreshold: 3 });
+    expect(s.config).toEqual({ pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD });
     expect(s.zones).toEqual({ alerts: [], now: [], grid: ['a'], tray: [], hidden: [] });
     expect(s.cards.a).toMatchObject({ status: 'ok', collapsed: false, data: { text: 'a' } });
     expect(s.layout).toEqual([]);

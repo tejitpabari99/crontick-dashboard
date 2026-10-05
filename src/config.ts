@@ -1,9 +1,12 @@
 /** config.json loading: per-field fallback to defaults with warnings; mtime-based reload. */
 import { statSync, readFileSync } from 'node:fs';
+import { DEFAULT_NOTIFY_OS, DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION, MAX_NOW_PRIORITY_THRESHOLD, MIN_NOW_PRIORITY_THRESHOLD } from './constants/config.js';
+import { ENV_PORT } from './constants/env.js';
+import { DEFAULT_PORT } from './constants/http.js';
+import { POLL_DEFAULT_MS, POLL_MAX_MS, POLL_MIN_MS } from './constants/poll.js';
 import { parseDuration } from './contract/formats.js';
 import { configPath } from './paths.js';
-
-export const DEFAULT_PORT = 47616;
+import { parsePort } from './utils/port.js';
 
 export interface DashboardConfig {
   port: number;
@@ -24,11 +27,11 @@ const systemTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().tim
 export function defaultConfig(): DashboardConfig {
   return {
     port: DEFAULT_PORT,
-    retentionDefault: '7d',
-    nowPriorityThreshold: 3,
-    pollIntervalMs: 30000,
+    retentionDefault: DEFAULT_RETENTION,
+    nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD,
+    pollIntervalMs: POLL_DEFAULT_MS,
     timezone: systemTimezone(),
-    notifications: { os: 'auto' },
+    notifications: { os: DEFAULT_NOTIFY_OS },
   };
 }
 
@@ -64,7 +67,8 @@ export function parseConfig(raw: unknown): LoadedConfig {
     warnings.push(`config.json: invalid ${name}; using ${JSON.stringify(fallback)}`);
 
   if (r['port'] !== undefined) {
-    if (isInt(r['port'], 1, 65535)) config.port = r['port'];
+    const port = typeof r['port'] === 'number' ? parsePort(r['port']) : undefined;
+    if (port !== undefined) config.port = port;
     else bad('port', config.port);
   }
   if (r['retentionDefault'] !== undefined) {
@@ -72,11 +76,11 @@ export function parseConfig(raw: unknown): LoadedConfig {
     else bad('retentionDefault', config.retentionDefault);
   }
   if (r['nowPriorityThreshold'] !== undefined) {
-    if (isInt(r['nowPriorityThreshold'], 0, 5)) config.nowPriorityThreshold = r['nowPriorityThreshold'];
+    if (isInt(r['nowPriorityThreshold'], MIN_NOW_PRIORITY_THRESHOLD, MAX_NOW_PRIORITY_THRESHOLD)) config.nowPriorityThreshold = r['nowPriorityThreshold'];
     else bad('nowPriorityThreshold', config.nowPriorityThreshold);
   }
   if (r['pollIntervalMs'] !== undefined) {
-    if (isInt(r['pollIntervalMs'], 1, 86_400_000)) config.pollIntervalMs = r['pollIntervalMs'];
+    if (isInt(r['pollIntervalMs'], POLL_MIN_MS, POLL_MAX_MS)) config.pollIntervalMs = r['pollIntervalMs'];
     else bad('pollIntervalMs', config.pollIntervalMs);
   }
   if (r['timezone'] !== undefined) {
@@ -110,14 +114,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   }
 }
 
-/** Port precedence: CRONTICK_DASHBOARD_PORT env > config.port > DEFAULT_PORT. Invalid env is ignored. */
+/** Port precedence: ENV_PORT env > config.port > DEFAULT_PORT. Invalid env is ignored. */
 export function resolvePort(config: DashboardConfig, env: NodeJS.ProcessEnv = process.env): number {
-  const e = env['CRONTICK_DASHBOARD_PORT'];
-  if (e !== undefined && /^\d+$/.test(e)) {
-    const n = Number(e);
-    if (n >= 1 && n <= 65535) return n;
-  }
-  return config.port;
+  return parsePort(env[ENV_PORT]) ?? config.port;
 }
 
 export interface ConfigReader {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { run, type CliIo } from '../../src/cli/main.js';
 import { checkNodeVersion, guardedMain } from '../../src/cli/guard.js';
 import { validateCardFile } from '../../src/index.js';
+import { ENV_HOME, ENV_VERBOSE } from '../../src/constants/env.js';
 
 const root = join(import.meta.dirname, '..', '..');
 let dir: string;
@@ -133,7 +134,7 @@ describe('validate', () => {
   });
 
   it('does not need a data dir (env without home)', async () => {
-    const c = cap('', { CRONTICK_DASHBOARD_HOME: join(dir, 'never-created') });
+    const c = cap('', { [ENV_HOME]: join(dir, 'never-created') });
     expect(await run(['validate', tpl('kpi')], c.io)).toBe(0);
     expect(() => mkdirSync(join(dir, 'never-created'))).not.toThrow();
   });
@@ -177,7 +178,7 @@ describe('cross-cutting', () => {
     };
     expect(await run(['validate', '-'], throwing.io)).toBe(1);
     expect(throwing.err).not.toMatch(/\n\s+at /);
-    const v = cap('', { CRONTICK_DASHBOARD_VERBOSE: '1' });
+    const v = cap('', { [ENV_VERBOSE]: '1' });
     v.io.readStdin = throwing.io.readStdin;
     await run(['validate', '-'], v.io);
     expect(v.err).toMatch(/\n\s+at /);

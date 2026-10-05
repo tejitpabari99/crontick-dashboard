@@ -2,7 +2,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { homedir as osHomedir } from 'node:os';
 import { join } from 'node:path';
 import type { Command } from 'commander';
-import { packageAssets } from '../assets.js';
+import { APP_NAME } from '../../constants/app.js';
+import { CLAUDE_SKILLS_SUBDIR, SKILL_FILENAME } from '../../constants/cli.js';
+import { packageAssets, packageVersion } from '../assets.js';
 import { CliError, type CliContext } from '../io.js';
 
 export interface SkillDeps {
@@ -13,8 +15,7 @@ export interface SkillDeps {
 
 function defaultDeps(): SkillDeps {
   const assets = packageAssets();
-  const pkg = JSON.parse(readFileSync(join(assets.root, 'package.json'), 'utf8')) as { version: string };
-  return { homedir: osHomedir, skillPath: assets.skillPath, version: pkg.version };
+  return { homedir: osHomedir, skillPath: assets.skillPath, version: packageVersion() };
 }
 
 export function createSkillRegister(overrides: Partial<SkillDeps> = {}) {
@@ -29,9 +30,9 @@ export function createSkillRegister(overrides: Partial<SkillDeps> = {}) {
         const deps = { ...defaultDeps(), ...overrides };
         if (!existsSync(deps.skillPath)) throw new CliError(`packaged SKILL.md not found at ${deps.skillPath}`, 1);
         const content = readFileSync(deps.skillPath);
-        const skillsDir = opts.dir ?? join(deps.homedir(), '.claude', 'skills');
-        const destDir = join(skillsDir, 'crontick-dashboard');
-        const dest = join(destDir, 'SKILL.md');
+        const skillsDir = opts.dir ?? join(deps.homedir(), ...CLAUDE_SKILLS_SUBDIR);
+        const destDir = join(skillsDir, APP_NAME);
+        const dest = join(destDir, SKILL_FILENAME);
         if (existsSync(dest)) {
           if (readFileSync(dest).equals(content)) {
             ctx.io.stdout(`already up to date: ${dest} (v${deps.version})\n`);
@@ -40,7 +41,7 @@ export function createSkillRegister(overrides: Partial<SkillDeps> = {}) {
           if (!opts.force) throw new CliError(`${dest} differs from the packaged skill (v${deps.version}); rerun with --force to overwrite`, 1);
         }
         mkdirSync(destDir, { recursive: true });
-        const tmp = join(destDir, `.SKILL.md.${process.pid}.tmp`);
+        const tmp = join(destDir, `.${SKILL_FILENAME}.${process.pid}.tmp`);
         try {
           writeFileSync(tmp, content);
           renameSync(tmp, dest);

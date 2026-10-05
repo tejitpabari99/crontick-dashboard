@@ -6,6 +6,9 @@ import { fakeClock } from '../../src/clock.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/index.js';
 import type { Snapshot } from '../../src/shared/api-types.js';
+import { ENV_HOME } from '../../src/constants/env.js';
+import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.js';
+import { loopbackUrl } from '../../src/utils/loopback.js';
 
 let data: string;
 let ui: string;
@@ -34,7 +37,7 @@ afterEach(async () => {
 
 const boot = async (adapter: FakeNotifyAdapter, extra: Record<string, unknown> = {}): Promise<RunningServer> =>
   (running = await startServer({
-    env: { CRONTICK_DASHBOARD_HOME: data },
+    env: { [ENV_HOME]: data },
     clock,
     uiDir: ui,
     port: 0,
@@ -48,7 +51,7 @@ const restart = async (adapter: FakeNotifyAdapter): Promise<RunningServer> => {
   return boot(adapter);
 };
 const snap = async (s: RunningServer): Promise<Snapshot> =>
-  (await (await fetch(`http://127.0.0.1:${s.port}/api/snapshot`)).json()) as Snapshot;
+  (await (await fetch(`${loopbackUrl(s.port)}/api/snapshot`)).json()) as Snapshot;
 
 describe('notifications wired into server', () => {
   it('notify:true new fires once with deep link; restart unchanged fires nothing', async () => {
@@ -56,7 +59,7 @@ describe('notifications wired into server', () => {
     const a1 = new FakeNotifyAdapter();
     const s = await boot(a1);
     expect(a1.calls).toHaveLength(1);
-    expect(a1.calls[0]).toMatchObject({ title: 'a', body: 'hi a', openUrl: `http://127.0.0.1:${s.port}/#card=a` });
+    expect(a1.calls[0]).toMatchObject({ title: 'a', body: 'hi a', openUrl: `${loopbackUrl(s.port)}/#card=a` });
     const a2 = new FakeNotifyAdapter();
     await restart(a2);
     await sleep(200);
@@ -97,9 +100,9 @@ describe('notifications wired into server', () => {
     const a = new FakeNotifyAdapter();
     const s = await boot(a);
     expect(a.calls).toHaveLength(1); // the initial new card
-    const r = await fetch(`http://127.0.0.1:${s.port}/api/cards/l1/actions`, {
+    const r = await fetch(`${loopbackUrl(s.port)}/api/cards/l1/actions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+      headers: { 'Content-Type': 'application/json', [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
       body: JSON.stringify({ itemId: 'c', updatedAt: T1 }),
     });
     expect(r.status).toBe(200);
@@ -110,7 +113,7 @@ describe('notifications wired into server', () => {
   it('headless (gate off): no adapter call, no error, snapshot warning has reason', async () => {
     writeFileSync(feed('a.json'), card('a'));
     const a = new FakeNotifyAdapter();
-    const s = await boot(a, { notifyPlatform: 'linux', env: { CRONTICK_DASHBOARD_HOME: data, PATH: '' } });
+    const s = await boot(a, { notifyPlatform: 'linux', env: { [ENV_HOME]: data, PATH: '' } });
     await sleep(200);
     expect(a.calls).toHaveLength(0);
     expect(s.notifier.status()).toMatchObject({ enabled: false, mode: 'off' });

@@ -1,11 +1,12 @@
-/** Node-version guard. Kept dependency-free: it runs before the real CLI is imported. */
-export const MIN_NODE = [22, 5] as const;
+/** Node-version guard. Kept dependency-free: it runs before the real CLI is imported (the constants import is a leaf with no imports). */
+import { MIN_NODE } from '../constants/cli.js';
+import { APP_NAME } from '../constants/app.js';
 
 /** Returns an error message if `version` (e.g. "20.1.0") is older than MIN_NODE, else null. */
 export function checkNodeVersion(version: string): string | null {
   const [maj = 0, min = 0] = version.split('.').map((n) => Number.parseInt(n, 10) || 0);
   if (maj > MIN_NODE[0] || (maj === MIN_NODE[0] && min >= MIN_NODE[1])) return null;
-  return `error: crontick-dashboard requires Node >=${MIN_NODE.join('.')} (found ${version}). Please upgrade Node.`;
+  return `error: ${APP_NAME} requires Node >=${MIN_NODE.join('.')} (found ${version}). Please upgrade Node.`;
 }
 
 export interface GuardDeps {

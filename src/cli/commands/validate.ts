@@ -3,6 +3,7 @@ import { basename } from 'node:path';
 import type { Command } from 'commander';
 import { validateCardFile, type ValidationResult } from '../../contract/index.js';
 import { CliError, type CliContext } from '../io.js';
+import { errnoCode } from '../../utils/errors.js';
 
 function render(r: ValidationResult): string {
   if ('broken' in r) {
@@ -32,7 +33,7 @@ export function registerValidate(program: Command, ctx: CliContext): void {
           try {
             text = await readFile(file, 'utf8');
           } catch (e) {
-            const code = (e as NodeJS.ErrnoException).code ?? 'EIO';
+            const code = errnoCode(e) ?? 'EIO';
             throw new CliError(`error: cannot read ${file} (${code})`, 2);
           }
           filename = basename(file);

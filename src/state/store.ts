@@ -8,10 +8,10 @@ import { rename as fsRename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { z } from 'zod';
 import { type Clock, realClock } from '../clock.js';
+import { LAST_SEEN_GRANULARITY_MS, RENAME_TRIES, STATE_PRUNE_AFTER_MS, STATE_RENAME_BACKOFF_MS } from '../constants/state.js';
 import { statePath } from '../paths.js';
-
-export const PRUNE_AFTER_MS = 30 * 86_400_000;
-const LAST_SEEN_GRANULARITY_MS = 3_600_000;
+import { errorMessage } from '../utils/errors.js';
+import { retryOnBusy } from '../utils/retry.js';
 
 const rec = <T extends z.ZodType>(v: T) => z.record(z.string(), v);
 const CheckSchema = z.object({ updatedAt: z.string(), items: z.array(z.string()) });
@@ -116,13 +116,11 @@ export interface StateStore {
   mutate(fn: (state: StateData) => void | boolean): Promise<void>;
 }
 
-const RENAME_TRIES = 5;
-
 export function createStateStore(opts: StateStoreOptions = {}): StateStore {
   const env = opts.env ?? process.env;
   const clock = opts.clock ?? realClock;
   const renameFn = opts.renameFn ?? fsRename;
-  const retryDelay = opts.retryDelayMs ?? 20;
+  const retryDelay = opts.retryDelayMs ?? STATE_RENAME_BACKOFF_MS;
   const file = statePath(env);
   const tmp = `${file}.tmp`;
   const warnings: string[] = [];
@@ -159,7 +157,7 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
         /* best effort */
       }
       warnings.push(
-        `state.json was unreadable (${err instanceof Error ? err.message.split('\n')[0] : String(err)}); moved to ${moved}, starting with defaults`,
+        `state.json was unreadable (${errorMessage(err).split('\n')[0]}); moved to ${moved}, starting with defaults`,
       );
       return defaults();
     }
@@ -168,16 +166,7 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
   async function write(): Promise<void> {
     mkdirSync(dirname(file), { recursive: true });
     await writeFile(tmp, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
-    for (let attempt = 1; ; attempt++) {
-      try {
-        await renameFn(tmp, file);
-        return;
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'EPERM' || attempt >= RENAME_TRIES) throw err;
-        await new Promise((r) => setTimeout(r, retryDelay * 2 ** (attempt - 1)));
-      }
-    }
+    await retryOnBusy(() => renameFn(tmp, file), { tries: RENAME_TRIES, backoffMs: retryDelay });
   }
 
   let queue: Promise<void> = Promise.resolve();
@@ -234,7 +223,7 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
           const seen = Object.hasOwn(s.lastSeen, id) ? s.lastSeen[id] : undefined;
           const t = seen === undefined ? NaN : Date.parse(seen);
           if (Number.isNaN(t)) touch(id);
-          else if (now.getTime() - t > PRUNE_AFTER_MS) {
+          else if (now.getTime() - t > STATE_PRUNE_AFTER_MS) {
             for (const k of MAP_KEYS) delete s[k][id];
             changed = true;
           }

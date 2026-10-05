@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
 import { ensureDirs, feedDir } from '../../src/paths.js';
+import { ENV_HOME } from '../../src/constants/env.js';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const UI_DIR = join(ROOT, 'ui/dist');
@@ -23,7 +24,7 @@ interface Harness {
 
 async function boot(cards: Record<string, unknown>[]): Promise<Harness> {
   const home = mkdtempSync(join(tmpdir(), 'crontick-smoke-'));
-  const env = { ...process.env, CRONTICK_DASHBOARD_HOME: home };
+  const env = { ...process.env, [ENV_HOME]: home };
   ensureDirs(env);
   for (const card of cards) {
     const file = join(feedDir(env), `${String(card['id'])}.json`);

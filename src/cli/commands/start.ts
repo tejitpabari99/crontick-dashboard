@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import { feedDir } from '../../paths.js';
+import { parsePort } from '../../utils/port.js';
 import { runForeground, type ForegroundResult } from '../../lifecycle.js';
 import { NotBuiltError, packageAssets, resolveUiDir } from '../assets.js';
 import { CliError, type CliContext } from '../io.js';
@@ -37,8 +38,8 @@ export function createStartRegister(overrides: Partial<StartDeps> = {}) {
         const env = ctx.io.env as NodeJS.ProcessEnv;
         let port: number | undefined;
         if (opts.port !== undefined) {
-          port = Number(opts.port);
-          if (!Number.isInteger(port) || port < 0 || port > 65535) throw new CliError(`invalid --port: ${opts.port}`, 2);
+          port = parsePort(opts.port, { allowZero: true });
+          if (port === undefined) throw new CliError(`invalid --port: ${opts.port}`, 2);
         }
         let uiDir: string;
         try {

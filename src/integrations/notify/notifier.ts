@@ -18,25 +18,16 @@ import type { Card } from '../../contract/validate.js';
 import { envelope } from '../../feed/ingest.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
 import { realClock, type Clock } from '../../clock.js';
-
-export const BURST_WINDOW_MS = 10_000;
-export const BURST_LIMIT = 3;
-
-/** Injectable timers (fake in tests). */
-export interface Timers {
-  setTimeout(fn: () => void, ms: number): unknown;
-  clearTimeout(handle: unknown): void;
-}
-export const realTimers: Timers = {
-  setTimeout: (fn, ms) => {
-    const h = setTimeout(fn, ms);
-    h.unref?.();
-    return h;
-  },
-  clearTimeout: (h) => clearTimeout(h as NodeJS.Timeout),
-};
-
-export const MAX_BODY = 140;
+import { DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../constants/config.js';
+import {
+  NOTIFY_BURST_LIMIT,
+  NOTIFY_BURST_WINDOW_MS,
+  NOTIFY_MAX_BODY,
+  NOTIFY_WARN_DELIVERY,
+  NOTIFY_WARN_OFF,
+} from '../../constants/notify.js';
+import { loopbackUrl } from '../../utils/loopback.js';
+import { realTimers, type TimeoutTimers } from '../../utils/timers.js';
 
 export interface NotifierOptions {
   events: Pick<CardEvents, 'on'>;
@@ -49,7 +40,7 @@ export interface NotifierOptions {
   logger?: { warn(msg: string): void };
   /** Burst-window time source (default real clock). */
   clock?: Clock;
-  timers?: Timers;
+  timers?: TimeoutTimers;
   /** Alerts with priority >= this are named in the summary, never collapsed away (default 3). */
   getThreshold?: () => number;
 }
@@ -68,9 +59,6 @@ export interface Notifier {
   dispose(): void;
 }
 
-export const WARN_OFF = 'notifications';
-export const WARN_DELIVERY = 'notifications-delivery';
-
 export function stripMarkdown(line: string): string {
   return line
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -82,7 +70,7 @@ export function stripMarkdown(line: string): string {
 }
 
 function truncate(s: string): string {
-  return s.length <= MAX_BODY ? s : `${s.slice(0, MAX_BODY - 1)}…`;
+  return s.length <= NOTIFY_MAX_BODY ? s : `${s.slice(0, NOTIFY_MAX_BODY - 1)}…`;
 }
 
 const rec = (v: unknown): Record<string, unknown> =>
@@ -162,25 +150,25 @@ export function createNotifier(opts: NotifierOptions): Notifier {
       const g = gateValue();
       const st = status();
       if (st.enabled) {
-        opts.warnings.clear(WARN_OFF);
+        opts.warnings.clear(NOTIFY_WARN_OFF);
         return;
       }
       const extra = typeof g === 'object' && g.warning ? ` (${g.warning})` : '';
-      opts.warnings.set(WARN_OFF, `OS notifications are ${st.mode}: ${st.reason}${extra}`);
+      opts.warnings.set(NOTIFY_WARN_OFF, `OS notifications are ${st.mode}: ${st.reason}${extra}`);
     });
   }
 
   const clock = opts.clock ?? realClock;
   const timers = opts.timers ?? realTimers;
-  const threshold = (): number => opts.getThreshold?.() ?? 3;
+  const threshold = (): number => opts.getThreshold?.() ?? DEFAULT_NOW_PRIORITY_THRESHOLD;
 
   /** Raw adapter call, fully isolated: sync throw, rejection or bad return are logged, never retried or propagated. */
   function deliver(payload: NotifyPayload): void {
     const fail = (err: unknown): void => {
       logWarn(`notify failed: ${String(err)}`);
-      safe(() => opts.warnings?.set(WARN_DELIVERY, 'OS notification delivery failed (see log); cleared on next success'));
+      safe(() => opts.warnings?.set(NOTIFY_WARN_DELIVERY, 'OS notification delivery failed (see log); cleared on next success'));
     };
-    const ok = (): void => safe(() => opts.warnings?.clear(WARN_DELIVERY));
+    const ok = (): void => safe(() => opts.warnings?.clear(NOTIFY_WARN_DELIVERY));
     try {
       const r: unknown = opts.adapter.notify(payload);
       if (r !== null && typeof r === 'object' && typeof (r as Promise<void>).then === 'function') {
@@ -191,7 +179,7 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     }
   }
 
-  // Burst window: opens at the first notification, closes BURST_WINDOW_MS later.
+  // Burst window: opens at the first notification, closes NOTIFY_BURST_WINDOW_MS later.
   let windowEnd = 0;
   let fired = 0;
   let overflow = 0;
@@ -211,7 +199,7 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     deliver({
       title: `${n} more update${n === 1 ? '' : 's'} on your dashboard`,
       body: names.length > 0 ? truncate(`High priority: ${names.join(', ')}`) : 'Open the dashboard to see them.',
-      openUrl: `http://127.0.0.1:${opts.getPort()}/`,
+      openUrl: loopbackUrl(opts.getPort(), '/'),
     });
   }
 
@@ -219,8 +207,8 @@ export function createNotifier(opts: NotifierOptions): Notifier {
   function dispatch(payload: NotifyPayload, meta: { high: boolean }): void {
     const now = clock.now().getTime();
     if (windowEnd !== 0 && now >= windowEnd) flushSummary(); // window expired: close it, start fresh
-    if (windowEnd === 0) windowEnd = now + BURST_WINDOW_MS;
-    if (fired < BURST_LIMIT) {
+    if (windowEnd === 0) windowEnd = now + NOTIFY_BURST_WINDOW_MS;
+    if (fired < NOTIFY_BURST_LIMIT) {
       fired++;
       deliver(payload);
       return;
@@ -246,7 +234,7 @@ export function createNotifier(opts: NotifierOptions): Notifier {
       {
         title: e.title,
         body: summarize(card),
-        openUrl: `http://127.0.0.1:${opts.getPort()}/#card=${encodeURIComponent(e.id)}`,
+        openUrl: loopbackUrl(opts.getPort(), `/#card=${encodeURIComponent(e.id)}`),
       },
       { high: e.kind === 'alert' && e.priority >= threshold() },
     );
