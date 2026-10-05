@@ -171,3 +171,18 @@ describe('toast store', () => {
     expect(l).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('putLayoutKeepalive', () => {
+  it('sends PUT /api/layout with keepalive and CSRF header, no refetch', () => {
+    const { m, calls, fetchFn } = setup([json(200, {})]);
+    const layout = [{ i: 'a', x: 0, y: 0, w: 3, h: 7 }];
+    m.putLayoutKeepalive(layout);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('/api/layout');
+    expect(calls[0]!.init.method).toBe('PUT');
+    expect(calls[0]!.init.keepalive).toBe(true);
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual(layout);
+    expect((calls[0]!.init.headers as Record<string, string>)['X-Crontick-Dashboard']).toBe('1');
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});

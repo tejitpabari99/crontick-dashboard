@@ -22,8 +22,14 @@ describe('placement', () => {
     const existing = [{ i: 'a', x: 5, y: 2, w: 3, h: 7 }, { i: 'gone', x: 0, y: 0, w: 3, h: 7 }];
     const out = placeCards(existing, [{ id: 'a' }, { id: 'b' }]);
     expect(out.slice(0, 2)).toEqual(existing);
-    // absent card's slot does not block placement
-    expect(out[2]).toEqual({ i: 'b', x: 0, y: 0, w: 3, h: 7 });
+    // absent card's slot still blocks placement (D12: it returns to its slot)
+    expect(out[2]).toEqual({ i: 'b', x: 8, y: 0, w: 3, h: 7 });
+    expect(out.slice(0, 2)).toEqual(existing);
+  });
+  it('absent-card entries block: a new card never lands on a Now card slot', () => {
+    const existing = [{ i: 'now1', x: 0, y: 0, w: 3, h: 7 }];
+    const out = placeCards(existing, [{ id: 'n' }]);
+    expect(out[1]).toEqual({ i: 'n', x: 3, y: 0, w: 3, h: 7 });
   });
   it('returns the same array when nothing is unplaced', () => {
     const existing = [{ i: 'a', x: 0, y: 0, w: 3, h: 7 }];

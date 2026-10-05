@@ -24,8 +24,28 @@ export interface CardFrameProps {
 
 /** Per-session, in-memory expand state for collapsed cards (never persisted; reload resets). */
 const expanded = new Set<string>();
+const expandedListeners = new Set<() => void>();
+let expandedVersion = 0;
+export function getExpandedVersion(): number {
+  return expandedVersion;
+}
+function emitExpanded(): void {
+  expandedVersion++;
+  for (const l of [...expandedListeners]) l();
+}
 export function resetExpanded(): void {
   expanded.clear();
+  emitExpanded();
+}
+export function isExpanded(id: string): boolean {
+  return expanded.has(id);
+}
+/** Notified whenever any card is expanded/collapsed (grid re-derives collapsed heights). */
+export function subscribeExpanded(l: () => void): () => void {
+  expandedListeners.add(l);
+  return () => {
+    expandedListeners.delete(l);
+  };
 }
 
 const FADE_MS = 600;
@@ -102,6 +122,7 @@ export function CardFrame(p: CardFrameProps) {
     if (expanded.has(card.id)) expanded.delete(card.id);
     else expanded.add(card.id);
     bump((n) => n + 1);
+    emitExpanded();
   };
 
   const cls = [

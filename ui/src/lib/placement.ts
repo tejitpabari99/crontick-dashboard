@@ -19,17 +19,16 @@ function overlaps(a: LayoutItem, b: LayoutItem): boolean {
 
 /**
  * Pure auto-placement (D21). Cards without a layout entry get the first free slot
- * (rows top→bottom, x left→right) in the given order. Existing entries (including
- * those of cards absent from `cards`) are returned untouched; only entries of
- * cards present in `cards` block placement. Returns `layout` itself if nothing is unplaced.
+ * (rows top→bottom, x left→right) in the given order. Existing entries are returned
+ * untouched and ALL of them block placement, including entries of cards absent from
+ * `cards` (Now/Done/hidden/out-of-window), so those cards return to their slot (D12). Returns `layout` itself if nothing is unplaced.
  */
 export function placeCards(layout: readonly LayoutItem[], cards: readonly PlaceInput[]): LayoutItem[] {
   const placed = new Set(layout.map((l) => l.i));
-  const present = new Set(cards.map((c) => c.id));
   const unplaced = cards.filter((c) => !placed.has(c.id));
   if (unplaced.length === 0) return layout as LayoutItem[];
   const out = [...layout];
-  const occupied = layout.filter((l) => present.has(l.i));
+  const occupied = [...layout];
   for (const c of unplaced) {
     const { w, h } = SIZE_DIMS[c.size ?? 'M'];
     const bottom = occupied.reduce((m, o) => Math.max(m, o.y + o.h), 0);

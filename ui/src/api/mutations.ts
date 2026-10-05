@@ -29,6 +29,8 @@ export interface Mutations {
   unhide(cardId: string): Promise<void>;
   tick(cardId: string): Promise<void>;
   putLayout(layout: LayoutItem[]): Promise<void>;
+  /** Fire-and-forget PUT with `keepalive` for `pagehide`; no optimistic patch, no refetch, never throws. */
+  putLayoutKeepalive(layout: LayoutItem[]): void;
   /** Resolves on success, rejects with the server message. */
   onItemAction(cardId: string, itemId: string, checked?: boolean): Promise<void>;
 }
@@ -189,6 +191,18 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
     unhide: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/hidden`, undefined, zoneOp(id, 'restore'))),
     tick: (id) => swallow(run('POST', `/api/alerts/${enc(id)}/tick`, undefined, zoneOp(id, 'tray'))),
     putLayout: (layout) => swallow(run('PUT', '/api/layout', layout, { id: seq++, kind: 'layout', layout })),
+    putLayoutKeepalive(layout) {
+      try {
+        void doFetch(`${base}/api/layout`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+          body: JSON.stringify(layout),
+          keepalive: true,
+        }).catch(() => undefined);
+      } catch {
+        /* page is going away */
+      }
+    },
     onItemAction(cardId, itemId, checked = true) {
       const card = store.getSnapshot().snapshot?.cards[cardId];
       return run(
