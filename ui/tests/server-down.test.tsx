@@ -7,20 +7,16 @@ import { createMutations } from '../src/api/mutations.ts';
 import { createSnapshotStore } from '../src/api/store.ts';
 import { createToastStore } from '../src/api/toasts.ts';
 import type { Snapshot, ViewCard } from '../src/api/types.ts';
-import { registerCardType } from '../src/registry/registry.ts';
+import '../src/types/index.ts';
+import table from '../../templates/table.example.json';
+import list from '../../templates/list.example.json';
+import media from '../../templates/media.example.json';
 
 vi.mock('react-grid-layout', () => ({
   useContainerWidth: () => ({ width: 1200, containerRef: { current: null }, mounted: true }),
   verticalCompactor: {},
   GridLayout: (props: { children: unknown }) => <div data-testid="rgl">{props.children as never}</div>,
 }));
-
-const reg = registerCardType as unknown as (t: string, d: unknown) => void;
-const stand = {
-  Component: (p: { data: { text?: string } }) => <p>{p.data.text ?? ''}</p>,
-  searchText: (d: { text?: string }) => d.text ?? '',
-};
-for (const t of ['markdown', 'table', 'list', 'kpi', 'media']) reg(t, stand);
 
 function card(id: string, over: Partial<ViewCard> = {}): ViewCard {
   return {
@@ -33,7 +29,7 @@ function card(id: string, over: Partial<ViewCard> = {}): ViewCard {
     updatedAt: '2026-10-05T10:00:00Z',
     collapsed: false,
     status: 'ok',
-    data: { text: `Data-${id}` },
+    data: { text: `Data-${id}` } as never,
     ...over,
   };
 }
@@ -53,10 +49,10 @@ function snapshot(cards: ViewCard[], zones: Partial<Snapshot['zones']>): Snapsho
 const FIXTURE = snapshot(
   [
     card('md', { type: 'markdown' }),
-    card('tb', { type: 'table' }),
-    card('ls', { type: 'list' }),
-    card('kp', { type: 'kpi' }),
-    card('me', { type: 'media' }),
+    card('tb', { type: 'table', data: table.data as never }),
+    card('ls', { type: 'list', data: list.data as never }),
+    card('kp', { type: 'kpi', data: { items: [{ label: 'Data-kp', value: 1 }] } as never }),
+    card('me', { type: 'media', data: media.data as never }),
     card('br', { status: 'broken', reason: 'schema-invalid', message: 'bad data', data: undefined }),
     card('al', { kind: 'alert', type: 'markdown' }),
     card('tr'),

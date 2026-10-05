@@ -1,8 +1,8 @@
 /**
  * Browser smoke: boots 02's server from source on a fixture feed (01 examples plus a
  * broken card and an alert) against the built UI (ui/dist) and drives it in Chromium.
- * 04 (visual types) is not built yet, so type bodies render the "Unsupported type"
- * fallback; the smoke only asserts one card element per fixture type.
+ * Asserts every fixture type renders its real body (04 registry), never the
+ * "Unsupported type" fallback.
  */
 import { expect, test, type Page } from '@playwright/test';
 import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -59,7 +59,7 @@ test.describe('populated feed', () => {
   test.beforeAll(async () => {
     const cards = TYPES.map(example);
     // Panels only: ensure examples are panels so the alert/broken ones are the only others.
-    const base = cards.map((c) => card(c, { kind: 'panel', priority: 1 }));
+    const base = cards.map((c) => card(c, { kind: 'panel', priority: 1, updatedAt: new Date().toISOString() }));
     base.push(
       card(example('markdown'), {
         id: 'smoke-alert',
@@ -103,6 +103,12 @@ test.describe('populated feed', () => {
       const id = String(example(type)['id']);
       await expect(page.locator(`[data-card-id="${id}"]`).first(), type).toBeVisible();
     }
+    // Collapsed panels render as chips; expand them all so the real bodies mount.
+    const expanders = page.getByRole('button', { name: 'Expand' });
+    while (await expanders.count()) await expanders.first().click();
+    await expect(page.getByText(/Unsupported type/i)).toHaveCount(0);
+    await expect(page.locator('table').first()).toBeVisible(); // table body
+    await expect(page.locator('[data-card-id] a.card-link').first()).toBeVisible(); // list/markdown links
 
     // Broken card: message shown, no data/body of its own.
     const broken = page.locator('[data-card-id="smoke-broken"]');

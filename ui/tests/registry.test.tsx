@@ -28,8 +28,14 @@ describe('registry', () => {
     registerCardType('zz-test', { Component, searchText: () => 'abc' });
     expect(getCardType('zz-test')?.searchText({} as never)).toBe('abc');
   });
-  // PENDING until 04 registers its five types in ui/src/types/index.ts; then switch to `it`.
-  it.todo('every 01 listTypes() name has a registered def (enable when 04 lands)');
+  it('every 01 listTypes() name has a registered def', () => {
+    for (const t of listTypes()) {
+      const name = typeof t === 'string' ? t : (t as { name: string }).name;
+      const def = getCardType(name);
+      expect(def, name).toBeDefined();
+      expect(typeof def!.searchText).toBe('function');
+    }
+  });
   it('listTypes() is importable from a ui test', () => {
     expect(listTypes().length).toBeGreaterThan(0);
   });
