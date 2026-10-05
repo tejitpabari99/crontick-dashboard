@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 summary: 10 commit-sized tasks building five card-body components (markdown, table, list, kpi, media) on shared helpers, then registering them and activating 03's registry-completeness test.
 date: 2026-10-05
 ---
