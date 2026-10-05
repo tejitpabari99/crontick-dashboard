@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CardLink, isAllowedLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
@@ -9,6 +9,7 @@ import { PageMore, ShowMore } from '../shared/ShowMore.tsx';
 import { useQueryFilter } from '../shared/useQueryFilter.ts';
 import {
   cellText,
+  distinctValues,
   filterRows,
   inferColumnType,
   nextSort,
@@ -71,6 +72,41 @@ function CellContent({ cell, query, compact }: { cell: Cell | undefined; query: 
   return compact && typeof v !== 'boolean' ? <span {...clampProps(text, 1)}>{body}</span> : <>{body}</>;
 }
 
+function FilterPopover({
+  label,
+  values,
+  selected,
+  onToggle,
+  onClose,
+}: {
+  label: string;
+  values: string[];
+  selected: ReadonlySet<string>;
+  onToggle: (v: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={`Filter ${label} values`}
+      className="tbl-pop"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
+      {values.map((v) => (
+        <label key={v} className="tbl-pop__opt">
+          <input type="checkbox" checked={selected.has(v)} onChange={() => onToggle(v)} />
+          <span>{v === '' ? '–' : v}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>) {
   const compact = mode !== 'fullscreen';
   const columns = useMemo(() => normalizeColumns(Array.isArray(data?.columns) ? data.columns : []), [data]);
@@ -79,15 +115,45 @@ export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>)
   const [sort, setSort] = useState<SortState | null>(defaultSort);
   const [ownQuery, setOwnQuery] = useState('');
   const [shown, setShown] = useState(PAGE);
+  const [filters, setFilters] = useState<Record<number, ReadonlySet<string>>>({});
+  const [openCol, setOpenCol] = useState<number | null>(null);
+  const headRef = useRef<HTMLTableRowElement>(null);
 
   const types = useMemo<ColumnType[]>(
     () => columns.map((c, i) => inferColumnType(rows.map((r) => r.cells[i] as Cell), c.sort)),
     [columns, rows],
   );
 
+  const filterable = useMemo<(string[] | null)[]>(
+    () => columns.map((_, i) => (compact ? null : distinctValues(rows, i))),
+    [columns, rows, compact],
+  );
+  const toggleFilter = useCallback((col: number, v: string) => {
+    setFilters((f) => {
+      const next = new Set(f[col] ?? []);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return { ...f, [col]: next };
+    });
+  }, []);
+  useEffect(() => {
+    if (openCol === null) return;
+    const onDown = (e: MouseEvent) => {
+      if (headRef.current && !headRef.current.contains(e.target as Node)) setOpenCol(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [openCol]);
+  const chips = columns.flatMap((c, i) =>
+    filterable[i] ? [...(filters[i] ?? [])].map((v) => ({ col: i, label: c.label, value: v })) : [],
+  );
+
   const pre = useQueryFilter(rows, query, rowText);
-  // Seam for 04 Task 5: per-column `filters` (fullscreen only) join the same filterRows call.
-  const matched = useMemo(() => filterRows(pre.visible, { ownQuery }), [pre.visible, ownQuery]);
+  const activeFilters = compact ? undefined : filters;
+  const matched = useMemo(
+    () => filterRows(pre.visible, { ownQuery, ...(activeFilters ? { filters: activeFilters } : {}) }),
+    [pre.visible, ownQuery, activeFilters],
+  );
   const sorted = useMemo(
     () => (sort ? sortRows(matched, sort.column, sort.dir, types[sort.column] ?? 'text') : matched),
     [matched, sort, types],
@@ -95,6 +161,7 @@ export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>)
   const onSort = useCallback((c: number) => setSort((s) => nextSort(s, c, defaultSort)), [defaultSort]);
 
   const searchable = data?.searchable !== false && (!compact || rows.length > SEARCH_MIN_ROWS);
+  const hasFilters = filterable.some((f) => f !== null);
   const cap = compact ? COMPACT_CAP : shown;
   const visible = sorted.slice(0, cap);
   const remaining = sorted.length - visible.length;
@@ -112,28 +179,50 @@ export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>)
         </button>
       </p>
     );
-  else if (sorted.length === 0) empty = <p className="tbl-empty">{`No rows match “${ownQuery}”`}</p>;
+  else if (sorted.length === 0)
+    empty = (
+      <p className="tbl-empty">{ownQuery.trim() !== '' ? `No rows match “${ownQuery}”` : 'No rows match the filters'}</p>
+    );
 
   return (
     <div className="tbl-root">
-      {searchable && (
+      {(searchable || hasFilters) && (
         <div className="tbl-toolbar">
-          <input
-            type="search"
-            className="tbl-search"
-            aria-label="Search rows"
-            placeholder="Search rows"
-            value={ownQuery}
-            onChange={(e) => setOwnQuery(e.target.value)}
-          />
+          {searchable && (
+            <input
+              type="search"
+              className="tbl-search"
+              aria-label="Search rows"
+              placeholder="Search rows"
+              value={ownQuery}
+              onChange={(e) => setOwnQuery(e.target.value)}
+            />
+          )}
           <span className="tbl-count" aria-live="polite">{`${sorted.length} of ${rows.length} rows`}</span>
         </div>
+      )}
+      {chips.length > 0 && (
+        <ul className="tbl-chips" aria-label="Active filters">
+          {chips.map((c) => (
+            <li key={`${c.col}:${c.value}`}>
+              <button
+                type="button"
+                className="tbl-chip"
+                aria-label={`Remove filter ${c.label}: ${c.value === '' ? '–' : c.value}`}
+                onClick={() => toggleFilter(c.col, c.value)}
+              >
+                {`${c.label}: ${c.value === '' ? '–' : c.value}`}
+                <span aria-hidden="true"> ×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       {rows.length > 0 && visible.length > 0 && (
         <div className="tbl-wrap">
           <table className={`tbl${compact ? ' tbl--compact' : ''}`}>
             <thead>
-              <tr>
+              <tr ref={headRef}>
                 {columns.map((c, i) => {
                   const active = sort?.column === i ? sort.dir : null;
                   return (
@@ -149,6 +238,29 @@ export function TableBody({ card, data, mode, query }: CardTypeProps<TableData>)
                           {active === 'asc' ? ' ▲' : active === 'desc' ? ' ▼' : ''}
                         </span>
                       </button>
+                      {filterable[i] && (
+                        <>
+                          <button
+                            type="button"
+                            className="tbl-filter"
+                            aria-label={`Filter ${c.label}`}
+                            aria-expanded={openCol === i}
+                            aria-haspopup="true"
+                            onClick={() => setOpenCol(openCol === i ? null : i)}
+                          >
+                            <span aria-hidden="true">{(filters[i]?.size ?? 0) > 0 ? '▾●' : '▾'}</span>
+                          </button>
+                          {openCol === i && (
+                            <FilterPopover
+                              label={c.label}
+                              values={filterable[i]}
+                              selected={filters[i] ?? new Set()}
+                              onToggle={(v) => toggleFilter(i, v)}
+                              onClose={() => setOpenCol(null)}
+                            />
+                          )}
+                        </>
+                      )}
                     </th>
                   );
                 })}

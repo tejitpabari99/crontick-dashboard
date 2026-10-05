@@ -189,4 +189,81 @@ describe('table type', () => {
     const res = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(res.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id)).toEqual([]);
   });
+
+  describe('fullscreen filter', () => {
+    const data = {
+      columns: ['Name', 'Status', 'Env', 'Id'],
+      rows: [
+        { cells: ['a', 'up', 'prod', 1] },
+        { cells: ['b', 'down', 'prod', 2] },
+        { cells: ['c', 'up', 'dev', 3] },
+        { cells: ['d', null, 'dev', 4] },
+        { cells: ['e', 'up', 'prod', 5] },
+        { cells: ['f', 'up', 'prod', 6] },
+      ],
+    };
+    const bodyRows = (c: HTMLElement) => c.querySelectorAll('tbody tr').length;
+
+    it('absent in compact/grid mode', () => {
+      renderTable(data);
+      expect(screen.queryByRole('button', { name: /^Filter / })).toBeNull();
+    });
+
+    it('only eligible columns (2-20 distinct) get a filter button', () => {
+      renderTable(
+        {
+          columns: ['Name', 'Status', 'Const'],
+          rows: Array.from({ length: 21 }, (_, i) => ({ cells: [`n${i}`, i % 2 ? 'up' : 'down', 'x'] })),
+        },
+        { mode: 'fullscreen' },
+      );
+      expect(screen.getByRole('button', { name: 'Filter Status' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Filter Name' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Filter Const' })).toBeNull();
+    });
+
+    it('OR within column, AND across columns, count live region updates, empty shows dash', () => {
+      const { container } = renderTable(data, { mode: 'fullscreen' });
+      fireEvent.click(screen.getByRole('button', { name: 'Filter Status' }));
+      expect(screen.getByRole('checkbox', { name: '–' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('checkbox', { name: 'up' }));
+      expect(bodyRows(container)).toBe(4);
+      fireEvent.click(screen.getByRole('checkbox', { name: 'down' }));
+      expect(bodyRows(container)).toBe(5);
+      expect(container.querySelector('[aria-live="polite"]')!.textContent).toBe('5 of 6 rows');
+      fireEvent.click(screen.getByRole('button', { name: 'Filter Env' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'dev' }));
+      expect(bodyRows(container)).toBe(1);
+      expect(container.querySelector('[aria-live="polite"]')!.textContent).toBe('1 of 6 rows');
+    });
+
+    it('chips show active filters and remove restores rows', () => {
+      const { container } = renderTable(data, { mode: 'fullscreen' });
+      fireEvent.click(screen.getByRole('button', { name: 'Filter Env' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'dev' }));
+      expect(bodyRows(container)).toBe(2);
+      fireEvent.click(screen.getByRole('button', { name: 'Remove filter Env: dev' }));
+      expect(bodyRows(container)).toBe(6);
+      expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
+    });
+
+    it('keyboard: button has aria-expanded and Escape closes the popover', () => {
+      renderTable(data, { mode: 'fullscreen' });
+      const btn = screen.getByRole('button', { name: 'Filter Env' });
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      fireEvent.click(btn);
+      expect(btn.getAttribute('aria-expanded')).toBe('true');
+      fireEvent.keyDown(screen.getByRole('group', { name: 'Filter Env values' }), { key: 'Escape' });
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      expect(screen.queryByRole('group', { name: 'Filter Env values' })).toBeNull();
+    });
+
+    it('axe: fullscreen with open popover and chips', async () => {
+      const { container } = renderTable(data, { mode: 'fullscreen' });
+      fireEvent.click(screen.getByRole('button', { name: 'Filter Env' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'dev' }));
+      const res = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
+      expect(res.violations.map((v) => v.id)).toEqual([]);
+    });
+  });
 });
