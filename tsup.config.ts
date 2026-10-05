@@ -17,7 +17,7 @@ export default defineConfig([
   {
     ...common,
     format: ['esm'],
-    entry: { 'cli/index': 'src/cli/index.ts', 'server/index': 'src/server/index.ts' },
+    entry: { 'cli/index': 'src/cli/index.ts', 'cli/main': 'src/cli/main.ts', 'server/index': 'src/server/index.ts' },
     banner: shebang,
     clean: true,
     onSuccess: 'node scripts/copy-ui.mjs',

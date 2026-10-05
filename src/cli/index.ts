@@ -1,2 +1,9 @@
-// CLI entry stub (built to dist/cli/index.js). Task 3 adds the commander program.
-console.log('crontick-dashboard (CLI placeholder; commands arrive in a later task)');
+// Bin entry (built to dist/cli/index.js): tiny on purpose. Checks the Node version, then loads ./main.js.
+import { guardedMain } from './guard.js';
+
+await guardedMain({
+  version: process.versions.node,
+  load: () => import('./main.js'),
+  stderr: (s) => void process.stderr.write(s),
+  exit: (code) => void (process.exitCode = code),
+});
