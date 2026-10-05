@@ -15,8 +15,8 @@ Source of truth: [PRD.md](PRD.md). The shell renders 02's snapshot and exposes t
 | 5 | Client type registry, CardLink, error boundary | 1, 01 done | done |
 | 6 | Card frame and Broken state | 3, 4, 5 | done |
 | 7 | Grid zone and layout persistence | 3, 4, 6 | done |
-| 8 | Now zone, alert strip, Done tray | 6, 7 | in-progress |
-| 9 | Header, search, Hidden popover, shortcuts | 4, 7, 8 | todo |
+| 8 | Now zone, alert strip, Done tray | 6, 7 | done |
+| 9 | Header, search, Hidden popover, shortcuts | 4, 7, 8 | in-progress |
 | 10 | Fullscreen and deep links | 6, 8 | todo |
 | 11 | Server-down, empty state, a11y pass | 3, 9, 10 | todo |
 | 12 | Browser smoke test and build handoff | 11, 02 done | todo |
