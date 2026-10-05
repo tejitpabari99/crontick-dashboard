@@ -9,8 +9,8 @@ Source of truth: [PRD.md](PRD.md). Each task includes its vitest tests (real tem
 | # | Task | Depends on | Status |
 |---|---|---|---|
 | 1 | Paths, config, clock | 01#1, 01 done | done |
-| 2 | State store (serial writer) | 1 | in-progress |
-| 3 | Feed ingest + watcher | 1, 01 done | todo |
+| 2 | State store (serial writer) | 1 | done |
+| 3 | Feed ingest + watcher | 1, 01 done | in-progress |
 | 4 | Archive + retention | 3 | todo |
 | 5 | computeSnapshot + shared DTOs | 2, 3, 01 done | todo |
 | 6 | Events, warnings, notified | 3, 4 | todo |
