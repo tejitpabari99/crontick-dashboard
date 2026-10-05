@@ -17,7 +17,7 @@ Source of truth: [PRD.md](PRD.md). Five domain-agnostic React bodies registered 
 | 7 | list item actions | 6, 03#3 | done |
 | 8 | kpi type | 1, 01#4 | done |
 | 9 | media type | 1, 01#4 | done |
-| 10 | Registration hub, fixtures, a11y, registry test | 2, 4, 5, 7, 8, 9, 01#7, 03#5 | in-progress |
+| 10 | Registration hub, fixtures, a11y, registry test | 2, 4, 5, 7, 8, 9, 01#7, 03#5 | done |
 
 ## Task 1 — Shared helpers and styles
 What it is / what it means: the common layer under `ui/src/types/shared/` (Common, Safety, V10, V11).
