@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 summary: 10 tasks — package/toolchain completion, build pipeline and asset lookup, CLI skeleton + validate, templates, info, start/daemon, skill install, SKILL.md, package verify scripts, CI + README.
 date: 2026-10-05
 ---
@@ -8,16 +8,16 @@ Source of truth: docs/agent_files/initial-brainstorming/06-cli-packaging-skill/P
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Complete package metadata and toolchain | 01#1 | todo |
-| 2 | Build pipeline, UI copy, `packageAssets()` | 1, 02#7, 03#12 | todo |
-| 3 | CLI skeleton and `validate` | 1, 01 done | todo |
-| 4 | `templates` command | 2, 3 | todo |
-| 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | todo |
-| 6 | `start` and `daemon` commands | 2, 3, 02#11 | todo |
-| 7 | `skill install` command | 2, 3 | todo |
-| 8 | SKILL.md and its CI test | 4, 5, 7 | todo |
-| 9 | Package verify scripts | 4, 5, 6, 7, 8 | todo |
-| 10 | CI workflow and README install section | 9 | todo |
+| 1 | Complete package metadata and toolchain | 01#1 | done |
+| 2 | Build pipeline, UI copy, `packageAssets()` | 1, 02#7, 03#12 | done |
+| 3 | CLI skeleton and `validate` | 1, 01 done | done |
+| 4 | `templates` command | 2, 3 | done |
+| 5 | `info` command | 2, 3, 02#1, 02#11, 05#3 | done |
+| 6 | `start` and `daemon` commands | 2, 3, 02#11 | done |
+| 7 | `skill install` command | 2, 3 | done |
+| 8 | SKILL.md and its CI test | 4, 5, 7 | done |
+| 9 | Package verify scripts | 4, 5, 6, 7, 8 | done |
+| 10 | CI workflow and README install section | 9 | done |
 
 ## Task 1 — Complete package metadata and toolchain
 What it is / what it means: 01#1 left a minimal scaffold; this brings it to the PRD's final package shape (P2, Scripts, Install & platform).
