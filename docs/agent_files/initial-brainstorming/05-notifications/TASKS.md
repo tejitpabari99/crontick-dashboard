@@ -12,8 +12,8 @@ Source of truth: [PRD.md](PRD.md). OS notifications only (TickTick was removed 2
 | 2 | NotifyAdapter + chosen implementation | 1 | done |
 | 3 | Headless gate (`notifications.os` auto/on/off) | 02#1 | done |
 | 4 | Notifier core: events to toasts | 2, 3, 02#6 | done |
-| 5 | Burst control | 4 | in-progress |
-| 6 | Failure isolation + warnings | 4, 02#6 | todo |
+| 5 | Burst control | 4 | done |
+| 6 | Failure isolation + warnings | 4, 02#6 | in-progress |
 | 7 | Server wiring + acceptance suite | 5, 6, 02#7, 02#10 | todo |
 
 ## Task 1 — Win/mac notification spike (decides adapter)
