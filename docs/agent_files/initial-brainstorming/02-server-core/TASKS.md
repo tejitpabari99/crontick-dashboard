@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 summary: 12 commit-sized tasks building the server core — paths/config, state store, ingest, archive, snapshot compute, events, HTTP, mutations, actions, write-back, lifecycle.
 date: 2026-10-05
 ---
@@ -8,8 +8,8 @@ Source of truth: [PRD.md](PRD.md). Each task includes its vitest tests (real tem
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Paths, config, clock | 01#1, 01 done | todo |
-| 2 | State store (serial writer) | 1 | todo |
+| 1 | Paths, config, clock | 01#1, 01 done | done |
+| 2 | State store (serial writer) | 1 | in-progress |
 | 3 | Feed ingest + watcher | 1, 01 done | todo |
 | 4 | Archive + retention | 3 | todo |
 | 5 | computeSnapshot + shared DTOs | 2, 3, 01 done | todo |

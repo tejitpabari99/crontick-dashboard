@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 summary: 8 tasks — minimal scaffold, formats/helpers, envelope, per-type schemas, registry + validator, templates + generated schemas, fixtures/fuzz/portability tests.
 date: 2026-10-05
 ---
