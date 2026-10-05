@@ -11,11 +11,13 @@ import { CliError, processIo, type CliContext, type CliIo } from './io.js';
 import { registerValidate } from './commands/validate.js';
 import { registerTemplates } from './commands/templates.js';
 import { registerInfo } from './commands/info.js';
+import { registerStart } from './commands/start.js';
+import { registerDaemon } from './commands/daemon.js';
 
 export type { CliIo, CliContext } from './io.js';
 export { CliError } from './io.js';
 
-const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate, registerTemplates, registerInfo];
+const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate, registerTemplates, registerInfo, registerStart, registerDaemon];
 
 function version(): string {
   const pkg = JSON.parse(readFileSync(join(packageAssets().root, 'package.json'), 'utf8')) as { version: string };
