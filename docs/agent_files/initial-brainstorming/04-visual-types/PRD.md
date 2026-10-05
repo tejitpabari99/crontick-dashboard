@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: Five generic card-body React components (markdown, table, list, kpi, media) registered in 03's client registry — safe rendering, deep links, search/filter/sort, optimistic checkboxes.
 date: 2026-10-05
 ---

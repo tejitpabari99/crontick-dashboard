@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: Node/TS server core — data dir, feed watcher, pure state computation (window/Broken/Now/Done), archive+retention, interactions, localhost HTTP API, lifecycle.
 date: 2026-10-05
 ---

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 summary: 8 tasks — minimal scaffold, formats/helpers, envelope, per-type schemas, registry + validator, templates + generated schemas, fixtures/fuzz/portability tests.
 date: 2026-10-05
 ---
@@ -8,7 +8,7 @@ Source of truth: docs/agent_files/initial-brainstorming/01-card-contract/PRD.md.
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Minimal repo scaffold | none | todo |
+| 1 | Minimal repo scaffold | none | in-progress |
 | 2 | Formats and helpers | 1 | todo |
 | 3 | Envelope schema | 2 | todo |
 | 4 | Type schemas: markdown, kpi, media | 2, 3 | todo |

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: React/Vite UI shell — HSL theme tokens, header/Now/grid/Done-tray zones, uniform card frame, client type registry, global search, ETag polling, optimistic mutations.
 date: 2026-10-05
 ---

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: crontick-dashboard CLI (start, daemon, info, validate, templates, skill install), npm package/build layout, and the SKILL.md that teaches agents to write cards.
 date: 2026-10-05
 ---

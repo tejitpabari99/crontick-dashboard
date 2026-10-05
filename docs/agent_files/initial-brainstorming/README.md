@@ -1,11 +1,11 @@
 ---
-status: draft
+status: in-progress
 summary: Index for the crontick-dashboard design set — 6 sub-project PRDs, dependency graph, locked cross-cutting picks, consolidated owner decisions and manual steps.
 date: 2026-10-05
 ---
 # crontick-dashboard — initial-brainstorming design set
 
-Source of truth: [`brainstorming.md`](brainstorming.md) (32 locked decisions D1-D32). Future ideas: [`../futures.md`](../futures.md). Design only: no code, no TASKS.md yet.
+Source of truth: [`brainstorming.md`](brainstorming.md) (32 locked decisions D1-D32). Future ideas: [`../futures.md`](../futures.md). Implementation is approved and underway: six approved PRDs and six settled TASKS.md files cover 59 tasks. All owner choices are settled; the work follows the build order below.
 
 ## Sub-projects
 
@@ -64,4 +64,4 @@ None remaining. All items resolved 2026-10-05 and applied in the PRDs.
 
 ## Next step
 
-PRDs go to `status: approved`, then run `dev-tasks` over the six PRDs.
+Implement the 59 settled tasks in order: 01 -> 02 -> (03 and 05 in parallel) -> 04 -> 06. Sub-project 01 Task 1 is in progress. Track implementation status in each TASKS.md; retain the approved design and settled choices.

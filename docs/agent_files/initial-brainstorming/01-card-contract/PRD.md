@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: Card file contract — envelope + 5 per-type data schemas (Zod source, generated JSON Schema), formats, shared validator API, shipping layout.
 date: 2026-10-05
 ---

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: OS notifications for notify:true cards (Win/mac/Linux adapter, headless = in-page only). Notifications only: TickTick MCP, OAuth, tokens and intent files were removed (owner 2026-10-05).
 date: 2026-10-05
 ---
