@@ -1,0 +1,45 @@
+/* Visited indication is CSS-only (:visited exposes colour only). mailto:/ms-outlook: are never reported visited. */
+a.card-link {
+  text-decoration: none;
+}
+a.card-link:not(:visited) {
+  color: var(--primary);
+}
+a.card-link:not(:visited) .card-link__glyph {
+  color: var(--primary);
+}
+a.card-link:visited {
+  color: var(--text-muted);
+}
+a.card-link:visited .card-link__glyph {
+  color: var(--text-muted);
+}
+.card-link__glyph {
+  opacity: 0.6;
+  white-space: nowrap;
+}
+a.card-link:hover {
+  text-decoration: underline;
+}
+a.card-link:hover .card-link__glyph {
+  opacity: 1;
+}
+a.card-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.card-link__text,
+.card-link-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+a.card-link {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+}
