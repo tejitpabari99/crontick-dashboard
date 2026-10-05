@@ -90,6 +90,18 @@ describe('mutations', () => {
     );
   });
 
+  it('tick optimistically removes the alert from alerts and does not add it to tray', async () => {
+    let release!: (r: Response) => void;
+    const t = setup([new Promise<Response>((r) => (release = r))]);
+    await t.store.refetch();
+    const p = t.m.tick('al');
+    const z = t.m.getView().state.snapshot?.zones;
+    expect(z?.alerts).toEqual([]);
+    expect(z?.tray).toEqual([]);
+    release(json(200, {}));
+    await p;
+  });
+
   it('network failure rolls back and toasts', async () => {
     const t = setup([new Error('boom')]);
     await t.store.refetch();

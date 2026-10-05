@@ -6,7 +6,7 @@ import { getToastStore, type ToastStore } from './toasts.ts';
 export const CONFLICT_TOAST = 'card updated, try again';
 
 type Op =
-  | { id: number; kind: 'zone'; cardId: string; zone: 'tray' | 'hidden' | 'restore' }
+  | { id: number; kind: 'zone'; cardId: string; zone: 'tray' | 'hidden' | 'restore' | 'drop' }
   | { id: number; kind: 'layout'; layout: LayoutItem[] }
   | { id: number; kind: 'item'; cardId: string; itemId: string; checked: boolean };
 
@@ -48,10 +48,12 @@ function without(list: string[] | undefined, id: string): string[] {
   return (list ?? []).filter((x) => x !== id);
 }
 
-function applyZone(snap: Snapshot, cardId: string, zone: 'tray' | 'hidden' | 'restore'): Snapshot {
+function applyZone(snap: Snapshot, cardId: string, zone: 'tray' | 'hidden' | 'restore' | 'drop'): Snapshot {
   const zones: Record<string, string[]> = {};
   for (const z of ZONES) zones[z] = without(snap.zones?.[z], cardId);
-  if (zone === 'restore') {
+  if (zone === 'drop') {
+    // alert tick: the file leaves the dashboard (feed/done), no tray entry
+  } else if (zone === 'restore') {
     const kind = snap.cards[cardId]?.kind;
     const target = kind === 'alert' ? 'alerts' : 'grid';
     zones[target] = [...zones[target]!, cardId];
@@ -160,7 +162,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
 
   /** Public wrapper: toast already shown; the promise still rejects for callers that care. */
   const swallow = (p: Promise<void>): Promise<void> => p.catch(() => undefined);
-  const zoneOp = (cardId: string, zone: 'tray' | 'hidden' | 'restore'): Op => ({ id: seq++, kind: 'zone', cardId, zone });
+  const zoneOp = (cardId: string, zone: 'tray' | 'hidden' | 'restore' | 'drop'): Op => ({ id: seq++, kind: 'zone', cardId, zone });
   const enc = encodeURIComponent;
 
   return {
@@ -189,7 +191,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
     undone: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/done`, undefined, zoneOp(id, 'restore'))),
     hide: (id) => swallow(run('PUT', `/api/cards/${enc(id)}/hidden`, undefined, zoneOp(id, 'hidden'))),
     unhide: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/hidden`, undefined, zoneOp(id, 'restore'))),
-    tick: (id) => swallow(run('POST', `/api/alerts/${enc(id)}/tick`, undefined, zoneOp(id, 'tray'))),
+    tick: (id) => swallow(run('POST', `/api/alerts/${enc(id)}/tick`, undefined, zoneOp(id, 'drop'))),
     putLayout: (layout) => swallow(run('PUT', '/api/layout', layout, { id: seq++, kind: 'layout', layout })),
     putLayoutKeepalive(layout) {
       try {
