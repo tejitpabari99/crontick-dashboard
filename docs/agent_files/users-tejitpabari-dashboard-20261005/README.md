@@ -11,4 +11,4 @@ date: 2026-10-05
 | Doc | Purpose | Status |
 |-----|---------|--------|
 | research-2026-10-05.md | Survey of open-source modular dashboards | done |
-| brainstorm.md | Requirements + decision log | approved |
+| brainstorm.md | Requirements + decision log | draft (v2) |

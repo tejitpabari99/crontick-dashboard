@@ -1,130 +1,199 @@
 ---
-status: approved
-summary: Brainstorm brief — local modular dashboard fed by agent-written JSON card files; custom React grid build recommended, pending owner trial of Homarr/Node-RED.
+status: draft
+summary: Brainstorm brief v2 — custom-built local dashboard fed by agent-written JSON cards; generic visual types, Now zone, local CLI, cross-platform npm package.
 date: 2026-10-05
 ---
 
-# crontick-dashboard — Brainstorm Brief
+# crontick-dashboard — Brainstorm Brief (v2)
 
 ## 1. TL;DR
 
-A local, single-user dashboard where scheduled agents (e.g. crontick Claude jobs) drop one JSON file per card into `feed/`. The dashboard renders panels in a draggable/resizable/fullscreen grid plus a persistent alert strip on top. No OSS tool covers interactivity + local files + agent-controlled cards + alerts (see `research-2026-10-05.md`). Recommended build is custom (React + Vite + react-grid-layout + small Node feed server). The card file contract stays tool-agnostic, so the owner's Homarr / Node-RED Dashboard 2 trial can still change the build choice.
+Local single-user dashboard. Agents (crontick Claude jobs, Claude sessions) write one JSON file per card into a feed folder; dashboard renders them as generic visual types (markdown, table, list, kpi, media) in a drag/resize grid, with a "Now" zone on top for alerts and time-windowed high-priority cards. Custom build (React + Vite + TS + react-grid-layout + small Node server), shipped as npm global package with a crontick-style CLI, runs on 127.0.0.1 on the same machine as the agents (Linux/Windows/macOS). Homarr rejected after owner review; Glance-style themes/columns borrowed for look.
 
 ## 2. Problem
 
-Outputs of recurring agent jobs (daily email rundown, Wednesday OH meeting notes, PR-status watcher every 30 min, personal tasks with deadlines) are buried in logs. No single place to see them. For: the owner, single user, local machine.
+Outputs of recurring agent jobs are buried in logs; no single place to see them. User: owner only. Mail = Outlook. Tasks = TickTick.
 
-Driving use cases:
-- Daily email summary: structured table, searchable/filterable.
-- Wednesday office-hours meeting notes, shown Wednesdays from 9am.
-- Personal tasks (call X, do taxes) stored in TickTick, added by agents; shown here with due dates; tick here completes in TickTick.
-- Session watchers (e.g. PR review status every 30 min) set a flag; alert appears at top.
-- Notifications, configurable per card/task.
-- Priority ordering (e.g. OH above email; watcher alerts on top).
-- Interactive cards: links, images/GIFs, color, inputs (e.g. location), search/filter.
-- Later: weather small top-right, more widget types.
+Use cases:
+- Daily email summary: table, searchable/filterable; each row deep-links to the Outlook message.
+- Wednesday office-hours (OH) notes + recording link, shown Wednesdays from 9am.
+- TickTick personal tasks with due dates; tick here completes in TickTick.
+- Session watchers (PR status, deployment complete) raise alerts + notify.
+- Weather later (2nd-week widget).
+
+Success: simple, usable, shows the right info; deep links work; important items surface on time and on top per priority; no missed notification; calm, not crowded; exciting enough to open daily.
+
+Kill criteria (owner abandons if):
+- Can't go deeper (no deep links to Outlook / recordings).
+- Important items don't surface on time / on top per priority.
+- Misses a notification (e.g. deployment complete).
+- Too crowded / overwhelming.
+- Not exciting.
 
 ## 3. Decision log
 
 | # | Decision | Alternative rejected | Why |
 |---|----------|---------------------|-----|
-| 1 | One dashboard aggregating everything; source apps (TickTick, mail) stay sources of truth | Separate apps per concern | Single "what needs my attention" surface; no duplication of data ownership |
-| 2 | Single user, local, no auth | Auth / multi-user | Exposure handled externally (ngrok etc.) if ever |
-| 3 | Separate repo; no crontick integration | Read crontick daemon API | crontick is only the scheduler; agents emit output in dashboard's format |
-| 4 | Input = agents write files into watched `feed/` folder, one JSON file per card/alert | Push API; reading crontick output | Any agent can write files; survives restarts; inspectable. Push API maybe later |
-| 5 | Card file = data + config in one file (schema in Design) | Separate config + data files | Agent writes exactly one thing |
-| 6 | Data can be structured JSON or markdown | Markdown only | Tables/filters need structure |
-| 7 | Two kinds: panels (fixed grid) + alerts (top strip) | Whole grid auto-reorders by priority | Self-shuffling grid destroys spatial memory |
-| 8 | Alerts persist until ticked; all visible side-by-side, wrapping; sorted priority desc then newest; same `id` rewrite updates in place | Ephemeral/auto-expiring or overriding alerts | Owner requirement: nothing disappears unseen, nothing hides another |
-| 9 | Ticking alert moves file to `feed/done/` | Set done flag; delete | Clean feed, keeps history, agents can see it was handled |
-| 10 | Time rules in card file: `show.cron` (start) + optional `show.for` (duration); both forms supported; outside window card is hidden | Dashboard-side rules only; raise-but-not-hide | Agent authors the rule; matches "OH on Wednesday only" |
-| 11 | Notifications: in-page + browser Notification API while tab open; per-card `notify` flag | Push to phone (ntfy etc.) now | Phone out of scope for now; ntfy addable later without redesign |
-| 12 | Cards are interactive but never trigger jobs | Run/re-run buttons | Display + write-back to sources only |
-| 13 | TickTick: read + complete only, via official remote MCP server `https://mcp.ticktick.com` (OAuth sign-in once; dashboard server acts as MCP client) | Register TickTick Open API developer app; full task editing in UI; reuse Claude's connector token | No app registration; claude.ai's token is not reusable; editing duplicates TickTick UI; agents add tasks |
-| 14 | Fallback if MCP OAuth rejects third-party clients: tick writes intent file, a scheduled Claude job applies it via existing connector (minutes latency) | — | Still no app registration |
-| 15 | Failure display: card shows **Broken** + reason, never stale data. Triggers: file `error` field; no update within `staleAfter`; malformed file/schema | Show stale data with "stale" badge | Owner: don't show old data |
-| 16 | v1 cuts: multi-page, mobile layout, live push (poll 30-60s instead), themes beyond light/dark, weather (good 2nd-week test widget). Keep drag/resize/fullscreen | Ship all | YAGNI; drag/resize/fullscreen is the core feel |
-| 17 | No throwaway prototype; validate by real use alongside crontick | Week-long static prototype | Owner is starting crontick usage now |
-| 18 | Build choice: custom build recommended; owner trials Homarr 2.0 and Node-RED Dashboard 2 first | Glance, Dashy, Homepage | Glance/Dashy display-only. Homarr 2.0 (released 2026-10-02) has interactive JSX custom widgets with server-side-auth POST, but: HTTP-only sources, no documented data-driven reorder/visibility, no layout API, notifications widget only shows ntfy/Gotify/Nextcloud history, Docker-first (no Docker on this machine), ~0.6-1 GB RAM |
+| 1 | One dashboard aggregating everything; sources (TickTick, Outlook) stay source of truth | Separate apps per concern | One "what needs my attention" surface; no data-ownership duplication |
+| 2 | Runs on same machine as agents (Linux VPS or owner's Windows/Mac laptop); binds 127.0.0.1 only, no auth. External exposure (ngrok etc.) = owner's job, out of scope | Tailscale; ngrok OAuth; auth in app | Single user; keeps app trivial; exposure is an infra choice |
+| 3 | Separate repo; no crontick integration; crontick only schedules; agents emit dashboard format | Read crontick daemon API | Decoupled; any agent can feed it |
+| 4 | Input = agents write one JSON file per card/alert into `<data>/feed/` | Push API; reading crontick output | Survives restarts; inspectable; any agent can write files |
+| 5 | Card file = data + config in one file | Separate config + data files | Agent writes exactly one thing |
+| 6 | Data = structured JSON or markdown | Markdown only | Tables/filters need structure |
+| 7 | Generic, domain-agnostic visual types; each type defines a data contract. New type = template + one component + register, or amend existing. v1: `markdown`, `table` (search/filter/sort), `list` (items, optional checkbox), `kpi` (number or state e.g. deploy ✅/⏳), `media` (images/GIFs + links). TickTick tasks = a `list` card. Cut from v1: `embed`/iframe, inline video (link to recordings) | Domain-specific widgets (email widget, tasks widget) | A table shows emails, docs, anything; fewer components; agents decide content |
+| 8 | Any row/item may carry `link` (opens Outlook msg, recording, PR). Checkbox `action` from fixed set: `dismiss`, `ticktick.complete` | Arbitrary actions | Deep links are a kill criterion; fixed actions keep it safe and simple |
+| 9 | Per-type templates = JSON Schema + example; required fields strictly validated, additional properties allowed. Invalid → card shows Broken + reason | Strict closed schemas; no validation | Agents can store extras; bad files visible not silent |
+| 10 | Agent guidance = Claude skill shipped in package (like crontick `src/skill/SKILL.md`) pointing to templates/examples. CLI `validate` is helper | README only; write-CLI as primary path | Agents learn format where they already look |
+| 11 | Two kinds: alerts (top strip) + panels (grid) | Single kind | Alerts must be unmissable |
+| 12 | "Now" zone at top: alerts + any panel whose `show` window is active and priority ≥ threshold (config) pinned there during its window, then returns to its grid slot. Rest of grid fixed, no auto-reorder | Whole grid sorted by priority; fixed grid only | Sorting breaks spatial memory; fixed-only means OH notes wouldn't surface |
+| 13 | Alerts persist until ticked; side-by-side, wrapping; sorted priority desc then newest; same `id` rewrite updates in place; tick moves file to `feed/done/` | Auto-expiring/overriding alerts; done flag; delete | Nothing disappears unseen, nothing hides another; clean feed, history kept |
+| 14 | Panel "Done": button records ack of card's `updatedAt` in `state.json`; card moves to Done tray at bottom as small heading-only chip (click to reopen); returns to normal when agent writes new file (new `updatedAt`) — e.g. OH notes next Wed, email summary tomorrow | Hide completely; dim in place | Declutters but stays recoverable; auto-resets on fresh data |
+| 15 | Time rules in card: `show.cron` + optional `show.for`; outside window hidden | Dashboard-side rules only; raise-but-not-hide | Agent authors the rule; matches "OH on Wednesday only" |
+| 16 | Notifications: native OS notification fired by server (macOS Notification Center / Windows toast / Linux) for cards with `notify: true` on new/changed, plus in-page highlight. Headless VPS = in-page only | Web Push; ntfy; browser Notification API (v1) | Works with tab closed; no phone infra; ntfy/push addable later |
+| 17 | Cards never trigger jobs | Run/re-run buttons | Display + write-back to sources only |
+| 18 | TickTick: read + complete only via official remote MCP server https://mcp.ticktick.com (OAuth once; server acts as MCP client). Fallback: tick writes intent file applied by scheduled Claude job | Register Open API app; full editing in UI; reuse Claude connector token | No app registration; claude.ai token not reusable; editing duplicates TickTick; agents add tasks |
+| 19 | Broken state: card shows Broken + reason, never stale data. Triggers: `error` field, exceeding `staleAfter`, malformed/invalid file | Stale badge on old data | Owner: don't show old data |
+| 20 | Server-side archive: on overwrite, server archives previous version to `<data>/archive/<id>/`; per-card `retention` (e.g. "7d", "15d"), default in config.json. UI shows latest only | Agents manage history; history viewer v1 | Agents just overwrite; history kept cheaply |
+| 21 | New card id → auto-placed at first free grid slot; file deleted → card disappears; UI "hide" button stored in `state.json` | Manual placement; hide by deleting file | Zero-config for agents; owner can still declutter |
+| 22 | Anti-crowding: per-card `size` hint (S/M/L), compact default, fullscreen for detail; priority ≤ 1 panels collapse to title chip until clicked; no hard cap | Hard card cap | Crowding is a kill criterion; cap would drop info |
+| 23 | No UI → agent inputs in v1. UI does only search/filter/sort/tick/done/hide/open link. Card config (e.g. weather location) lives in card file | Input widgets in UI | YAGNI; agent owns config |
+| 24 | Global search across all cards (plus per-table search) | Per-table search only | Find anything fast |
+| 25 | Light + dark themes. Calm, Linear/Raycast-like, one accent color, good typography, subtle motion on data change; slim header (date, alert count, weather later). Glance-inspired: HSL theme tokens + default narrow–wide–narrow column arrangement on the grid. Owner unsure until tried | Themes beyond light/dark in v1; committing to Glance look now | Tokens make swapping cheap; look unverified |
+| 26 | Keep drag/resize/fullscreen grid (react-grid-layout); layout persisted in `state.json` | Fixed layout | Core feel; owner wants it |
+| 27 | Run model: started manually via CLI, crontick-style (`crontick-dashboard start`, `daemon start|stop|status`, `info` prints feed path + URL, `validate <file>`, `templates`). No autostart/service install in v1 | Autostart at login; agent-triggered demand-start | Autostart needs more thought; keep v1 simple |
+| 28 | Packaging: npm global package `crontick-dashboard`, Node ≥22.5, Windows/macOS/Linux. Data dir via `env-paths` with `CRONTICK_DASHBOARD_HOME` override (mirrors crontick `src/paths.ts`). Fixed default port on 127.0.0.1, free-port fallback + port file (like crontick) | Docker; per-OS installers | Matches crontick conventions; no Docker on VPS |
+| 29 | Stack: React + Vite + TS + react-grid-layout frontend; small Node server (file watch, validate, compute visibility/broken/Now, serve, ticks, archive, OS notify, TickTick MCP client). Page polls 30-60s (SSE if too slow) | Heavier framework/backend | Small, fits requirements |
+| 30 | Build choice: custom build decided. Homarr rejected after owner reviewed repo + demo: too crowded, app-management feel, no way to add local personal output, overkill features (stocks etc.). Node-RED Dashboard 2 not pursued. Glance/Dashy display-only (research) | Homarr; Node-RED Dashboard 2; Glance; Dashy | See research doc; owner's own review of Homarr |
+| 31 | v1 cuts: multi-page, mobile layout, embed, inline video, history viewer, autostart, UI inputs, push to phone, weather | Ship all | YAGNI; weather = good 2nd-week widget |
+| 32 | No throwaway prototype; validate by real use | Week-long static prototype | Owner is starting crontick usage now |
 
 ## 4. Design
 
-### Approaches
+### Approach
 
-| # | Approach | Status | Notes |
-|---|----------|--------|-------|
-| 1 | Custom build (React + Vite + react-grid-layout + Node feed server) | Recommended | Full control of alert strip, time windows, Broken states |
-| 2 | Homarr + small file-serving HTTP bridge | Only if trial passes | Covers TickTick write-back, filterable email table, raising a card; alert strip/time windows/broken states likely still custom |
-| 3 | Node-RED Dashboard 2 | Fallback | Full Vue interactivity, flow-editor ergonomics, less home-page feel |
+Custom build. File-based contract: agents write cards, server validates + computes state, page renders. Visual types are generic; content comes from agents.
 
 ### Card file
 
 ```json
-{ "id": "oh-notes", "kind": "panel", "type": "markdown",
-  "title": "OH notes", "priority": 2, "notify": false,
-  "show": { "cron": "0 9 * * 3", "for": "8h" },
-  "staleAfter": "8d", "error": null,
-  "updatedAt": "2026-10-07T09:05:00-07:00", "data": "# Notes..." }
+{
+  "id": "email-summary", "kind": "panel", "type": "table",
+  "title": "Email summary", "priority": 2, "notify": false,
+  "show": { "cron": "0 7 * * 1-5", "for": "12h" },
+  "staleAfter": "26h", "retention": "7d", "size": "L", "error": null,
+  "updatedAt": "2026-10-05T07:02:00-07:00",
+  "data": {
+    "columns": ["From", "Subject", "Action"],
+    "rows": [
+      { "cells": ["Dana R.", "Q4 budget sign-off", "Reply today"],
+        "link": "https://outlook.office.com/mail/deeplink/read/AAMk..." }
+    ]
+  }
+}
 ```
 
 | Field | Meaning |
 |-------|---------|
 | `id` | Unique, stable; rewrite updates in place |
 | `kind` | `panel` or `alert` |
-| `type` | Widget type |
+| `type` | `markdown` / `table` / `list` / `kpi` / `media` |
 | `title` | Card title |
-| `priority` | Higher = first |
-| `notify` | bool; browser notification on new/changed |
+| `priority` | Higher = first; ≤1 collapses; ≥ config threshold qualifies for Now |
+| `notify` | bool; OS notification + highlight on new/changed |
 | `show` | Optional `{cron, for}` visibility window |
 | `staleAfter` | Optional duration; exceeded = Broken |
+| `retention` | Archive retention for old versions (e.g. "7d"); default in config |
+| `size` | S / M / L hint |
 | `error` | string or null; non-null = Broken with reason |
-| `updatedAt` | ISO timestamp |
-| `data` | Shape per widget type |
+| `updatedAt` | ISO timestamp; change resets panel Done |
+| `data` | Shape per type; items may carry `link`, `action` (`dismiss` / `ticktick.complete`) |
+
+### Data dir
+
+```
+<data>/feed/*.json      agents write here
+<data>/feed/done/       ticked alerts
+<data>/archive/<id>/    previous versions, per-card retention
+<data>/state.json       layout, hidden, done-acks
+<data>/config.json      port, defaults (retention, Now threshold, poll interval)
+```
+
+Location via `env-paths`: Win `%LOCALAPPDATA%\crontick-dashboard`; mac `~/Library/Application Support/crontick-dashboard`; Linux `~/.local/share/crontick-dashboard`; override `CRONTICK_DASHBOARD_HOME`.
 
 ### Parts
 
 | Part | Responsibility | Depends on |
 |------|----------------|-----------|
 | `feed/*.json` | Agent-written cards/alerts | none |
-| Feed server (Node) | Watch folder, validate schema, compute window visibility + broken state, serve cards, handle alert ticks (move to `feed/done/`), TickTick MCP client | Node, TickTick OAuth |
-| Layout file (JSON) | Grid position/size per card id; drag edits persist here | Feed server |
-| Alert strip | Side-by-side tiles, sorted, tick to dismiss | Feed server |
-| Widget registry | One file per widget type; receives validated `data` + card config, renders inside uniform card frame (title bar, fullscreen, broken state). v1 types: markdown, list, table (search/filter), kpi, embed (iframe/html), tasks (TickTick) | Shared theme tokens |
-| Notifications | Browser Notification on new/changed card with `notify: true` | Open tab |
+| Node server | Watch feed, validate, compute visibility/Broken/Now, serve, handle ticks/done/hide, archive, OS notify, TickTick MCP client | Node ≥22.5, TickTick OAuth |
+| Type registry | Per type: JSON Schema + example + one React component; rendered in uniform card frame (title, fullscreen, Done, hide, Broken) | Theme tokens |
+| Now zone + alert strip | Alerts + active-window high-priority panels, sorted priority desc then newest | Server |
+| Grid | react-grid-layout; layout in `state.json`; Done tray at bottom | Server |
+| Global search | Filters across all cards | Server data |
+| CLI | `start`, `daemon start|stop|status`, `info`, `validate`, `templates` | Server |
+| Claude skill | Teaches agents the format; points to templates/examples | Type registry |
 
 ### Data flow
 
-Agent writes file, server watches + validates, page polls every 30-60 s, renders card or Broken. Interaction: page, then server, then file move / TickTick MCP call.
+Agent writes file → server watches, validates, archives previous version, computes state → page polls 30-60s → renders card / Broken / Now. `notify: true` + new `updatedAt` → server fires OS notification. Interaction: page → server → file move / `state.json` / TickTick MCP call.
 
-Widget contract goal: an agent can add a new widget type by writing one file + registering it.
+### UI layout zones
+
+1. Slim header: date, alert count, global search (weather later).
+2. Now zone: alerts + active high-priority panels.
+3. Grid: fixed positions, default narrow–wide–narrow columns; drag/resize/fullscreen.
+4. Done tray: heading-only chips, click to reopen.
+
+### Visual direction
+
+Calm, Linear/Raycast-like; one accent; good typography; subtle motion on data change; light + dark. Glance findings:
+- Theme = HSL tokens: `background-color`, `primary-color` (plus positive/negative), `contrast-multiplier`, `text-saturation-multiplier`; `light: true` flag. Everything else derived from the base so new themes are a few numbers. Borrow as CSS variables (e.g. Dracula: bg `231 15 21`, primary `265 89 79`, contrast 1.2; Catppuccin Latte: light, bg `220 23 95`, primary `220 91 54`).
+- Light/dark = same token set with a flag; ship one dark + one light preset.
+- Layout = pages of columns, `size: small | full`; typical narrow–wide–narrow. Borrow as default arrangement on our grid (we add drag/resize).
+- Feel = dense, flat, low-chrome cards, compact typography. Borrow the density; our compact default + S/M/L.
+- Glance is display-only; no alerts/Now/Done. Borrow the look only.
+- Unverified for this owner; owner tries Glance demo.
+
+### CLI
+
+`crontick-dashboard start` (foreground), `daemon start|stop|status`, `info` (feed path + URL), `validate <file>`, `templates` (list types/examples). No autostart.
 
 ### Verification
 
-- Server tests with fixture feed files: valid, broken via `error`, stale, malformed, in-window, out-of-window, alert tick to `done/`.
+- Server tests with fixtures: valid, `error`, stale, malformed/schema-invalid, in/out of window, Now promotion, alert tick to `done/`, panel Done ack + reset on new `updatedAt`, archive + retention.
+- Notification test on Windows + macOS.
 - One browser smoke check: page loads and renders fixtures.
+- Real-use validation: daily use for 2 weeks.
 
 ## 5. Non-goals
 
-- Triggering/running jobs
-- Auth
+- Triggering jobs
+- Auth / network exposure
 - Mobile layout
 - Multiple pages
-- Creating/editing TickTick tasks in UI
-- Any crontick integration
-- Push to phone (v1)
+- Creating/editing TickTick tasks
+- UI → agent inputs
+- Crontick integration
+- Web Push / phone push
+- Autostart
+- Embed/iframe
+- Inline video
+- History viewer
 
 ## 6. Open risks
 
 | Risk | Cheapest test |
 |------|---------------|
-| TickTick MCP may not allow arbitrary OAuth clients (dynamic client registration) | Connect with MCP SDK / MCP inspector to https://mcp.ticktick.com and complete sign-in |
-| Owner stops using it | Use alongside crontick for 2 weeks; check if opened daily |
-| Homarr trial passes and custom build is wasted | Owner trial happens before any build work |
-| Agents write inconsistent card files | Ship JSON Schema + example per widget type; validator returns Broken with reason |
-| Polling latency too slow for watcher alerts | Measure; switch to SSE if needed |
+| TickTick MCP may reject third-party OAuth clients | Connect with MCP inspector to https://mcp.ticktick.com, complete sign-in |
+| Owner stops using it (kill criteria in §2) | Check daily use over 2 weeks |
+| Agents write inconsistent files | JSON Schema + `validate` CLI + Broken state |
+| Polling latency for watcher alerts | Measure; switch to SSE |
+| Missed notifications while server not started | Accepted for v1; revisit autostart |
+| Cross-platform OS notifications flaky | Test node-notifier (or equivalent) on Win + mac early |
+| Glance-like look unverified | Owner tries Glance demo; theme tokens make swapping cheap |
 
 ## Owner-only tasks
 
-- Trial Homarr 2.0 and Node-RED Dashboard 2.
 - TickTick MCP sign-in (once).
 - Add git remote.
+- Try Glance demo to confirm look.
