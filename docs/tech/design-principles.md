@@ -64,7 +64,7 @@ Filesystem, timing (clock/timers), process spawning, and OS notifications are ac
 Pre-1.0, a removed feature is removed, not deprecated-and-kept. A capability that's gone is guarded by a regression test proving it stays gone.
 
 - **Do** delete the old code path in the same change that removes the feature.
-- **Don't** export symbols from `src/` only for tests; put test oracles in `tests/`.
+- **Do** export pure logic functions so they can be unit-tested; that is fine. **Don't** add modules, helpers, or exports that exist only for tests ("no test-only exports"); put test oracles and fixtures in `tests/`.
 - **Don't** leave a flag, branch, or config option "just in case" once its feature is gone — reintroducing a removed feature requires explicit sign-off explaining why the original removal rationale no longer applies.
 
 ## 7. Actionable errors
