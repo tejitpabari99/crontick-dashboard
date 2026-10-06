@@ -60,7 +60,7 @@ const FIXTURE = snapshot(
     card('tr'),
     card('hi'),
   ],
-  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] }
+  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] },
 );
 
 interface Timer {

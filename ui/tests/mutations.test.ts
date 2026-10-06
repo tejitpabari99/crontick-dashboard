@@ -52,6 +52,7 @@ function setup(mutRes: Array<Response | Error | Promise<Response>>) {
   return { store, toasts, m, calls, fetchFn, setCurrent: (s: Snapshot) => (current = s) };
 }
 
+
 describe('mutations', () => {
   it('done: optimistic tray patch, headers, refetch, then settled', async () => {
     const t = setup([json(200, { rev: 'r2' })]);
@@ -122,7 +123,7 @@ describe('mutations', () => {
     expect(t.m.getView().state.snapshot?.zones.alerts).toEqual(['al']);
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual([CONFLICT_TOAST]);
     await vi.waitFor(() =>
-      expect(t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length).toBeGreaterThan(before)
+      expect(t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length).toBeGreaterThan(before),
     );
   });
 

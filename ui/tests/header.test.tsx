@@ -23,9 +23,7 @@ vi.mock('react-grid-layout', () => ({
 
 // @ts-expect-error deliberately not a 01 type name
 registerCardType('zz-hdr', {
-  Component: (p: { query: string; data: { text?: string } }) => (
-    <p data-testid="body">{`q=${p.query}|${p.data.text ?? ''}`}</p>
-  ),
+  Component: (p: { query: string; data: { text?: string } }) => <p data-testid="body">{`q=${p.query}|${p.data.text ?? ''}`}</p>,
   searchText: (d: { text?: string }) => d.text ?? '',
 });
 
@@ -149,13 +147,7 @@ describe('shortcuts', () => {
   it('/, S and Ctrl+K focus the search when focus is outside inputs', async () => {
     mount();
     await screen.findByText('Alpha');
-    for (const ev of [
-      { key: '/' },
-      { key: 's' },
-      { key: 'S' },
-      { key: 'k', ctrlKey: true },
-      { key: 'k', metaKey: true },
-    ]) {
+    for (const ev of [{ key: '/' }, { key: 's' }, { key: 'S' }, { key: 'k', ctrlKey: true }, { key: 'k', metaKey: true }]) {
       (document.activeElement as HTMLElement | null)?.blur();
       fireEvent.keyDown(document.body, ev);
       expect(document.activeElement).toBe(box());

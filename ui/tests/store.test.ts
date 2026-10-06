@@ -132,7 +132,12 @@ describe('store', () => {
   });
 
   it('pauses to a 60 s slow tick while hidden, refetches immediately on visible', async () => {
-    const { fetchFn, doc, store } = setup([res(200, snap('r1'), '"r1"'), res(304), res(304), res(304)]);
+    const { fetchFn, doc, store } = setup([
+      res(200, snap('r1'), '"r1"'),
+      res(304),
+      res(304),
+      res(304),
+    ]);
     store.subscribe(() => {});
     await vi.advanceTimersByTimeAsync(0);
     doc.set('hidden');
