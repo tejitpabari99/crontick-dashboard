@@ -1,9 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir as osHomedir } from 'node:os';
 import { join } from 'node:path';
 import type { Command } from 'commander';
-import { APP_NAME } from '../../constants/app.js';
-import { CLAUDE_SKILLS_SUBDIR, SKILL_FILENAME } from '../../constants/cli.js';
+import { CLAUDE_SKILLS_SUBDIR } from '../../constants/cli.js';
+import { installSkill, SkillInstallError } from '../../skill/install.js';
 import { packageAssets, packageVersion } from '../assets.js';
 import { CliError, type CliContext } from '../io.js';
 
@@ -28,28 +27,14 @@ export function createSkillRegister(overrides: Partial<SkillDeps> = {}) {
       .option('--force', 'overwrite a differing installed SKILL.md')
       .action((opts: { dir?: string; force?: boolean }) => {
         const deps = { ...defaultDeps(), ...overrides };
-        if (!existsSync(deps.skillPath)) throw new CliError(`packaged SKILL.md not found at ${deps.skillPath}`, 1);
-        const content = readFileSync(deps.skillPath);
         const skillsDir = opts.dir ?? join(deps.homedir(), ...CLAUDE_SKILLS_SUBDIR);
-        const destDir = join(skillsDir, APP_NAME);
-        const dest = join(destDir, SKILL_FILENAME);
-        if (existsSync(dest)) {
-          if (readFileSync(dest).equals(content)) {
-            ctx.io.stdout(`already up to date: ${dest} (v${deps.version})\n`);
-            return;
-          }
-          if (!opts.force) throw new CliError(`${dest} differs from the packaged skill (v${deps.version}); rerun with --force to overwrite`, 1);
-        }
-        mkdirSync(destDir, { recursive: true });
-        const tmp = join(destDir, `.${SKILL_FILENAME}.${process.pid}.tmp`);
         try {
-          writeFileSync(tmp, content);
-          renameSync(tmp, dest);
+          const { status, dest } = installSkill({ skillPath: deps.skillPath, skillsDir, version: deps.version, ...(opts.force ? { force: true } : {}) });
+          ctx.io.stdout(status === 'up-to-date' ? `already up to date: ${dest} (v${deps.version})\n` : `installed ${dest} (v${deps.version})\n`);
         } catch (e) {
-          rmSync(tmp, { force: true });
+          if (e instanceof SkillInstallError) throw new CliError(e.message, 1);
           throw e;
         }
-        ctx.io.stdout(`installed ${dest} (v${deps.version})\n`);
       });
   };
 }

@@ -3,6 +3,7 @@ import type { Hono } from 'hono';
 import { z } from 'zod';
 import { envelope } from '../feed/ingest.js';
 import { sameInstant } from '../instant.js';
+import { findItemAction } from '../actions/lookup.js';
 import { actionRegistry } from '../actions/registry.js';
 import type { AppContext } from './app.js';
 import { buildSnapshot } from './app.js';
@@ -30,12 +31,9 @@ export function mountActions(app: Hono, ctx: AppContext): void {
     const { itemId, updatedAt } = body.data;
     const env = envelope(entry.card);
     if (!sameInstant(updatedAt, env.updatedAt)) return c.json({ error: 'card updated' }, 409);
-    const items = (env.data as { items?: unknown } | undefined)?.items;
-    const item = Array.isArray(items)
-      ? (items.find((i) => (i as { id?: unknown } | null)?.id === itemId) as { action?: { type?: string } } | undefined)
-      : undefined;
+    const item = findItemAction(env.data, itemId);
     if (!item) return c.json({ error: 'item not found' }, 404);
-    const type = item.action?.type;
+    const type = item.type;
     if (type === undefined || !Object.hasOwn(actionRegistry, type)) return c.json({ error: 'item has no action' }, 400);
     try {
       const res = await actionRegistry[type as keyof typeof actionRegistry](

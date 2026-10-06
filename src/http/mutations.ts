@@ -1,46 +1,15 @@
 /** Owner-click mutation routes: alert tick, Done ack, hide, layout. Ids are resolved via the CardStore only. */
-import { copyFile, mkdir, rename, unlink } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { basename, extname, join } from 'node:path';
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
+import { moveToDone } from '../feed/done.js';
 import { envelope } from '../feed/ingest.js';
-import { errnoCode, errorMessage } from '../utils/errors.js';
+import { errorMessage } from '../utils/errors.js';
 import type { AppContext } from './app.js';
 import { buildSnapshot } from './app.js';
 
 const LayoutSchema = z
   .array(z.object({ i: z.string(), x: z.number().finite(), y: z.number().finite(), w: z.number().finite(), h: z.number().finite() }))
   .max(10_000);
-
-/** Rename `feed/<file>` to `feed/done/<file>` (suffix `-<ts>` on collision; EXDEV falls back to copy+unlink). Gone = ok. */
-async function moveToDone(ctx: AppContext, file: string): Promise<void> {
-  if (basename(file) !== file) throw new Error('invalid feed file name');
-  const src = join(ctx.feedDir, file);
-  await mkdir(ctx.doneDir, { recursive: true });
-  let target = file;
-  if (existsSync(join(ctx.doneDir, target))) {
-    const ext = extname(file);
-    target = `${file.slice(0, file.length - ext.length)}-${ctx.clock.now().getTime()}${ext}`;
-  }
-  const dest = join(ctx.doneDir, target);
-  try {
-    await rename(src, dest);
-  } catch (err) {
-    const code = errnoCode(err);
-    if (code === 'ENOENT') return;
-    if (code !== 'EXDEV') throw err;
-    try {
-      await copyFile(src, dest);
-    } catch (e2) {
-      if (errnoCode(e2) === 'ENOENT') return;
-      throw e2;
-    }
-    await unlink(src).catch((e3: NodeJS.ErrnoException) => {
-      if (e3.code !== 'ENOENT') throw e3;
-    });
-  }
-}
 
 export function mountMutations(app: Hono, ctx: AppContext): void {
   const ok = (c: Context) => c.json({ rev: buildSnapshot(ctx).rev });
@@ -56,7 +25,7 @@ export function mountMutations(app: Hono, ctx: AppContext): void {
     if (!entry) return ticked.has(id) ? ok(c) : c.json({ error: 'not found' }, 404);
     if (entry.status !== 'ok' || envelope(entry.card).kind !== 'alert') return c.json({ error: 'not an alert' }, 400);
     try {
-      await moveToDone(ctx, entry.file);
+      await moveToDone({ feedDir: ctx.feedDir, doneDir: ctx.doneDir, file: entry.file, clock: ctx.clock });
       ctx.refreshFeed(entry.file);
       ticked.add(id);
     } catch (err) {
