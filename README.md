@@ -1,68 +1,38 @@
 # crontick-dashboard
 
-Local, modular personal dashboard for viewing outputs of crontick scheduled jobs (e.g. daily mail/meeting rundowns) and other widgets.
+Local dashboard for agent-written cards: scheduled jobs (e.g. crontick runs) or any script drop JSON files into a feed directory, and a local web UI renders them as tables, lists, KPIs, markdown, and media, with alerts and optional OS notifications.
 
-Status: research/design phase. Design docs live in `docs/agent_files/`.
-
-## Layout
-
-- `docs/agent_files/` -- design record (research, brainstorm, decisions)
+One npm package (Node >= 22.5): a loopback-only server, a React UI, and the `crontick-dashboard` CLI. Version 0.1.0.
 
 ## Install
 
-Requires Node >= 22.5.
-
-```bash
-npm i -g crontick-dashboard      # global install
-npx crontick-dashboard info      # or run without installing
+```sh
+npm i -g crontick-dashboard      # once published
+npm i -g .                       # from a clone (run `npm ci && npm run build` first)
 ```
 
-`info` works with the daemon stopped. It prints version, data dir, feed dir, URL (or "not running"), config path, templates dir, schemas dir, skill path. Use `--json` for agents.
+## Quick start
 
-### Run
-
-```bash
-crontick-dashboard start               # foreground, Ctrl+C stops (--port <n> to prefer a port)
-crontick-dashboard daemon start        # background, idempotent, waits until healthy
-crontick-dashboard daemon status       # exit 0 running, 3 stopped
-crontick-dashboard daemon stop         # not running is success
+```sh
+crontick-dashboard daemon start            # or: crontick-dashboard start  (foreground)
+crontick-dashboard info                    # URL and feed dir
+crontick-dashboard templates markdown      # print an example card
 ```
 
-Default port: 47616 (matches `DEFAULT_PORT` in `src/config.ts`). If the port is taken, a free one is used; `info` shows the actual URL.
+Write a card to `<feedDir>/hello.json` (the file name must equal the `id`):
 
-### Config
-
-`config.json` in the data dir (path shown by `info`). Keys:
-
-| Key | Meaning |
-|---|---|
-| `port` | preferred port (default `DEFAULT_PORT`) |
-| `retentionDefault` | default card retention, e.g. `7d` |
-| `nowPriorityThreshold` | priority at/above which a card counts as "now" |
-| `pollIntervalMs` | feed poll interval in ms |
-| `timezone` | IANA zone for `show` windows (default: system) |
-| `notifications.os` | `auto`, `on`, or `off` (OS notifications) |
-
-Invalid values fall back to defaults with a warning. Port precedence: `CRONTICK_DASHBOARD_PORT` env > `config.port` > default.
-
-### Claude skill
-
-```bash
-crontick-dashboard skill install            # copies SKILL.md to ~/.claude/skills/crontick-dashboard/
-crontick-dashboard skill install --force    # after upgrading the package, overwrite the differing copy
-crontick-dashboard skill install --dir <skillsDir>
+```json
+{ "id": "hello", "kind": "panel", "type": "markdown", "title": "Hello",
+  "updatedAt": "2026-01-01T00:00:00Z", "data": { "text": "It works." } }
 ```
 
-Manual fallback: copy the `skill` path printed by `info` (`skillPath`) to `<skillsDir>/crontick-dashboard/SKILL.md` (a real copy, not a symlink).
+Check it with `crontick-dashboard validate <feedDir>/hello.json`, then open the URL from `info` in a browser. Stop with `crontick-dashboard daemon stop`.
 
-### Ticked tasks
+To teach Claude agents to write cards: `crontick-dashboard skill install`.
 
-Ticking a list item in the dashboard does not update TickTick itself. Create a crontick job for an agent that completes ticked list items in TickTick.
+## Documentation
 
-### Notifications
-
-OS notifications (`notifications.os`) may need permission: on macOS allow notifications for your terminal/Node in System Settings > Notifications; on Windows check Settings > System > Notifications and that Focus Assist / Do Not Disturb is off. `info` reports the notification mode and reason.
-
-### Other commands
-
-`validate <file...>` (check cards before writing; `-` for stdin), `templates [type]` (`--schema`, `--path`).
+- [docs/README.md](docs/README.md): full index (concepts, reference, decisions)
+- Reference: CLI, configuration, card schema, HTTP API, errors in [docs/reference/](docs/reference/); problems in [docs/troubleshooting.md](docs/troubleshooting.md)
+- [AGENTS.md](AGENTS.md): repository guide for coding agents
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute
