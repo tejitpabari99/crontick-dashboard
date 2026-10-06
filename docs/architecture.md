@@ -88,5 +88,5 @@ Schemas are generated from zod and committed; the UI is built with Vite; the ser
 ## Further reading
 
 - Why a custom build: [ADR 0001](decisions/0001-custom-build-and-runtime-model.md)
-- Implementation detail: `docs/implementation/` (planned)
-- Testing: `docs/testing/` (planned)
+- Implementation detail: [docs/implementation/](implementation/README.md)
+- Testing: [docs/testing/](testing/testing.md)

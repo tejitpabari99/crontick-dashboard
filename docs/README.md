@@ -12,10 +12,10 @@ what you need or to decide where new content belongs.
 | [docs/tech/](tech/) | Guiding docs: mission/tenets and design principles every change is checked against | Contributors and coding agents |
 | [docs/architecture.md](architecture.md) | High-level design: how the system fits together | Everyone |
 | [docs/concepts/](concepts/) | "How should I think about this?" -- behavior that crosses components | Users and contributors |
-| [docs/implementation/](implementation/) | "How is this implemented?" -- private implementation details (planned) | Maintainers and coding agents |
-| [docs/reference/](reference/) | "What exactly is supported?" -- precise, lookup-oriented facts (planned) | Users |
+| [docs/implementation/](implementation/) | "How is this implemented?" -- private implementation details | Maintainers and coding agents |
+| [docs/reference/](reference/) | "What exactly is supported?" -- precise, lookup-oriented facts | Users |
 | [docs/decisions/](decisions/) | "Why is it like this?" -- architecture decision records | Contributors |
-| [docs/testing/](testing/) | How to test and what to verify before a release (planned) | Contributors |
+| [docs/testing/](testing/) | How to test and what to verify before a release | Contributors |
 | [docs/agent_files/](agent_files/) | Planning artifacts: brainstorm, PRDs, tasks, reviews, future ideas | Maintainers and coding agents |
 
 ---
@@ -56,7 +56,7 @@ observable behavior without updating relevant docs is incomplete.
 | File | Description |
 |------|-------------|
 | [architecture.md](architecture.md) | Components-and-links map: feed, ingest, contract, state, API, UI, CLI, notifier |
-| [troubleshooting.md](troubleshooting.md) | Common issues and diagnostics (planned) |
+| [troubleshooting.md](troubleshooting.md) | Common issues and diagnostics |
 
 ### docs/concepts/
 
@@ -69,17 +69,39 @@ observable behavior without updating relevant docs is incomplete.
 | [notifications.md](concepts/notifications.md) | When and how OS notifications fire, gating, bursts |
 | [server-lifecycle.md](concepts/server-lifecycle.md) | Foreground and daemon modes, process files, port, shutdown |
 
-### docs/implementation/ (planned)
+### docs/implementation/
 
-Written next; see the folder once it exists.
+| File | Description |
+|------|-------------|
+| [README.md](implementation/README.md) | Reading order and source layout |
+| [contract.md](implementation/contract.md) | zod schemas, type registry, `validateCardFile`, schema generation |
+| [feed-and-ingest.md](implementation/feed-and-ingest.md) | watcher, ingest settle, duplicate ids, events, archive, `feed/done/` |
+| [state.md](implementation/state.md) | `state.json` store, atomic writes, reconcile and pruning, config reader |
+| [http-server.md](implementation/http-server.md) | Hono app, guards, routes, snapshot ETag, static, errors, write-back |
+| [lifecycle.md](implementation/lifecycle.md) | `startServer` wiring, pid/port/lock files, daemon start and stop |
+| [notifications.md](implementation/notifications.md) | gate, notifier, burst limiting, node-notifier adapter |
+| [cli-and-skill.md](implementation/cli-and-skill.md) | commander wiring, Node guard, skill install |
+| [ui.md](implementation/ui.md) | polling store, mutations, renderer registry, grid, theme |
+| [build-and-package.md](implementation/build-and-package.md) | tsup, vite, dist checks, tarball verification, release |
 
-### docs/reference/ (planned)
+### docs/reference/
 
-Written next: CLI, card schema, configuration, HTTP API, errors.
+| File | Description |
+|------|-------------|
+| [README.md](reference/README.md) | Index of reference docs |
+| [cli.md](reference/cli.md) | Commands, flags, output, exit codes |
+| [configuration.md](reference/configuration.md) | Data directory, `config.json`, environment variables, precedence |
+| [card-schema.md](reference/card-schema.md) | Card envelope, per-type `data`, id/filename rule, schemas and templates |
+| [http-api.md](reference/http-api.md) | Local HTTP routes, headers, bodies, status codes |
+| [errors.md](reference/errors.md) | Error codes, Broken reasons, exit codes |
+| [library-api.md](reference/library-api.md) | Public TypeScript exports |
+| [glossary.md](reference/glossary.md) | Term definitions |
 
-### docs/testing/ (planned)
+### docs/testing/
 
-Written next: test layers and pre-release checklist.
+| File | Description |
+|------|-------------|
+| [testing.md](testing/testing.md) | Test layers, patterns, CI, pre-release checklist |
 
 ### docs/decisions/
 
