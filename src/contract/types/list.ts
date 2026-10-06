@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { asRecord, asRecords, asText } from '../../utils/guards.js';
+import { stripMarkdown } from '../../utils/markdown.js';
 import { dueSchema, linkSchema, timestampSchema } from '../formats.js';
 
 export const actionSchema = z.preprocess(
@@ -45,3 +47,11 @@ export const listDataSchema = z
 export type ListItem = z.infer<typeof listItemSchema>;
 export type ListData = z.infer<typeof listDataSchema>;
 export type Action = z.infer<typeof actionSchema>;
+
+/** Notification summary: first item text, plus "(+N more)". */
+export function listSummary(data: unknown): string {
+  const items = asRecords(asRecord(data)['items']);
+  if (items.length === 0) return '';
+  const first = stripMarkdown(asText(items[0]!['text']));
+  return items.length > 1 ? `${first} (+${items.length - 1} more)` : first;
+}

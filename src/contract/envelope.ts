@@ -2,10 +2,6 @@ import { z } from 'zod';
 import { ID_PATTERN } from '../constants/contract.js';
 import { cronSchema, durationSchema, timestampSchema } from './formats.js';
 
-/** Known card types. Per-type validation and unknown-type handling live elsewhere (registry). */
-export const KNOWN_TYPES = ['markdown', 'table', 'list', 'kpi', 'media'] as const;
-export type KnownType = (typeof KNOWN_TYPES)[number];
-
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
 
 function isValidId(v: string): boolean {

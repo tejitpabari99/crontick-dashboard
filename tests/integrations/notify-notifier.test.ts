@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createNotifier, summarize, stripMarkdown } from '../../src/integrations/notify/notifier.js';
+import { createNotifier } from '../../src/integrations/notify/notifier.js';
+import { isRegisteredType, registry } from '../../src/contract/registry.js';
+import { stripMarkdown } from '../../src/utils/markdown.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { fakeClock } from '../../src/clock.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
@@ -87,6 +89,9 @@ describe('notifier', () => {
     expect(adapter.calls[0]!.body.endsWith('…')).toBe(true);
   });
 });
+
+/** Per-type summaries via the registry (what the notifier uses). */
+const summarize = (c: { type: string; data?: unknown }): string => (isRegisteredType(c.type) ? registry[c.type].summary(c.data) : '');
 
 describe('summarize', () => {
   it('strips markdown from first non-empty line', () => {

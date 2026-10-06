@@ -23,9 +23,9 @@ describe('templates', () => {
       expect(getExample(type)).toEqual(JSON.parse(text));
     });
 
-    it(`${type} has an example file name and UI component name`, () => {
+    it(`${type} has an example file name and a summary`, () => {
       expect(registry[type].example).toBe(`${type}.example.json`);
-      expect(registry[type].component).toMatch(/^[A-Z][A-Za-z0-9]*Card$/);
+      expect(typeof registry[type].summary).toBe('function');
     });
   }
 

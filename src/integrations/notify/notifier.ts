@@ -15,6 +15,7 @@
  */
 import type { CardEvents, CardEventPayload } from '../../feed/events.js';
 import type { Card } from '../../contract/validate.js';
+import { isRegisteredType, registry } from '../../contract/registry.js';
 import { envelope } from '../../feed/ingest.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
 import { realClock, type Clock } from '../../clock.js';
@@ -59,66 +60,14 @@ export interface Notifier {
   dispose(): void;
 }
 
-export function stripMarkdown(line: string): string {
-  return line
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)+/, '')
-    .replace(/(\*\*|__|~~|[*_`])/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function truncate(s: string): string {
   return s.length <= NOTIFY_MAX_BODY ? s : `${s.slice(0, NOTIFY_MAX_BODY - 1)}…`;
 }
 
-const rec = (v: unknown): Record<string, unknown> =>
-  v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-const arr = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.map(rec) : []);
-const str = (v: unknown): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
-const plural = (n: number, w: string): string => `${n} ${w}${n === 1 ? '' : 's'}`;
-
-/** Plain-text one-line summary of a card's data (untruncated by type rules, then capped at 140). */
-export function summarize(card: Card): string {
+/** Plain-text one-line summary of a card's data (type-specific via the registry, capped at NOTIFY_MAX_BODY). */
+function summarize(card: Card): string {
   const e = envelope(card);
-  const d = rec(e.data);
-  let out = '';
-  switch (e.type) {
-    case 'markdown': {
-      for (const raw of str(d['text']).split(/\r?\n/)) {
-        const s = stripMarkdown(raw);
-        if (s !== '') {
-          out = s;
-          break;
-        }
-      }
-      break;
-    }
-    case 'list': {
-      const items = arr(d['items']);
-      if (items.length > 0) {
-        out = stripMarkdown(str(items[0]!['text']));
-        if (items.length > 1) out += ` (+${items.length - 1} more)`;
-      }
-      break;
-    }
-    case 'kpi': {
-      const m = arr(d['items'])[0];
-      if (m) out = `${str(m['value'])}${str(m['unit'])} ${str(m['label'])}`.trim();
-      break;
-    }
-    case 'table':
-      out = plural(arr(d['rows']).length, 'row');
-      break;
-    case 'media': {
-      const items = arr(d['items']);
-      const cap = items.length > 0 ? stripMarkdown(str(items[0]!['caption'])) : '';
-      out = cap !== '' ? cap : items.length > 0 ? plural(items.length, 'image') : '';
-      break;
-    }
-  }
-  return truncate(out);
+  return isRegisteredType(e.type) ? truncate(registry[e.type].summary(e.data)) : '';
 }
 
 export function createNotifier(opts: NotifierOptions): Notifier {

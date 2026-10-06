@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { asRecord, asRecords } from '../../utils/guards.js';
+import { plural } from '../../utils/text.js';
 import { linkSchema } from '../formats.js';
 
 const scalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
@@ -58,3 +60,8 @@ export function cellText(cell: Cell): string | number | boolean | null {
   return cell !== null && typeof cell === 'object' ? cell.text : cell;
 }
 export type Column = z.infer<typeof columnSchema>;
+
+/** Notification summary: "N rows". */
+export function tableSummary(data: unknown): string {
+  return plural(asRecords(asRecord(data)['rows']).length, 'row');
+}

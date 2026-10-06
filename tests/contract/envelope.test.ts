@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { envelopeSchema, KNOWN_TYPES } from '../../src/contract/envelope.js';
+import { envelopeSchema } from '../../src/contract/envelope.js';
+import { listTypes } from '../../src/contract/registry.js';
 
 const base = {
   id: 'my-card',
@@ -20,8 +21,8 @@ describe('envelope', () => {
     expect(r.error).toBeNull();
     expect(r.show).toBeUndefined();
   });
-  it('lists known types', () => {
-    expect(KNOWN_TYPES).toEqual(['markdown', 'table', 'list', 'kpi', 'media']);
+  it('lists registered types', () => {
+    expect(listTypes()).toEqual(['markdown', 'table', 'list', 'kpi', 'media']);
   });
   it.each(['a', 'my-card', 'a.b_c-1', '0abc', 'a'.repeat(64), 'console', 'com10'])('id ok %s', (id) =>
     expect(parse({ id }).success).toBe(true),

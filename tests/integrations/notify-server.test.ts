@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeClock } from '../../src/clock.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
-import { FakeNotifyAdapter } from '../../src/integrations/notify/index.js';
+import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import type { Snapshot } from '../../src/shared/api-types.js';
 import { ENV_HOME } from '../../src/constants/env.js';
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.js';

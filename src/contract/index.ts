@@ -1,7 +1,7 @@
 export { validateCardFile } from './validate.js';
-export type { Card, ValidationResult, BrokenReason, Issue } from './validate.js';
+export type { Card, ValidateOptions, ValidationResult, BrokenReason, Issue } from './validate.js';
 export { listTypes, getExample, getExampleFile, registry } from './registry.js';
-export type { RegisteredType, CardKind } from './registry.js';
+export type { RegisteredType, KnownType, CardKind } from './registry.js';
 export { parseDuration, windowActive } from './formats.js';
 export { cellText } from './types/table.js';
 export type { TableData, Cell, Column } from './types/table.js';
@@ -9,4 +9,4 @@ export type { ListData, ListItem, Action } from './types/list.js';
 export type { KpiData, KpiMetric } from './types/kpi.js';
 export type { MarkdownData } from './types/markdown.js';
 export type { MediaData, MediaItem } from './types/media.js';
-export type { Show, Envelope, EnvelopeInput, KnownType } from './envelope.js';
+export type { Show, Envelope, EnvelopeInput } from './envelope.js';

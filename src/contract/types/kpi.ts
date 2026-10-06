@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { asRecord, asRecords, asText } from '../../utils/guards.js';
 import { linkSchema } from '../formats.js';
 
 export const kpiTrendSchema = z.looseObject({
@@ -60,3 +61,9 @@ export const kpiDataSchema = z
 
 export type KpiMetric = z.infer<typeof kpiMetricSchema>;
 export type KpiData = z.infer<typeof kpiDataSchema>;
+
+/** Notification summary: first metric as "<value><unit> <label>". */
+export function kpiSummary(data: unknown): string {
+  const m = asRecords(asRecord(data)['items'])[0];
+  return m ? `${asText(m['value'])}${asText(m['unit'])} ${asText(m['label'])}`.trim() : '';
+}

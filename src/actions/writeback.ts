@@ -4,6 +4,7 @@ import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:
 import { join } from 'node:path';
 import { RENAME_TRIES, WRITEBACK_RENAME_BACKOFF_MS } from '../constants/state.js';
 import { sameInstant } from '../instant.js';
+import { isObj, type Obj } from '../utils/guards.js';
 import { retryOnBusy } from '../utils/retry.js';
 import { sleep as realSleep } from '../utils/sleep.js';
 import type { ActionDeps, ActionRequest, ActionResult } from './registry.js';
@@ -13,7 +14,7 @@ const CHANGED: ActionResult = { ok: false, status: 409, error: 'card changed, re
 const sha256 = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex');
 
 /** ISO-8601 with the local UTC offset, e.g. 2026-06-01T12:00:00.000+02:00. */
-export function isoLocal(d: Date): string {
+function isoLocal(d: Date): string {
   const p = (n: number, w = 2): string => String(n).padStart(w, '0');
   const off = -d.getTimezoneOffset();
   const sign = off >= 0 ? '+' : '-';
@@ -24,8 +25,6 @@ export function isoLocal(d: Date): string {
   );
 }
 
-type Obj = Record<string, unknown>;
-const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function isComplete(action: unknown): boolean {
   return action === 'complete' || (isObj(action) && action['type'] === 'complete');
