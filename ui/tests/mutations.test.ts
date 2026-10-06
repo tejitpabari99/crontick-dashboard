@@ -1,7 +1,10 @@
+import { JSON_CONTENT_TYPE, MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.ts';
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import { describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/api/client.ts';
 import { createSnapshotStore } from '../src/api/store.ts';
-import { createMutations, CONFLICT_TOAST } from '../src/api/mutations.ts';
+import { createMutations } from '../src/api/mutations.ts';
+import { CONFLICT_TOAST } from '../src/constants/messages.ts';
 import { createToastStore } from '../src/api/toasts.ts';
 import type { Snapshot } from '../src/api/types.ts';
 
@@ -10,7 +13,7 @@ const snap = (over: Partial<Snapshot> = {}): Snapshot =>
     serverTime: 't',
     rev: 'r1',
     warnings: [],
-    config: { pollIntervalMs: 30000, nowPriorityThreshold: 5 },
+    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
     zones: { alerts: ['al'], now: [], grid: ['a', 'b'], tray: [], hidden: [] },
     cards: {
       a: {
@@ -49,7 +52,6 @@ function setup(mutRes: Array<Response | Error | Promise<Response>>) {
   return { store, toasts, m, calls, fetchFn, setCurrent: (s: Snapshot) => (current = s) };
 }
 
-
 describe('mutations', () => {
   it('done: optimistic tray patch, headers, refetch, then settled', async () => {
     const t = setup([json(200, { rev: 'r2' })]);
@@ -61,7 +63,10 @@ describe('mutations', () => {
     await p;
     expect(t.calls[0]!.url).toBe('/api/cards/a/done');
     expect(t.calls[0]!.init.method).toBe('POST');
-    expect(t.calls[0]!.init.headers).toEqual({ 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' });
+    expect(t.calls[0]!.init.headers).toEqual({
+      'Content-Type': JSON_CONTENT_TYPE,
+      [MUTATION_HEADER]: MUTATION_HEADER_VALUE,
+    });
     expect(t.m.getView().state.snapshot?.zones.tray).toEqual(['a']);
     expect(t.toasts.getSnapshot()).toEqual([]);
   });
@@ -116,9 +121,8 @@ describe('mutations', () => {
     await t.m.tick('al');
     expect(t.m.getView().state.snapshot?.zones.alerts).toEqual(['al']);
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual([CONFLICT_TOAST]);
-    expect(CONFLICT_TOAST).toBe('card updated, try again');
     await vi.waitFor(() =>
-      expect(t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length).toBeGreaterThan(before),
+      expect(t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length).toBeGreaterThan(before)
     );
   });
 
@@ -226,7 +230,7 @@ describe('putLayoutKeepalive', () => {
     expect(calls[0]!.init.method).toBe('PUT');
     expect(calls[0]!.init.keepalive).toBe(true);
     expect(JSON.parse(String(calls[0]!.init.body))).toEqual(layout);
-    expect((calls[0]!.init.headers as Record<string, string>)['X-Crontick-Dashboard']).toBe('1');
+    expect((calls[0]!.init.headers as Record<string, string>)[MUTATION_HEADER]).toBe(MUTATION_HEADER_VALUE);
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });

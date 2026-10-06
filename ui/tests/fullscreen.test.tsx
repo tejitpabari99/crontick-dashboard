@@ -1,3 +1,4 @@
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App.tsx';
@@ -44,7 +45,7 @@ function snapshot(): Snapshot {
     serverTime: 't',
     rev: 'r',
     warnings: [],
-    config: { pollIntervalMs: 30000, nowPriorityThreshold: 5 },
+    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
     zones: { alerts: ['al'], now: ['n'], grid: ['a', 'b'], tray: ['d'], hidden: ['h'] },
     cards: Object.fromEntries(cards.map((c) => [c.id, c])),
     layout: [L('a', 0, 0), L('b', 3, 0)],

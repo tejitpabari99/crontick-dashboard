@@ -1,8 +1,7 @@
+import { THEME_KEY } from '../constants/storage.ts';
+
 export type ThemeChoice = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
-
-/** Must match the pre-paint script in ui/index.html. */
-export const THEME_KEY = 'crontick-dashboard.theme';
 
 const ORDER: readonly ThemeChoice[] = ['system', 'light', 'dark'];
 

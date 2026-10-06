@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { contrastRatio, derive, PRESETS, type Hsl } from '../src/theme/derive.ts';
-import { applyTheme, cycleTheme, nextChoice, readChoice, resolveTheme, THEME_KEY } from '../src/lib/theme.ts';
+import { contrastRatio, derive, PRESETS, type Hsl } from './helpers/theme-derive.ts';
+import { applyTheme, cycleTheme, nextChoice, readChoice, resolveTheme } from '../src/lib/theme.ts';
+import { THEME_KEY } from '../src/constants/storage.ts';
 
 const dir = import.meta.dirname;
 const themesCss = readFileSync(join(dir, '../src/theme/themes.css'), 'utf8');
@@ -99,7 +100,7 @@ describe('pre-paint script', () => {
   it('is inline in <head>, before the module script, and uses the shared key', () => {
     expect(script).not.toBe('');
     expect(indexHtml.indexOf('<script>')).toBeLessThan(indexHtml.indexOf('type="module"'));
-    expect(script).toContain(THEME_KEY);
+    expect(script).toContain(`localStorage.getItem('${THEME_KEY}')`);
   });
 
   it('sets data-theme from stored choice', () => {

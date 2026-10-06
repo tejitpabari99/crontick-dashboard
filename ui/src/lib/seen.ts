@@ -1,4 +1,4 @@
-export const SEEN_KEY = 'crontick-dashboard.seen';
+import { SEEN_KEY } from '../constants/storage.ts';
 
 let version = 0;
 const listeners = new Set<() => void>();

@@ -1,3 +1,4 @@
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayoutItem, ViewCard } from '../src/api/types.ts';
@@ -63,7 +64,7 @@ describe('NowZone', () => {
         panels={[]}
         {...common}
         onTick={onTick}
-      />,
+      />
     );
     const region = screen.getByRole('region', { name: /alerts/i });
     expect(region.getAttribute('aria-live')).toBe('polite');
@@ -100,7 +101,7 @@ describe('Grid vs Now', () => {
           putLayoutKeepalive={() => {}}
           renderCard={(c) => <div data-grid-card={c.id} />}
         />
-      </>,
+      </>
     );
     expect(document.querySelectorAll('[data-grid-card="p1"]')).toHaveLength(0);
     expect(document.querySelectorAll('[data-grid-card="g1"]')).toHaveLength(1);
@@ -116,15 +117,19 @@ describe('DoneTray', () => {
   it('chip click reopens via DELETE /api/cards/:id/done', async () => {
     const calls: Array<{ url: string; method?: string }> = [];
     const snap = {
-      serverTime: 't', rev: 'r', warnings: [],
-      config: { pollIntervalMs: 30000, nowPriorityThreshold: 5 },
+      serverTime: 't',
+      rev: 'r',
+      warnings: [],
+      config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
       zones: { alerts: [], now: [], grid: [], tray: ['x'], hidden: [] },
-      cards: { x: card('x') }, layout: [],
+      cards: { x: card('x') },
+      layout: [],
     };
     const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
       calls.push({ url, method: init?.method });
-      if (url === '/api/snapshot') return new Response(JSON.stringify(snap), { status: 200, headers: { ETag: String(Math.random()) } });
+      if (url === '/api/snapshot')
+        return new Response(JSON.stringify(snap), { status: 200, headers: { ETag: String(Math.random()) } });
       return new Response('{}', { status: 200 });
     });
     const store = createSnapshotStore({ client: createClient({ fetch: fetchFn }), doc: undefined });
@@ -133,6 +138,8 @@ describe('DoneTray', () => {
     const chip = screen.getByRole('button', { name: /T-x/ });
     expect(chip.textContent).toMatch(/ago|just now/);
     fireEvent.click(chip);
-    await vi.waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.url === '/api/cards/x/done')).toBe(true));
+    await vi.waitFor(() =>
+      expect(calls.some((c) => c.method === 'DELETE' && c.url === '/api/cards/x/done')).toBe(true)
+    );
   });
 });

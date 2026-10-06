@@ -1,3 +1,4 @@
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App.tsx';
@@ -22,7 +23,9 @@ vi.mock('react-grid-layout', () => ({
 
 // @ts-expect-error deliberately not a 01 type name
 registerCardType('zz-hdr', {
-  Component: (p: { query: string; data: { text?: string } }) => <p data-testid="body">{`q=${p.query}|${p.data.text ?? ''}`}</p>,
+  Component: (p: { query: string; data: { text?: string } }) => (
+    <p data-testid="body">{`q=${p.query}|${p.data.text ?? ''}`}</p>
+  ),
   searchText: (d: { text?: string }) => d.text ?? '',
 });
 
@@ -55,7 +58,7 @@ function base(): Snapshot {
     serverTime: 't',
     rev: 'r',
     warnings: [],
-    config: { pollIntervalMs: 30000, nowPriorityThreshold: 5 },
+    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
     zones: { alerts: [], now: [], grid: ['a', 'b'], tray: ['c'], hidden: ['h'] },
     cards: Object.fromEntries(cards.map((c) => [c.id, c])),
     layout: [L('a', 3, 4), L('b', 6, 0), L('h', 9, 2)],
@@ -146,7 +149,13 @@ describe('shortcuts', () => {
   it('/, S and Ctrl+K focus the search when focus is outside inputs', async () => {
     mount();
     await screen.findByText('Alpha');
-    for (const ev of [{ key: '/' }, { key: 's' }, { key: 'S' }, { key: 'k', ctrlKey: true }, { key: 'k', metaKey: true }]) {
+    for (const ev of [
+      { key: '/' },
+      { key: 's' },
+      { key: 'S' },
+      { key: 'k', ctrlKey: true },
+      { key: 'k', metaKey: true },
+    ]) {
       (document.activeElement as HTMLElement | null)?.blur();
       fireEvent.keyDown(document.body, ev);
       expect(document.activeElement).toBe(box());

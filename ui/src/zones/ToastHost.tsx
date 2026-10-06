@@ -1,7 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { getToastStore, type Toast, type ToastStore } from '../api/toasts.ts';
-
-export const TOAST_MS = 5000;
+import { TOAST_MS } from '../constants/timing.ts';
 
 function Item({ toast, store }: { toast: Toast; store: ToastStore }) {
   useEffect(() => {

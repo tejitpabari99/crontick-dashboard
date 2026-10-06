@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ALERT_CAP, PAGE } from '../../constants/types.ts';
 import { useDelayedSpinner } from '../../lib/delayed-spinner.ts';
 import { CardLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
@@ -12,8 +13,6 @@ import { dueTimeZone, itemText } from './logic.ts';
 import './list.css';
 
 const COMPACT_CAP = 100;
-const PAGE = 200;
-const ALERT_CAP = 3;
 const FAILED_MS = 8000;
 
 interface BoxProps {

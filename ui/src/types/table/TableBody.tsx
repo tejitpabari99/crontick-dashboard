@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { PAGE } from '../../constants/types.ts';
 import { CardLink, isAllowedLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
 import type { Cell, TableData } from '../../../../src/index.js';
@@ -21,7 +22,6 @@ import {
 import './table.css';
 
 const COMPACT_CAP = 50;
-const PAGE = 200;
 const SEARCH_MIN_ROWS = 5;
 
 interface Row {

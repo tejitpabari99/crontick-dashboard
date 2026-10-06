@@ -1,4 +1,4 @@
-/* Preset inputs (HSL components, no units). Mirrored in ui/src/theme/derive.ts. */
+/* Preset inputs (HSL components, no units). Mirrored in ui/tests/helpers/theme-derive.ts. */
 :root,
 :root[data-theme='dark'] {
   --dir: 1; /* surfaces move lighter from bg */

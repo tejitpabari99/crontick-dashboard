@@ -1,6 +1,5 @@
 import type { LayoutItem } from '../api/types.ts';
-
-export const LAYOUT_DEBOUNCE_MS = 800;
+import { LAYOUT_DEBOUNCE_MS } from '../constants/timing.ts';
 
 export interface LayoutWriterOptions {
   put(layout: LayoutItem[]): Promise<void>;

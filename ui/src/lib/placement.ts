@@ -1,6 +1,6 @@
 import type { LayoutItem } from '../api/types.ts';
+import { GRID_COLS } from '../constants/grid.ts';
 
-export const GRID_COLS = 12;
 export type CardSize = 'S' | 'M' | 'L';
 export const SIZE_DIMS: Record<CardSize, { w: number; h: number }> = {
   S: { w: 3, h: 4 },

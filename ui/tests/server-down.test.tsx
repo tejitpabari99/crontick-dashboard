@@ -1,3 +1,4 @@
+import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import axe from 'axe-core';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +7,7 @@ import { createClient } from '../src/api/client.ts';
 import { createMutations } from '../src/api/mutations.ts';
 import { createSnapshotStore } from '../src/api/store.ts';
 import { createToastStore } from '../src/api/toasts.ts';
+import { DOWN_BACKOFF_MS } from '../src/constants/polling.ts';
 import type { Snapshot, ViewCard } from '../src/api/types.ts';
 import '../src/types/index.ts';
 import table from '../../templates/table.example.json';
@@ -39,7 +41,7 @@ function snapshot(cards: ViewCard[], zones: Partial<Snapshot['zones']>): Snapsho
     serverTime: 't',
     rev: 'r',
     warnings: [],
-    config: { pollIntervalMs: 30000, nowPriorityThreshold: 5 },
+    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
     zones: { alerts: [], now: [], grid: [], tray: [], hidden: [], ...zones },
     cards: Object.fromEntries(cards.map((c) => [c.id, c])),
     layout: [],
@@ -58,7 +60,7 @@ const FIXTURE = snapshot(
     card('tr'),
     card('hi'),
   ],
-  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] },
+  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] }
 );
 
 interface Timer {
@@ -127,7 +129,7 @@ describe('server down', () => {
     expect(screen.queryByText('Server down')).toBeNull();
     expect(screen.getByText('Title-md')).toBeTruthy();
     const ms1 = await t.fire(); // failure 2: down
-    expect(ms1).toBe(5000);
+    expect(ms1).toBe(DOWN_BACKOFF_MS[0]);
 
     expect(document.querySelectorAll('[data-card-id]').length).toBe(0);
     for (const s of CACHED) expect(document.body.textContent).not.toContain(s);
@@ -145,10 +147,10 @@ describe('server down', () => {
     expect(document.querySelectorAll('header button').length).toBe(1);
 
     // backoff 5 -> 10 -> 30 -> 30
-    expect(await t.fire()).toBe(10000);
+    expect(await t.fire()).toBe(DOWN_BACKOFF_MS[1]);
     expect(screen.getByText(/Retrying every 10 s/)).toBeTruthy();
-    expect(await t.fire()).toBe(30000);
-    expect(await t.fire()).toBe(30000);
+    expect(await t.fire()).toBe(DOWN_BACKOFF_MS[2]);
+    expect(await t.fire()).toBe(DOWN_BACKOFF_MS[2]);
 
     // recovery without reload
     t.state.mode = 'ok';

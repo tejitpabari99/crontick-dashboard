@@ -3,7 +3,8 @@ import 'react-grid-layout/css/styles.css';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { LayoutItem, ViewCard } from '../api/types.ts';
 import { getExpandedVersion, isExpanded, subscribeExpanded } from '../frame/CardFrame.tsx';
-import { GRID_COLS, placeCards } from '../lib/placement.ts';
+import { DRAG_HANDLE, GRID_COLS, GRID_MARGIN, ROW_HEIGHT } from '../constants/grid.ts';
+import { placeCards } from '../lib/placement.ts';
 import { createLayoutWriter, type LayoutWriter } from './layout-writer.ts';
 import './grid.css';
 
@@ -16,10 +17,6 @@ export interface GridProps {
   putLayoutKeepalive(layout: LayoutItem[]): void;
   renderCard(card: ViewCard): ReactNode;
 }
-
-const ROW_HEIGHT = 28;
-const MARGIN = [10, 10] as const;
-const DRAG_HANDLE = '.drag-handle';
 
 function isChip(card: ViewCard): boolean {
   return card.collapsed && !isExpanded(card.id);
@@ -103,7 +100,7 @@ export function Grid(p: GridProps) {
         <GridLayout
           width={width}
           layout={rendered}
-          gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT, margin: MARGIN, containerPadding: [0, 0] }}
+          gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT, margin: GRID_MARGIN, containerPadding: [0, 0] }}
           dragConfig={{ enabled: true, handle: DRAG_HANDLE, cancel: 'button, a' }}
           resizeConfig={{ enabled: true, handles: ['se'] }}
           compactor={verticalCompactor}

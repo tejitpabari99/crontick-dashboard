@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/api/client.ts';
 import { clampPollInterval, createSnapshotStore } from '../src/api/store.ts';
+import { POLL_DEFAULT_MS, POLL_MAX_MS, POLL_MIN_MS } from '../../src/constants/poll.ts';
 import type { Snapshot } from '../src/api/types.ts';
 
-function snap(rev: string, pollIntervalMs = 30000, extra: Record<string, unknown> = {}): Snapshot {
+function snap(rev: string, pollIntervalMs = POLL_DEFAULT_MS, extra: Record<string, unknown> = {}): Snapshot {
   return {
     serverTime: 't',
     rev,
@@ -69,12 +70,12 @@ describe('client', () => {
 });
 
 describe('clampPollInterval', () => {
-  it('clamps to 15-60 s, defaults 30 s', () => {
-    expect(clampPollInterval(1000)).toBe(15000);
-    expect(clampPollInterval(999999)).toBe(60000);
+  it('clamps to [POLL_MIN_MS, POLL_MAX_MS], defaults POLL_DEFAULT_MS', () => {
+    expect(clampPollInterval(POLL_MIN_MS - 1000)).toBe(POLL_MIN_MS);
+    expect(clampPollInterval(POLL_MAX_MS + 1000)).toBe(POLL_MAX_MS);
     expect(clampPollInterval(20000)).toBe(20000);
-    expect(clampPollInterval(undefined)).toBe(30000);
-    expect(clampPollInterval(NaN)).toBe(30000);
+    expect(clampPollInterval(undefined)).toBe(POLL_DEFAULT_MS);
+    expect(clampPollInterval(NaN)).toBe(POLL_DEFAULT_MS);
   });
 });
 
@@ -87,7 +88,7 @@ describe('store', () => {
     const s1 = store.getSnapshot();
     expect(s1.snapshot?.rev).toBe('r1');
     expect(s1.lastSuccessAt).not.toBeNull();
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(POLL_DEFAULT_MS);
     expect(fetchFn).toHaveBeenCalledTimes(2);
     const init = fetchFn.mock.calls[1]![1]!;
     expect((init.headers as Record<string, string>)['If-None-Match']).toBe('"r1"');
@@ -100,7 +101,7 @@ describe('store', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(store.getSnapshot().consecutiveFailures).toBe(1);
     expect(store.getSnapshot().snapshot).toBeNull();
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(POLL_DEFAULT_MS);
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(store.getSnapshot().consecutiveFailures).toBe(0);
   });
@@ -116,11 +117,14 @@ describe('store', () => {
   });
 
   it('structural sharing keeps unchanged card identity', async () => {
-    const { store } = setup([res(200, snap('r1'), '"r1"'), res(200, snap('r2', 30000, { title: 'A2' }), '"r2"')]);
+    const { store } = setup([
+      res(200, snap('r1'), '"r1"'),
+      res(200, snap('r2', POLL_DEFAULT_MS, { title: 'A2' }), '"r2"'),
+    ]);
     store.subscribe(() => {});
     await vi.advanceTimersByTimeAsync(0);
     const first = store.getSnapshot().snapshot!;
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(POLL_DEFAULT_MS);
     const second = store.getSnapshot().snapshot!;
     expect(second.rev).toBe('r2');
     expect(second.cards['b']).toBe(first.cards['b']);
@@ -128,12 +132,7 @@ describe('store', () => {
   });
 
   it('pauses to a 60 s slow tick while hidden, refetches immediately on visible', async () => {
-    const { fetchFn, doc, store } = setup([
-      res(200, snap('r1'), '"r1"'),
-      res(304),
-      res(304),
-      res(304),
-    ]);
+    const { fetchFn, doc, store } = setup([res(200, snap('r1'), '"r1"'), res(304), res(304), res(304)]);
     store.subscribe(() => {});
     await vi.advanceTimersByTimeAsync(0);
     doc.set('hidden');
@@ -144,7 +143,7 @@ describe('store', () => {
     doc.set('visible');
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchFn).toHaveBeenCalledTimes(3);
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(POLL_DEFAULT_MS);
     expect(fetchFn).toHaveBeenCalledTimes(4);
   });
 

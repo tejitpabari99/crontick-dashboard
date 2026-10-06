@@ -1,6 +1,7 @@
 // Pure table logic (04 Task 3). UI may only `import type` from src/**, so `cellText` is mirrored here
 // (parity with 01's runtime `cellText` is asserted in ui/tests/types/table-logic.test.ts).
 import type { Cell, TableData } from '../../../../src/index.js';
+import { MAX_FILTER_VALUES } from '../../constants/types.ts';
 import { matchTokens } from '../shared/matchTokens.ts';
 
 export type ColumnType = 'text' | 'number' | 'date';
@@ -25,8 +26,6 @@ export interface FilterSpec {
   /** Column index -> allowed values (as `distinctValues` strings). Empty/missing set = no filter. */
   filters?: Readonly<Record<number, ReadonlySet<string>>>;
 }
-
-export const MAX_FILTER_VALUES = 20;
 
 /** Displayed/searched/sorted value of a cell (mirror of 01 `cellText`). */
 export function cellText(cell: Cell): string | number | boolean | null {

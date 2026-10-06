@@ -1,9 +1,10 @@
+import { JSON_CONTENT_TYPE, MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../../src/constants/http.js';
 import { useSyncExternalStore } from 'react';
 import type { LayoutItem, Snapshot, ViewCard } from './types.ts';
 import { getSnapshotStore, type SnapshotStore, type StoreState } from './store.ts';
 import { getToastStore, type ToastStore } from './toasts.ts';
 
-export const CONFLICT_TOAST = 'card updated, try again';
+import { CONFLICT_TOAST } from '../constants/messages.ts';
 
 type Op =
   | { id: number; kind: 'zone'; cardId: string; zone: 'tray' | 'hidden' | 'restore' | 'drop' }
@@ -126,7 +127,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
     path: string,
     body: unknown,
     op: Op,
-    errorToast?: (msg: string) => string,
+    errorToast?: (msg: string) => string
   ): Promise<void> {
     ops = [...ops, op];
     emit();
@@ -134,7 +135,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
     try {
       const res = await doFetch(`${base}${path}`, {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+        headers: { 'Content-Type': JSON_CONTENT_TYPE, [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (!res.ok) {
@@ -163,7 +164,12 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
 
   /** Public wrapper: toast already shown; the promise still rejects for callers that care. */
   const swallow = (p: Promise<void>): Promise<void> => p.catch(() => undefined);
-  const zoneOp = (cardId: string, zone: 'tray' | 'hidden' | 'restore' | 'drop'): Op => ({ id: seq++, kind: 'zone', cardId, zone });
+  const zoneOp = (cardId: string, zone: 'tray' | 'hidden' | 'restore' | 'drop'): Op => ({
+    id: seq++,
+    kind: 'zone',
+    cardId,
+    zone,
+  });
   const enc = encodeURIComponent;
 
   return {
@@ -202,7 +208,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
       try {
         void doFetch(`${base}/api/layout`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-Crontick-Dashboard': '1' },
+          headers: { 'Content-Type': JSON_CONTENT_TYPE, [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
           body: JSON.stringify(layout),
           keepalive: true,
         }).catch(() => undefined);
@@ -216,7 +222,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
         'POST',
         `/api/cards/${enc(cardId)}/actions`,
         { itemId, updatedAt: card?.updatedAt ?? '', checked },
-        { id: seq++, kind: 'item', cardId, itemId, checked },
+        { id: seq++, kind: 'item', cardId, itemId, checked }
       );
     },
   };

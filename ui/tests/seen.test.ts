@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SEEN_KEY, isUnseen, markSeen } from '../src/lib/seen.ts';
+import { isUnseen, markSeen } from '../src/lib/seen.ts';
+import { SEEN_KEY } from '../src/constants/storage.ts';
 
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.restoreAllMocks());

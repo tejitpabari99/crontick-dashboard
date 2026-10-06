@@ -15,8 +15,24 @@ export interface Preset {
 }
 
 export const PRESETS: Record<'dark' | 'light', Preset> = {
-  dark: { dir: 1, bg: [230, 15, 14], primary: [256, 85, 72], positive: [150, 55, 52], negative: [4, 75, 62], contrast: 1.1, textSat: 1 },
-  light: { dir: -1, bg: [220, 23, 96], primary: [220, 85, 50], positive: [150, 60, 36], negative: [4, 70, 48], contrast: 1, textSat: 1 },
+  dark: {
+    dir: 1,
+    bg: [230, 15, 14],
+    primary: [256, 85, 72],
+    positive: [150, 55, 52],
+    negative: [4, 75, 62],
+    contrast: 1.1,
+    textSat: 1,
+  },
+  light: {
+    dir: -1,
+    bg: [220, 23, 96],
+    primary: [220, 85, 50],
+    positive: [150, 60, 36],
+    negative: [4, 70, 48],
+    contrast: 1,
+    textSat: 1,
+  },
 };
 
 export interface Derived {
