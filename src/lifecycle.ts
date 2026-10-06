@@ -3,10 +3,11 @@
  * 06's CLI calls these: runForeground (`start`), daemonStart/daemonStop/daemonStatus (`daemon ...`).
  * State lives in <data>/daemon.pid (written by the server process), daemon.port, daemon.log, daemon.lock.
  */
-import { spawn } from 'node:child_process';
+import { spawn as nodeSpawn, type SpawnOptions } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { realClock, type Clock } from './clock.js';
 import { APP_NAME } from './constants/app.js';
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE, JSON_CONTENT_TYPE } from './constants/http.js';
 import {
@@ -22,7 +23,7 @@ import { isPidAlive, readPidFile, readPortFile } from './pid.js';
 import { dataDir as dataDirOf, ensureDirs, lockFilePath, logFilePath, pidFilePath, portFilePath } from './paths.js';
 import { errnoCode } from './utils/errors.js';
 import { loopbackHost, loopbackUrl } from './utils/loopback.js';
-import { sleep } from './utils/sleep.js';
+import { sleep as realSleep } from './utils/sleep.js';
 
 type Env = NodeJS.ProcessEnv;
 
@@ -43,7 +44,25 @@ export interface DaemonStatus {
 
 export interface DaemonOptions {
   env?: Env;
+  /** Time source for deadlines and lock staleness (default real clock). */
+  clock?: Clock;
+  /** Delay between polls (default real sleep). */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/** The subset of a child process `daemonStart` uses. */
+export interface SpawnedChild {
+  pid?: number | undefined;
+  on(event: 'exit', fn: (code: number | null) => void): unknown;
+  unref(): void;
+}
+export type SpawnFn = (cmd: string, args: string[], opts: SpawnOptions) => SpawnedChild;
+
+interface Timing {
+  clock: Clock;
+  sleep: (ms: number) => Promise<void>;
+}
+const timingOf = (o: DaemonOptions): Timing => ({ clock: o.clock ?? realClock, sleep: o.sleep ?? realSleep });
 
 export interface DaemonStartOptions extends DaemonOptions {
   /** Server entry to spawn. Default: dist/server/index.js relative to this module. */
@@ -51,6 +70,8 @@ export interface DaemonStartOptions extends DaemonOptions {
   /** Extra node args before the entry (tests: ['--import', 'tsx']). */
   nodeArgs?: string[];
   startupTimeoutMs?: number;
+  /** Process spawner (default node:child_process spawn). */
+  spawn?: SpawnFn;
 }
 
 export interface DaemonStartResult {
@@ -123,6 +144,8 @@ export async function runForeground(
 export async function daemonStart(opts: DaemonStartOptions = {}): Promise<DaemonStartResult> {
   const env = opts.env ?? process.env;
   const timeoutMs = opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS;
+  const t = timingOf(opts);
+  const spawn: SpawnFn = opts.spawn ?? nodeSpawn;
   const serverEntry = opts.serverEntry ?? defaultServerEntry();
   const logPath = logFilePath(env);
   const dataDir = dataDirOf(env);
@@ -135,16 +158,16 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
     throw new Error(`NOT_BUILT: server entry not found at ${serverEntry} (run npm run build)`);
   }
 
-  const deadline = Date.now() + timeoutMs;
+  const deadline = t.clock.now().getTime() + timeoutMs;
   const lock = lockFilePath(env);
-  await acquireLock(lock, deadline);
+  await acquireLock(lock, deadline, t);
   try {
     const again = await daemonStatus({ env }); // another starter may have won while we waited
     if (again.running) return toStartResult(again, true, logPath);
 
     const logFd = openSync(logPath, 'a');
     let exited: number | null | undefined;
-    let child;
+    let child: SpawnedChild;
     try {
       child = spawn(process.execPath, [...(opts.nodeArgs ?? []), serverEntry], {
         detached: true,
@@ -159,7 +182,7 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
     child.on('exit', (code) => (exited = code));
     child.unref();
 
-    while (Date.now() < deadline) {
+    while (t.clock.now().getTime() < deadline) {
       const st = await daemonStatus({ env });
       if (st.running) return toStartResult(st, false, logPath);
       if (exited !== undefined) {
@@ -168,7 +191,7 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
         if (raced.running) return toStartResult(raced, true, logPath);
         throw new Error(`daemon exited during startup (code ${String(exited)}); see log: ${logPath}`);
       }
-      await sleep(LIFECYCLE_POLL_MS);
+      await t.sleep(LIFECYCLE_POLL_MS);
     }
     try {
       if (child.pid !== undefined) process.kill(child.pid, 'SIGKILL');
@@ -189,6 +212,7 @@ function toStartResult(st: DaemonStatus, alreadyRunning: boolean, logPath: strin
 export async function daemonStop(opts: DaemonStopOptions = {}): Promise<DaemonStopResult> {
   const env = opts.env ?? process.env;
   const timeoutMs = opts.stopTimeoutMs ?? STOP_TIMEOUT_MS;
+  const t = timingOf(opts);
   const st = await daemonStatus({ env });
   if (!st.running || st.pid === undefined || st.port === undefined) {
     return { running: false, stopped: false, mode: 'already-stopped' };
@@ -208,9 +232,9 @@ export async function daemonStop(opts: DaemonStopOptions = {}): Promise<DaemonSt
     /* fall through to signals */
   }
   let mode: DaemonStopResult['mode'] = 'graceful';
-  if (!(accepted && (await waitDead(pid, timeoutMs)))) {
+  if (!(accepted && (await waitDead(pid, timeoutMs, t)))) {
     mode = 'hard-kill';
-    if (!(await killAndWait(pid, 'SIGTERM', timeoutMs))) await killAndWait(pid, 'SIGKILL', timeoutMs);
+    if (!(await killAndWait(pid, 'SIGTERM', timeoutMs, t))) await killAndWait(pid, 'SIGKILL', timeoutMs, t);
   }
   const dead = !isPidAlive(pid);
   if (dead) {
@@ -220,45 +244,45 @@ export async function daemonStop(opts: DaemonStopOptions = {}): Promise<DaemonSt
   return { running: !dead, stopped: dead, pid, mode };
 }
 
-async function waitDead(pid: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+async function waitDead(pid: number, timeoutMs: number, t: Timing): Promise<boolean> {
+  const deadline = t.clock.now().getTime() + timeoutMs;
+  while (t.clock.now().getTime() < deadline) {
     if (!isPidAlive(pid)) return true;
-    await sleep(LIFECYCLE_POLL_MS);
+    await t.sleep(LIFECYCLE_POLL_MS);
   }
   return !isPidAlive(pid);
 }
 
-async function killAndWait(pid: number, sig: NodeJS.Signals, timeoutMs: number): Promise<boolean> {
+async function killAndWait(pid: number, sig: NodeJS.Signals, timeoutMs: number, t: Timing): Promise<boolean> {
   try {
     process.kill(pid, sig);
   } catch {
     return true;
   }
-  return waitDead(pid, timeoutMs);
+  return waitDead(pid, timeoutMs, t);
 }
 
-async function acquireLock(path: string, deadline: number): Promise<void> {
+async function acquireLock(path: string, deadline: number, t: Timing): Promise<void> {
   for (;;) {
     try {
       const fd = openSync(path, 'wx');
-      writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
+      writeSync(fd, JSON.stringify({ pid: process.pid, at: t.clock.now().getTime() }));
       closeSync(fd);
       return;
     } catch (err) {
       if (errnoCode(err) !== 'EEXIST') throw err;
     }
-    removeIfStale(path);
-    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${path}; remove it if no daemon start is running`);
-    await sleep(LIFECYCLE_POLL_MS);
+    removeIfStale(path, t.clock.now().getTime());
+    if (t.clock.now().getTime() >= deadline) throw new Error(`timed out waiting for ${path}; remove it if no daemon start is running`);
+    await t.sleep(LIFECYCLE_POLL_MS);
   }
 }
 
-function removeIfStale(path: string): void {
+function removeIfStale(path: string, nowMs: number): void {
   try {
     const l = JSON.parse(readFileSync(path, 'utf8')) as { pid?: number; at?: number };
     const dead = typeof l.pid !== 'number' || !isPidAlive(l.pid);
-    const old = typeof l.at !== 'number' || Date.now() - l.at > LOCK_STALE_MS;
+    const old = typeof l.at !== 'number' || nowMs - l.at > LOCK_STALE_MS;
     if (dead || old) rmSync(path, { force: true });
   } catch {
     // unreadable/partially written: only remove when old by mtime is unknowable here; retry next poll

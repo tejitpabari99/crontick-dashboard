@@ -9,7 +9,7 @@ const base = {
   updatedAt: '2026-10-05T10:00:00Z',
   data: { text: 'x' },
 };
-const v = (o: Record<string, unknown>, opts?: { filename?: string }) =>
+const v = (o: Record<string, unknown>, opts?: { filename?: string; now?: Date }) =>
   validateCardFile(JSON.stringify({ ...base, ...o }), opts);
 
 function broken(r: ReturnType<typeof validateCardFile>) {
@@ -94,9 +94,11 @@ describe('validateCardFile', () => {
     expect(m.reason).toBe('schema-invalid');
   });
   it('future skew warns', () => {
-    const future = new Date(Date.now() + 3_600_000).toISOString();
-    const r = v({ updatedAt: future });
+    const now = new Date('2026-10-05T10:00:00Z');
+    const r = v({ updatedAt: '2026-10-05T11:00:00Z' }, { now });
     expect('ok' in r && r.warnings.length).toBe(1);
+    const inSkew = v({ updatedAt: '2026-10-05T10:04:00Z' }, { now });
+    expect('ok' in inSkew && inSkew.warnings.length).toBe(0);
   });
   it('registry and helper exports', () => {
     expect(listTypes().sort()).toEqual(['kpi', 'list', 'markdown', 'media', 'table']);

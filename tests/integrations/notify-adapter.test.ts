@@ -161,3 +161,21 @@ describe('FakeNotifyAdapter', () => {
     expect(f.calls).toHaveLength(2);
   });
 });
+
+describe('node-notifier adapter injected timers', () => {
+  it('settles when the injected grace timer fires and clears it on early settle', async () => {
+    const fns: Array<() => void> = [];
+    const cleared: unknown[] = [];
+    const timers = {
+      setTimeout: (fn: () => void) => (fns.push(fn), fns.length),
+      clearTimeout: (h: unknown) => void cleared.push(h),
+    };
+    const notify = vi.fn(() => new EventEmitter());
+    const adapter = createNodeNotifierAdapter({ notifier: { notify } as never, platform: 'linux', timers, deliveryGraceMs: 1_000_000 });
+    const p = adapter.notify({ title: 'T', body: 'B', openUrl: URL_OK });
+    expect(fns).toHaveLength(1);
+    fns[0]!();
+    await expect(p).resolves.toBeUndefined();
+    expect(cleared).toEqual([1]);
+  });
+});

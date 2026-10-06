@@ -3,6 +3,7 @@ import type { EventEmitter } from 'node:events';
 import nodeNotifier from 'node-notifier';
 import { LOOPBACK_HOST } from '../../constants/http.js';
 import { NOTIFY_AUMID, NOTIFY_DELIVERY_GRACE_MS } from '../../constants/notify.js';
+import { realTimers, type TimeoutTimers } from '../../utils/timers.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
 
 const UNSAFE_CHARS = /[\s&|^<>%"'`]/;
@@ -23,6 +24,8 @@ export interface NodeNotifierOptions {
   platform?: NodeJS.Platform;
   /** Time to wait for an error callback before treating the toast as delivered. */
   deliveryGraceMs?: number;
+  /** Timer source for the delivery grace period (default real timers). */
+  timers?: TimeoutTimers;
 }
 
 /** Only server-built loopback http URLs may be opened; also rejects shell metacharacters. */
@@ -47,6 +50,7 @@ export function createNodeNotifierAdapter(opts: NodeNotifierOptions = {}): Notif
   const notifier = opts.notifier ?? (nodeNotifier as unknown as NotifierLike);
   const spawn = opts.spawn ?? (nodeSpawn as unknown as SpawnLike);
   const platform = opts.platform ?? process.platform;
+  const timers = opts.timers ?? realTimers;
   const graceMs = opts.deliveryGraceMs ?? NOTIFY_DELIVERY_GRACE_MS;
 
   function open(url: string): void {
@@ -66,11 +70,11 @@ export function createNodeNotifierAdapter(opts: NodeNotifierOptions = {}): Notif
       return new Promise<void>((resolve, reject) => {
         let settled = false;
         let opened = false;
-        let timer: NodeJS.Timeout | undefined;
+        let timer: unknown;
         const settle = (err?: Error): void => {
           if (settled) return; // late errors/events are ignored
           settled = true;
-          if (timer) clearTimeout(timer);
+          if (timer !== undefined) timers.clearTimeout(timer);
           if (err) reject(err);
           else resolve();
         };
@@ -92,8 +96,7 @@ export function createNodeNotifierAdapter(opts: NodeNotifierOptions = {}): Notif
           ) as EventEmitter | undefined;
           emitter?.on?.('click', onClick);
           emitter?.on?.('activate', onClick);
-          timer = setTimeout(() => settle(), graceMs);
-          timer.unref?.();
+          timer = timers.setTimeout(() => settle(), graceMs);
         } catch (e) {
           settle(e instanceof Error ? e : new Error(String(e)));
         }

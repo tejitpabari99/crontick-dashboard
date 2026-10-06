@@ -15,6 +15,7 @@ import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFil
 import { claimPidFile, releasePidFile } from '../pid.js';
 import { errorMessage } from '../utils/errors.js';
 import { loopbackUrl } from '../utils/loopback.js';
+import { realTimers, type IntervalTimers } from '../utils/timers.js';
 import { createStateStore } from '../state/store.js';
 import { createWarnings, type Warnings } from '../state/warnings.js';
 import type { ActionDeps } from '../actions/registry.js';
@@ -48,6 +49,8 @@ export interface StartServerOptions {
   actionTestDeps?: Pick<ActionDeps, 'rename' | 'sleep' | 'hooks'>;
   /** OS notification adapter (default: real node-notifier adapter, created lazily on first delivery). */
   notifyAdapter?: NotifyAdapter;
+  /** Timer source for the state-reconcile interval (default real timers). */
+  timers?: IntervalTimers;
   /** Platform used by the notification gate (default process.platform). Mainly for tests. */
   notifyPlatform?: NodeJS.Platform;
 }
@@ -117,9 +120,10 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
       return m;
     },
   });
-  watcher = createFeedWatcher({ feedDir: feedDir(env), onIngest: archive.onIngest, onChange: events.onChange });
+  watcher = createFeedWatcher({ feedDir: feedDir(env), clock, onIngest: archive.onIngest, onChange: events.onChange });
 
-  let reconcileTimer: NodeJS.Timeout | undefined;
+  const timers = opts.timers ?? realTimers;
+  let reconcileTimer: unknown;
   /** In-flight state reconciles; stop() awaits them so nothing writes after it resolves. */
   const reconciles = new Set<Promise<void>>();
   const reconcileState = (): void => {
@@ -141,7 +145,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
 
   const stop = (): Promise<void> => {
     stopped ??= (async () => {
-      if (reconcileTimer) clearInterval(reconcileTimer);
+      if (reconcileTimer !== undefined) timers.clearInterval(reconcileTimer);
       notifier.dispose();
       watcher.stop();
       archive.stop();
@@ -198,8 +202,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     watcher.start();
     archive.start();
     reconcileState();
-    reconcileTimer = setInterval(reconcileState, RECONCILE_INTERVAL_MS);
-    reconcileTimer.unref();
+    reconcileTimer = timers.setInterval(reconcileState, RECONCILE_INTERVAL_MS);
   } catch (err) {
     await stop();
     throw err;

@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { MAX_CARD_BYTES } from '../constants/contract.js';
 import { FEED_SETTLE_DELAYS_MS } from '../constants/feed.js';
 import { errnoCode, errorMessage } from '../utils/errors.js';
+import { realClock, type Clock } from '../clock.js';
 import { realTimers, type TimeoutTimers } from '../utils/timers.js';
 import { validateCardFile, type Card, type BrokenReason } from '../contract/validate.js';
 
@@ -78,6 +79,8 @@ export interface IngestInfo {
 export interface FeedIngestOptions {
   feedDir: string;
   timers?: TimeoutTimers;
+  /** Time source for card validation (default real clock). */
+  clock?: Clock;
   onIngest?: (info: IngestInfo) => void;
   onChange?: (change: CardChange) => void;
 }
@@ -153,6 +156,7 @@ const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex
 
 export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
   const timers = opts.timers ?? realTimers;
+  const clock = opts.clock ?? realClock;
   const recs = new Map<string, FileRec>();
   const settling = new Map<string, Settling>();
   const selfWrites = new Map<string, string>();
@@ -309,7 +313,7 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
   function parseRead(name: string, r: ReadResult & { kind: 'read' }): { text: string; hash: string; parsed: Parsed } {
     const text = r.buf.toString('utf8');
     const hash = sha256(r.buf);
-    const v = validateCardFile(text, { filename: name });
+    const v = validateCardFile(text, { filename: name, now: clock.now() });
     const parsed: Parsed = 'broken' in v ? { ok: false, reason: v.reason, message: v.message, ...(v.id !== undefined ? { id: v.id } : {}) } : { ok: true, card: v.card };
     return { text, hash, parsed };
   }

@@ -30,7 +30,7 @@ export interface ActionDeps {
 }
 
 /** `ok` -> 200 `{rev}`; `error` -> that HTTP status with `{error}`. Thrown errors become 500. */
-export type ActionResult = { ok: true } | { ok: false; status: 400 | 404 | 409 | 501; error: string };
+export type ActionResult = { ok: true } | { ok: false; status: 400 | 404 | 409; error: string };
 
 export type ActionHandler = (req: ActionRequest, deps: ActionDeps) => Promise<ActionResult>;
 

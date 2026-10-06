@@ -13,7 +13,12 @@ let ui: string;
 let port = 47900;
 let env: NodeJS.ProcessEnv;
 const entry = join(process.cwd(), 'src/server/index.ts');
-const opts = () => ({ env, serverEntry: entry, nodeArgs: ['--import', 'tsx'], startupTimeoutMs: 20_000, stopTimeoutMs: 5_000 });
+// The daemon runs from TS source via tsx, so a cold start is CPU-bound (transform of the whole server graph).
+// Measured: ~0.6s idle, but >20s when the machine is saturated (e.g. the full parallel vitest run), so the
+// startup budget is generous; a real startup failure still fails fast (child exit) or at this bound.
+const STARTUP_MS = 90_000;
+const TEST_MS = STARTUP_MS + 30_000;
+const opts = () => ({ env, serverEntry: entry, nodeArgs: ['--import', 'tsx'], startupTimeoutMs: STARTUP_MS, stopTimeoutMs: 5_000 });
 
 beforeEach(() => {
   data = mkdtempSync(join(tmpdir(), 'lc-data-'));
@@ -24,7 +29,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   const pid = Number.parseInt(existsSync(pidFilePath(env)) ? readFileSync(pidFilePath(env), 'utf8') : '', 10);
-  if (Number.isInteger(pid) && isPidAlive(pid)) {
+  if (Number.isInteger(pid) && pid !== process.pid && isPidAlive(pid)) {
     try {
       process.kill(pid, 'SIGKILL');
     } catch {
@@ -54,7 +59,7 @@ describe('daemon lifecycle', () => {
     expect(existsSync(portFilePath(env))).toBe(false);
     expect(existsSync(pidFilePath(env))).toBe(false);
     expect((await daemonStatus({ env })).running).toBe(false);
-  }, 40_000);
+  }, TEST_MS);
 
   it('start is idempotent and concurrent starts yield one process', async () => {
     const [a, b] = await Promise.all([daemonStart(opts()), daemonStart(opts())]);
@@ -63,7 +68,7 @@ describe('daemon lifecycle', () => {
     const c = await daemonStart(opts());
     expect(c).toMatchObject({ alreadyRunning: true, pid: a.pid });
     await daemonStop(opts());
-  }, 40_000);
+  }, TEST_MS);
 
   it('stop when not running reports already-stopped', async () => {
     expect(await daemonStop(opts())).toMatchObject({ stopped: false, running: false, mode: 'already-stopped' });
@@ -83,7 +88,7 @@ describe('daemon lifecycle', () => {
     expect(r.alreadyRunning).toBe(false);
     expect(isPidAlive(r.pid)).toBe(true);
     await daemonStop(opts());
-  }, 40_000);
+  }, TEST_MS);
 
   it('a second server on the same data dir refuses to start', async () => {
     const r = await daemonStart(opts());
@@ -91,14 +96,14 @@ describe('daemon lifecycle', () => {
     await expect(startServer({ env, uiDir: ui, port: 0 })).rejects.toThrow(/ALREADY_RUNNING/);
     expect(readFileSync(pidFilePath(env), 'utf8').trim()).toBe(String(r.pid));
     await daemonStop(opts());
-  }, 40_000);
+  }, TEST_MS);
 
   it('foreground run refuses when a daemon owns the data dir and returns its URL', async () => {
     const r = await daemonStart(opts());
     const fg = await runForeground({ env, uiDir: ui });
     expect(fg).toEqual({ started: false, url: r.url, pid: r.pid });
     await daemonStop(opts());
-  }, 40_000);
+  }, TEST_MS);
 
   it('foreground run starts a server when none runs', async () => {
     const fg = await runForeground({ env, uiDir: ui });

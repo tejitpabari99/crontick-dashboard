@@ -1,3 +1,4 @@
+import { realClock } from '../clock.js';
 import { CLOCK_SKEW_MS, ID_PATTERN, MAX_CARD_BYTES } from '../constants/contract.js';
 import { MS_PER_MINUTE } from '../constants/time.js';
 import { errorMessage } from '../utils/errors.js';
@@ -58,7 +59,14 @@ function fail(reason: BrokenReason, message: string, issues: Issue[] = [], id?: 
 }
 
 /** Never throws. The only validation entry point. */
-export function validateCardFile(text: string, opts?: { filename?: string }): ValidationResult {
+export interface ValidateOptions {
+  /** File name the card was read from; its stem must equal the card id. */
+  filename?: string;
+  /** Current time for the future-`updatedAt` skew warning (default: now). */
+  now?: Date;
+}
+
+export function validateCardFile(text: string, opts?: ValidateOptions): ValidationResult {
   try {
     return validate(text, opts);
   } catch (e) {
@@ -66,7 +74,7 @@ export function validateCardFile(text: string, opts?: { filename?: string }): Va
   }
 }
 
-function validate(text: string, opts?: { filename?: string }): ValidationResult {
+function validate(text: string, opts?: ValidateOptions): ValidationResult {
   if (typeof text !== 'string') return fail('unreadable', 'file is not readable text');
   if (text.includes('�') || hasLoneSurrogate(text)) {
     return fail('unreadable', 'file is not valid UTF-8 text');
@@ -126,7 +134,7 @@ function validate(text: string, opts?: { filename?: string }): ValidationResult 
 
   const warnings: string[] = [];
   const t = Date.parse(card.updatedAt);
-  if (!Number.isNaN(t) && t - Date.now() > CLOCK_SKEW_MS) {
+  if (!Number.isNaN(t) && t - (opts?.now ?? realClock.now()).getTime() > CLOCK_SKEW_MS) {
     warnings.push(`updatedAt is more than ${CLOCK_SKEW_MS / MS_PER_MINUTE} minutes in the future (clock skew?)`);
   }
   return { ok: true, card: card as Card, warnings };
