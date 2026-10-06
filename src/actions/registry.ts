@@ -1,4 +1,5 @@
 /** Action registry: handlers keyed by the item's `action.type` (read from the current card, never the client). */
+import { ERROR_CODES, type ErrorCode } from '../constants/error-codes.js';
 import type { OkEntry } from '../feed/ingest.js';
 import type { StateStore } from '../state/store.js';
 import type { Clock } from '../clock.js';
@@ -30,12 +31,12 @@ export interface ActionDeps {
 }
 
 /** `ok` -> 200 `{rev}`; `error` -> that HTTP status with `{error}`. Thrown errors become 500. */
-export type ActionResult = { ok: true } | { ok: false; status: 400 | 404 | 409; error: string };
+export type ActionResult = { ok: true } | { ok: false; status: 400 | 404 | 409; error: string; code: ErrorCode };
 
 export type ActionHandler = (req: ActionRequest, deps: ActionDeps) => Promise<ActionResult>;
 
 const dismiss: ActionHandler = async ({ entry, itemId, checked, updatedAt }, { state }) => {
-  if (!checked) return { ok: false, status: 400, error: 'dismiss cannot be unchecked' };
+  if (!checked) return { ok: false, status: 400, error: 'dismiss cannot be unchecked; it is a one-way action', code: ERROR_CODES.DISMISS_NOT_UNCHECKABLE };
   const cur = Object.hasOwn(state.get().checks, entry.key) ? state.get().checks[entry.key] : undefined;
   const same = cur !== undefined && sameInstant(cur.updatedAt, updatedAt);
   const items = same ? cur.items : [];

@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { APP_NAME } from '../../src/constants/app.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { NotBuiltError, packageAssets, packageVersion, resolveUiDir } from '../../src/cli/assets.js';
+import { packageAssets, packageVersion, resolveUiDir } from '../../src/cli/assets.js';
+import { ERROR_CODES } from '../../src/constants/error-codes.js';
+import { AppError } from '../../src/utils/errors.js';
 
 const dirs: string[] = [];
 const tmp = (): string => {
@@ -64,9 +66,9 @@ describe('resolveUiDir', () => {
       resolveUiDir(join(root, 'cli'));
       expect.unreachable();
     } catch (e) {
-      expect(e).toBeInstanceOf(NotBuiltError);
-      expect((e as NotBuiltError).code).toBe('NOT_BUILT');
-      expect((e as Error).message).toContain('run npm run build');
+      expect(e).toBeInstanceOf(AppError);
+      expect((e as AppError).code).toBe(ERROR_CODES.NOT_BUILT);
+      expect((e as Error).message).toContain('npm run build');
     }
   });
 });

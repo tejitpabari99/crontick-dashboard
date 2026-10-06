@@ -3,14 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_NAME } from '../constants/app.js';
-
-export class NotBuiltError extends Error {
-  readonly code = 'NOT_BUILT';
-  constructor(uiDir: string) {
-    super(`NOT_BUILT: UI not found at ${uiDir} (run npm run build)`);
-    this.name = 'NotBuiltError';
-  }
-}
+import { ERROR_CODES } from '../constants/error-codes.js';
+import { AppError, notBuiltError } from '../utils/errors.js';
 
 export interface PackageAssets {
   root: string;
@@ -44,7 +38,10 @@ export function packageAssets(from: string | URL = import.meta.url): PackageAsse
       }
     }
     const parent = dirname(dir);
-    if (parent === dir) throw new Error(`could not locate ${APP_NAME} package root from ${toDir(from)}`);
+    if (parent === dir) throw new AppError(
+        ERROR_CODES.PACKAGE_ROOT_NOT_FOUND,
+        `could not locate ${APP_NAME} package root from ${toDir(from)}; reinstall the package`,
+      );
     dir = parent;
   }
 }
@@ -55,9 +52,9 @@ export function packageVersion(from: string | URL = import.meta.url): string {
   return (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string }).version;
 }
 
-/** UI dir for entries living one level under dist/ (dist/cli, dist/server): `<entryDir>/../ui`. Throws NOT_BUILT if absent. */
+/** UI dir for entries living one level under dist/ (dist/cli, dist/server): `<entryDir>/../ui`. Throws AppError NOT_BUILT if absent. */
 export function resolveUiDir(from: string | URL = import.meta.url): string {
   const uiDir = resolve(toDir(from), '..', 'ui');
-  if (!existsSync(join(uiDir, 'index.html'))) throw new NotBuiltError(uiDir);
+  if (!existsSync(join(uiDir, 'index.html'))) throw notBuiltError('UI', uiDir);
   return uiDir;
 }

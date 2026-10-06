@@ -121,7 +121,7 @@ describe('mutations', () => {
     expect(readFileSync(join(data, 'state.json'), 'utf8')).toContain('"version": 1');
   });
 
-  it('write failure -> 500 {error}', async () => {
+  it('write failure -> 500 INTERNAL with a fixed message (no raw error text)', async () => {
     writeFileSync(feed('p1.json'), card('p1', 'panel', '2026-06-01T10:00:00Z'));
     const s = await boot();
     await call(s, 'PUT', '/api/cards/p1/hidden');
@@ -129,6 +129,8 @@ describe('mutations', () => {
     mkdirSync(join(data, 'state.json.tmp'));
     const r = await call(s, 'DELETE', '/api/cards/p1/hidden');
     expect(r.status).toBe(500);
-    expect(typeof ((await r.json()) as { error: string }).error).toBe('string');
+    const body = (await r.json()) as { error: string; code: string };
+    expect(body.code).toBe('INTERNAL');
+    expect(body.error).not.toMatch(/EISDIR|EEXIST|state\.json|\/tmp/);
   });
 });

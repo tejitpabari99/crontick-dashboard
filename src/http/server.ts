@@ -177,6 +177,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     ...(opts.actionTestDeps ? { actionTestDeps: opts.actionTestDeps } : {}),
     uiDir: opts.uiDir,
     getPort: () => boundPort,
+    log: (m) => logger.warn(m),
     requestShutdown: () => void stop().then(() => opts.onShutdown?.()),
   });
   server.on('request', getRequestListener(app.fetch));

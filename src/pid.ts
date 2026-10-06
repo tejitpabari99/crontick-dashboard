@@ -3,7 +3,8 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { APP_NAME } from './constants/app.js';
 import { probeHealth } from './http/bind-port.js';
 import { pidFilePath, portFilePath } from './paths.js';
-import { errnoCode } from './utils/errors.js';
+import { ERROR_CODES } from './constants/error-codes.js';
+import { AppError, errnoCode } from './utils/errors.js';
 import { parsePort } from './utils/port.js';
 
 type Env = NodeJS.ProcessEnv;
@@ -35,7 +36,7 @@ export function readPortFile(env: Env = process.env): number | undefined {
 }
 
 /**
- * Called by the server process before binding. Throws ALREADY_RUNNING if another live server owns the
+ * Called by the server process before binding. Throws AppError ALREADY_RUNNING if another live server owns the
  * data dir; a dead pid (or a live pid whose recorded port answers as something else, i.e. pid reuse)
  * is stale and taken over. Then writes our own pid.
  */
@@ -45,7 +46,10 @@ export async function claimPidFile(env: Env = process.env): Promise<void> {
     const port = readPortFile(env);
     const occ = port === undefined ? undefined : await probeHealth(port);
     if (port === undefined || occ?.kind === APP_NAME) {
-      throw new Error(`ALREADY_RUNNING: a ${APP_NAME} server (pid ${other}) already owns this data dir`);
+      throw new AppError(
+        ERROR_CODES.ALREADY_RUNNING,
+        `a ${APP_NAME} server (pid ${other}) already owns this data dir; run \`${APP_NAME} daemon status\` or \`${APP_NAME} daemon stop\``,
+      );
     }
   }
   writeFileSync(pidFilePath(env), `${process.pid}\n`);

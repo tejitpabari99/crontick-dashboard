@@ -2,7 +2,7 @@ import { lstatSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installSkill, SkillInstallError } from '../../src/skill/install.js';
+import { installSkill } from '../../src/skill/install.js';
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'skill-install-'));
@@ -25,7 +25,7 @@ describe('installSkill', () => {
     const s = setup();
     installSkill(s);
     writeFileSync(s.dest, 'edited');
-    expect(() => installSkill(s)).toThrow(SkillInstallError);
+    expect(() => installSkill(s)).toThrowError(expect.objectContaining({ code: 'SKILL_DIFFERS' }));
     expect(readFileSync(s.dest, 'utf8')).toBe('edited');
     expect(installSkill({ ...s, force: true }).status).toBe('installed');
     expect(readFileSync(s.dest, 'utf8')).toBe('# v1\n');
@@ -33,6 +33,6 @@ describe('installSkill', () => {
   });
   it('missing packaged skill throws not-found', () => {
     const s = setup();
-    expect(() => installSkill({ ...s, skillPath: join(s.skillsDir, 'nope.md') })).toThrowError(expect.objectContaining({ reason: 'not-found' }));
+    expect(() => installSkill({ ...s, skillPath: join(s.skillsDir, 'nope.md') })).toThrowError(expect.objectContaining({ code: 'SKILL_NOT_FOUND' }));
   });
 });

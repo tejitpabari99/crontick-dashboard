@@ -1,3 +1,4 @@
+import { ERROR_CODES } from '../../src/constants/error-codes.ts';
 import { JSON_CONTENT_TYPE, MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.ts';
 import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import { describe, expect, it, vi } from 'vitest';
@@ -116,7 +117,7 @@ describe('mutations', () => {
   });
 
   it('409: reverts, silently refetches, toasts "card updated, try again"', async () => {
-    const t = setup([json(409, { error: 'card updated' })]);
+    const t = setup([json(409, { error: 'card updated', code: ERROR_CODES.CARD_CHANGED })]);
     await t.store.refetch();
     const before = t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length;
     await t.m.tick('al');
@@ -196,8 +197,14 @@ describe('mutations', () => {
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual(['write failed']);
   });
 
+  it('409 without a CARD_CHANGED code shows the server message, not the conflict toast', async () => {
+    const t = setup([json(409, { error: 'other conflict', code: 'SOMETHING_ELSE' })]);
+    await t.m.tick('al').catch(() => undefined);
+    expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual(['other conflict']);
+  });
+
   it('onItemAction 409 rejects and toasts conflict text', async () => {
-    const t = setup([json(409, { error: 'card updated' })]);
+    const t = setup([json(409, { error: 'card updated', code: ERROR_CODES.CARD_CHANGED })]);
     await t.store.refetch();
     await expect(t.m.onItemAction('a', 'i2')).rejects.toThrow('card updated');
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual([CONFLICT_TOAST]);

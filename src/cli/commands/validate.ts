@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { Command } from 'commander';
 import { validateCardFile, type ValidationResult } from '../../contract/index.js';
+import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';
 import { errnoCode } from '../../utils/errors.js';
 
@@ -34,7 +35,7 @@ export function registerValidate(program: Command, ctx: CliContext): void {
             text = await readFile(file, 'utf8');
           } catch (e) {
             const code = errnoCode(e) ?? 'EIO';
-            throw new CliError(`error: cannot read ${file} (${code})`, 2);
+            throw new CliError(`error: cannot read ${file} (${code})`, 2, ERROR_CODES.FILE_UNREADABLE);
           }
           filename = basename(file);
         }

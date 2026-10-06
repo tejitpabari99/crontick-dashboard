@@ -218,7 +218,7 @@ describe('complete write-back', () => {
     });
     const r = await act(running, 'l1', { itemId: 'c', updatedAt: T1 });
     expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'card changed, retry' });
+    expect(await r.json()).toMatchObject({ code: 'CARD_CHANGED' });
     expect(readFileSync(feed('l1.json'), 'utf8')).toBe(agent);
     expect(temps()).toEqual([]);
   });

@@ -93,7 +93,7 @@ describe('daemon lifecycle', () => {
   it('a second server on the same data dir refuses to start', async () => {
     const r = await daemonStart(opts());
     const { startServer } = await import('../../src/http/server.js');
-    await expect(startServer({ env, uiDir: ui, port: 0 })).rejects.toThrow(/ALREADY_RUNNING/);
+    await expect(startServer({ env, uiDir: ui, port: 0 })).rejects.toMatchObject({ code: 'ALREADY_RUNNING' });
     expect(readFileSync(pidFilePath(env), 'utf8').trim()).toBe(String(r.pid));
     await daemonStop(opts());
   }, TEST_MS);
@@ -118,6 +118,6 @@ describe('daemon lifecycle', () => {
   });
 
   it('start failure reports the log path', async () => {
-    await expect(daemonStart({ ...opts(), serverEntry: join(data, 'missing.js') })).rejects.toThrow(/NOT_BUILT/);
+    await expect(daemonStart({ ...opts(), serverEntry: join(data, 'missing.js') })).rejects.toMatchObject({ code: 'NOT_BUILT' });
   });
 });

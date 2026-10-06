@@ -2,8 +2,9 @@ import { homedir as osHomedir } from 'node:os';
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import { CLAUDE_SKILLS_SUBDIR } from '../../constants/cli.js';
-import { installSkill, SkillInstallError } from '../../skill/install.js';
+import { installSkill } from '../../skill/install.js';
 import { packageAssets, packageVersion } from '../assets.js';
+import { AppError } from '../../utils/errors.js';
 import { CliError, type CliContext } from '../io.js';
 
 export interface SkillDeps {
@@ -32,7 +33,7 @@ export function createSkillRegister(overrides: Partial<SkillDeps> = {}) {
           const { status, dest } = installSkill({ skillPath: deps.skillPath, skillsDir, version: deps.version, ...(opts.force ? { force: true } : {}) });
           ctx.io.stdout(status === 'up-to-date' ? `already up to date: ${dest} (v${deps.version})\n` : `installed ${dest} (v${deps.version})\n`);
         } catch (e) {
-          if (e instanceof SkillInstallError) throw new CliError(e.message, 1);
+          if (e instanceof AppError) throw new CliError(e.message, 1, e.code);
           throw e;
         }
       });

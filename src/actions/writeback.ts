@@ -2,6 +2,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { CARD_CHANGED_MESSAGE, ERROR_CODES } from '../constants/error-codes.js';
 import { RENAME_TRIES, WRITEBACK_RENAME_BACKOFF_MS } from '../constants/state.js';
 import { sameInstant } from '../instant.js';
 import { isObj, type Obj } from '../utils/guards.js';
@@ -9,7 +10,7 @@ import { retryOnBusy } from '../utils/retry.js';
 import { sleep as realSleep } from '../utils/sleep.js';
 import type { ActionDeps, ActionRequest, ActionResult } from './registry.js';
 
-const CHANGED: ActionResult = { ok: false, status: 409, error: 'card changed, retry' };
+const CHANGED: ActionResult = { ok: false, status: 409, error: CARD_CHANGED_MESSAGE, code: ERROR_CODES.CARD_CHANGED };
 
 const sha256 = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex');
 
@@ -53,12 +54,12 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
       raw = readFileSync(path);
     } catch {
       refreshFeed(entry.file);
-      return { ok: false, status: 409, error: 'card changed, retry' };
+      return CHANGED;
     }
     const hash = sha256(raw);
     if (attempt === 0 && hash !== entry.hash) {
       refreshFeed(entry.file);
-      return { ok: false, status: 409, error: 'card updated' };
+      return CHANGED;
     }
     let obj: unknown;
     try {

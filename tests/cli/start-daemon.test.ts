@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDaemonRegister } from '../../src/cli/commands/daemon.js';
 import { createStartRegister } from '../../src/cli/commands/start.js';
+import { notBuiltError } from '../../src/utils/errors.js';
 import { CliError, type CliContext, type CliIo } from '../../src/cli/io.js';
 import { isPidAlive } from '../../src/pid.js';
 import { pidFilePath } from '../../src/paths.js';
@@ -22,7 +23,7 @@ const spawnDeps = () => ({ serverEntry: entry, nodeArgs: ['--import', 'tsx'], st
 
 /** Runs argv through the real registers with test deps; mirrors main.run's error handling. */
 async function exec(argv: string[], startDeps: Parameters<typeof createStartRegister>[0] = {}) {
-  const c = { out: '', err: '', code: 0 };
+  const c = { out: '', err: '', code: 0, errCode: undefined as string | undefined };
   const io: CliIo = { stdout: (s) => void (c.out += s), stderr: (s) => void (c.err += s), readStdin: async () => '', env, isTTY: false };
   const ctx: CliContext = { io, setExitCode: (n) => void (c.code = n), verbose: () => false };
   const program = new Command().exitOverride();
@@ -34,6 +35,7 @@ async function exec(argv: string[], startDeps: Parameters<typeof createStartRegi
     if (!(e instanceof CliError)) throw e;
     c.err += `${e.message}\n`;
     c.code = e.exitCode;
+    c.errCode = e.code;
   }
   return c;
 }
@@ -99,7 +101,7 @@ describe('daemon commands', () => {
   }, 60_000);
 
   it('daemon start failure surfaces as CliError (exit 1)', async () => {
-    const c = { out: '', err: '', code: 0 };
+    const c = { out: '', err: '', code: 0, errCode: undefined as string | undefined };
     const io: CliIo = { stdout: (s) => void (c.out += s), stderr: (s) => void (c.err += s), readStdin: async () => '', env, isTTY: false };
     const program = new Command().exitOverride();
     createDaemonRegister({ serverEntry: join(data, 'missing.js') })(program, { io, setExitCode: () => {}, verbose: () => false });
@@ -153,10 +155,18 @@ describe('start (foreground)', () => {
   it('NOT_BUILT UI exits 1', async () => {
     const c = await exec(['start'], {
       uiDir: () => {
-        throw new CliError('NOT_BUILT: UI not found (run npm run build)', 1);
+        throw notBuiltError('UI', '/x/ui');
       },
     });
     expect(c.code).toBe(1);
-    expect(c.err).toContain('NOT_BUILT');
+    expect(c.err).toContain('npm run build');
+    expect(c.errCode).toBe('NOT_BUILT');
+  });
+
+  it('invalid --port exits 2 with an actionable message', async () => {
+    const c = await exec(['start', '--port', 'abc']);
+    expect(c.code).toBe(2);
+    expect(c.err).toContain('expected an integer 0-65535');
+    expect(c.errCode).toBe('INVALID_PORT');
   });
 });

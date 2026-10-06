@@ -33,6 +33,8 @@ export interface AppContext {
   getPort: () => number;
   /** POST /api/shutdown: called after the response is queued. */
   requestShutdown: () => void;
+  /** Server log sink (500 details go here, never to the client). */
+  log?: (message: string) => void;
 }
 
 export function buildSnapshot(ctx: AppContext): Snapshot {

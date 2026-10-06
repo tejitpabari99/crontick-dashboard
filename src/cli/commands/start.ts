@@ -3,7 +3,9 @@ import type { Command } from 'commander';
 import { feedDir } from '../../paths.js';
 import { parsePort } from '../../utils/port.js';
 import { runForeground, type ForegroundResult } from '../../lifecycle.js';
-import { NotBuiltError, packageAssets, resolveUiDir } from '../assets.js';
+import { packageAssets, resolveUiDir } from '../assets.js';
+import { ERROR_CODES } from '../../constants/error-codes.js';
+import { AppError } from '../../utils/errors.js';
 import { CliError, type CliContext } from '../io.js';
 
 export interface StartDeps {
@@ -39,13 +41,13 @@ export function createStartRegister(overrides: Partial<StartDeps> = {}) {
         let port: number | undefined;
         if (opts.port !== undefined) {
           port = parsePort(opts.port, { allowZero: true });
-          if (port === undefined) throw new CliError(`invalid --port: ${opts.port}`, 2);
+          if (port === undefined) throw new CliError(`invalid --port: ${opts.port} (expected an integer 0-65535)`, 2, ERROR_CODES.INVALID_PORT);
         }
         let uiDir: string;
         try {
           uiDir = deps.uiDir();
         } catch (err) {
-          if (err instanceof NotBuiltError) throw new CliError(err.message, 1);
+          if (err instanceof AppError) throw new CliError(err.message, 1, err.code);
           throw err;
         }
         let stop: () => void = () => {};
@@ -58,7 +60,7 @@ export function createStartRegister(overrides: Partial<StartDeps> = {}) {
           onShutdown: () => stop(),
         });
         if (!result.started) {
-          throw new CliError(`already running at ${result.url} (pid ${result.pid}); stop it with: crontick-dashboard daemon stop`, 1);
+          throw new CliError(`already running at ${result.url} (pid ${result.pid}); stop it with: crontick-dashboard daemon stop`, 1, ERROR_CODES.ALREADY_RUNNING);
         }
         const dispose = deps.onSignal(() => stop());
         ctx.io.stdout(`crontick-dashboard running at ${result.server.url}\n`);

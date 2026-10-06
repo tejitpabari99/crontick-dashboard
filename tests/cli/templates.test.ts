@@ -60,6 +60,12 @@ describe('templates', () => {
     for (const p of paths) expect(existsSync(p), p).toBe(true);
   });
 
+  it('--verbose prints the error code', async () => {
+    const c = cap();
+    expect(await run(['--verbose', 'templates', 'nope'], c.io)).toBe(2);
+    expect(c.err).toContain('code: UNKNOWN_TYPE');
+  });
+
   it('unknown type exits 2 listing valid types', async () => {
     const c = cap();
     expect(await run(['templates', 'nope'], c.io)).toBe(2);

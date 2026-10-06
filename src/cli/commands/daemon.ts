@@ -1,8 +1,9 @@
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import { daemonStart, daemonStatus, daemonStop, type DaemonStartOptions } from '../../lifecycle.js';
-import { errorMessage } from '../../utils/errors.js';
+import { appErrorCode, errorMessage } from '../../utils/errors.js';
 import { packageAssets } from '../assets.js';
+import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';
 
 export interface DaemonDeps {
@@ -32,7 +33,7 @@ export function createDaemonRegister(deps: DaemonDeps = {}) {
         try {
           r = await daemonStart(o);
         } catch (err) {
-          throw new CliError(errorMessage(err), 1);
+          throw new CliError(errorMessage(err), 1, appErrorCode(err));
         }
         ctx.io.stdout(`${r.alreadyRunning ? 'already running' : 'started'}: ${r.url} (pid ${r.pid}, port ${r.port})\n`);
         ctx.io.stdout(`Log: ${r.logPath}\n`);
@@ -47,7 +48,7 @@ export function createDaemonRegister(deps: DaemonDeps = {}) {
           ctx.io.stdout('not running\n');
           return;
         }
-        if (!r.stopped) throw new CliError(`daemon (pid ${r.pid ?? '?'}) is still alive after stop timeout`, 1);
+        if (!r.stopped) throw new CliError(`daemon (pid ${r.pid ?? '?'}) is still alive after stop timeout; run kill -9 on that pid or check permissions`, 1, ERROR_CODES.DAEMON_STOP_TIMEOUT);
         ctx.io.stdout(`stopped (pid ${r.pid ?? '?'}, ${r.mode})\n`);
       });
 

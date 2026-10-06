@@ -2,16 +2,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from 'node:path';
 import { APP_NAME } from '../constants/app.js';
 import { SKILL_FILENAME } from '../constants/cli.js';
-
-export class SkillInstallError extends Error {
-  constructor(
-    readonly reason: 'not-found' | 'differs',
-    message: string,
-  ) {
-    super(message);
-    this.name = 'SkillInstallError';
-  }
-}
+import { ERROR_CODES } from '../constants/error-codes.js';
+import { AppError } from '../utils/errors.js';
 
 export interface InstallSkillOptions {
   /** Packaged SKILL.md. */
@@ -33,13 +25,13 @@ export interface InstallSkillResult {
 /** Copies the packaged SKILL.md into the skills dir as a regular file (atomic tmp+rename, never a symlink). */
 export function installSkill(opts: InstallSkillOptions): InstallSkillResult {
   const { skillPath, skillsDir, force, version } = opts;
-  if (!existsSync(skillPath)) throw new SkillInstallError('not-found', `packaged ${SKILL_FILENAME} not found at ${skillPath}`);
+  if (!existsSync(skillPath)) throw new AppError(ERROR_CODES.SKILL_NOT_FOUND, `packaged ${SKILL_FILENAME} not found at ${skillPath}; reinstall the package`);
   const content = readFileSync(skillPath);
   const destDir = join(skillsDir, APP_NAME);
   const dest = join(destDir, SKILL_FILENAME);
   if (existsSync(dest)) {
     if (readFileSync(dest).equals(content)) return { status: 'up-to-date', dest };
-    if (!force) throw new SkillInstallError('differs', `${dest} differs from the packaged skill (v${version}); rerun with --force to overwrite`);
+    if (!force) throw new AppError(ERROR_CODES.SKILL_DIFFERS, `${dest} differs from the packaged skill (v${version}); rerun with --force to overwrite`);
   }
   mkdirSync(destDir, { recursive: true });
   const tmp = join(destDir, `.${SKILL_FILENAME}.${opts.pid ?? process.pid}.tmp`);

@@ -139,7 +139,7 @@ describe('http server', () => {
 
   it('missing index.html throws NOT_BUILT', async () => {
     rmSync(join(ui, 'index.html'));
-    await expect(startServer({ env: env(), clock, uiDir: ui, logger, port: 0 })).rejects.toThrow(/NOT_BUILT/);
+    await expect(startServer({ env: env(), clock, uiDir: ui, logger, port: 0 })).rejects.toMatchObject({ code: 'NOT_BUILT' });
   });
 
   it('occupied fixed port falls back to a free port, notice, correct port file', async () => {

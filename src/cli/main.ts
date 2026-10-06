@@ -47,6 +47,7 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
     }
     if (err instanceof CliError) {
       io.stderr(`${red(err.message)}\n`);
+      if (ctx.verbose() && err.code) io.stderr(`code: ${err.code}\n`);
       return err.exitCode;
     }
     const e = err instanceof Error ? err : new Error(String(err));

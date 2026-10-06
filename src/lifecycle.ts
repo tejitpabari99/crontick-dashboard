@@ -21,7 +21,8 @@ import { probeHealth } from './http/bind-port.js';
 import { startServer, type RunningServer, type ServerLogger, type StartServerOptions } from './http/server.js';
 import { isPidAlive, readPidFile, readPortFile } from './pid.js';
 import { dataDir as dataDirOf, ensureDirs, lockFilePath, logFilePath, pidFilePath, portFilePath } from './paths.js';
-import { errnoCode } from './utils/errors.js';
+import { ERROR_CODES } from './constants/error-codes.js';
+import { AppError, errnoCode, notBuiltError } from './utils/errors.js';
 import { loopbackHost, loopbackUrl } from './utils/loopback.js';
 import { sleep as realSleep } from './utils/sleep.js';
 
@@ -155,7 +156,7 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
   if (existing.running) return toStartResult(existing, true, logPath);
 
   if (!existsSync(serverEntry)) {
-    throw new Error(`NOT_BUILT: server entry not found at ${serverEntry} (run npm run build)`);
+    throw notBuiltError('server entry', serverEntry);
   }
 
   const deadline = t.clock.now().getTime() + timeoutMs;
@@ -189,7 +190,10 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
         // Lost a race against a server that started outside the lock (e.g. foreground `start`)?
         const raced = await daemonStatus({ env });
         if (raced.running) return toStartResult(raced, true, logPath);
-        throw new Error(`daemon exited during startup (code ${String(exited)}); see log: ${logPath}`);
+        throw new AppError(
+          ERROR_CODES.DAEMON_START_FAILED,
+          `daemon exited during startup (code ${String(exited)}); see log: ${logPath}`,
+        );
       }
       await t.sleep(LIFECYCLE_POLL_MS);
     }
@@ -198,7 +202,10 @@ export async function daemonStart(opts: DaemonStartOptions = {}): Promise<Daemon
     } catch {
       /* already gone */
     }
-    throw new Error(`timed out after ${timeoutMs}ms waiting for daemon on ${dataDir}; see log: ${logPath}`);
+    throw new AppError(
+      ERROR_CODES.DAEMON_START_TIMEOUT,
+      `timed out after ${timeoutMs}ms waiting for daemon on ${dataDir}; see log: ${logPath}`,
+    );
   } finally {
     releaseLock(lock);
   }
@@ -273,7 +280,7 @@ async function acquireLock(path: string, deadline: number, t: Timing): Promise<v
       if (errnoCode(err) !== 'EEXIST') throw err;
     }
     removeIfStale(path, t.clock.now().getTime());
-    if (t.clock.now().getTime() >= deadline) throw new Error(`timed out waiting for ${path}; remove it if no daemon start is running`);
+    if (t.clock.now().getTime() >= deadline) throw new AppError(ERROR_CODES.LOCK_TIMEOUT, `timed out waiting for ${path}; remove it if no daemon start is running`);
     await t.sleep(LIFECYCLE_POLL_MS);
   }
 }

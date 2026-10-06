@@ -1,3 +1,5 @@
+import type { ErrorCode } from '../constants/error-codes.js';
+
 /** Injectable process surface so the CLI is testable without spawning. */
 export interface CliIo {
   stdout: (s: string) => void;
@@ -25,6 +27,8 @@ export class CliError extends Error {
   constructor(
     message: string,
     readonly exitCode = 1,
+    /** Machine-readable `ERROR_CODES` value, shown with --verbose. */
+    readonly code?: ErrorCode,
   ) {
     super(message);
     this.name = 'CliError';

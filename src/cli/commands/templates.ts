@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Command } from 'commander';
 import { getExampleFile, listTypes, registry, type RegisteredType } from '../../contract/index.js';
 import { packageAssets } from '../assets.js';
+import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';
 
 export function registerTemplates(program: Command, ctx: CliContext): void {
@@ -27,7 +28,7 @@ export function registerTemplates(program: Command, ctx: CliContext): void {
       }
       const file = getExampleFile(type);
       if (file === undefined) {
-        throw new CliError(`error: unknown type "${type}" (valid types: ${listTypes().join(', ')})`, 2);
+        throw new CliError(`error: unknown type "${type}" (valid types: ${listTypes().join(', ')})`, 2, ERROR_CODES.UNKNOWN_TYPE);
       }
       const examplePath = join(templatesDir, file);
       const schemaPath = join(schemasDir, `${type as RegisteredType}.json`);

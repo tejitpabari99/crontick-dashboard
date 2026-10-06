@@ -1,4 +1,5 @@
 import { JSON_CONTENT_TYPE, MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../../src/constants/http.js';
+import { ERROR_CODES } from '../../../src/constants/error-codes.js';
 import { useSyncExternalStore } from 'react';
 import type { LayoutItem, Snapshot, ViewCard } from './types.ts';
 import { getSnapshotStore, type SnapshotStore, type StoreState } from './store.ts';
@@ -131,7 +132,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
   ): Promise<void> {
     ops = [...ops, op];
     emit();
-    let failure: { status: number; message: string } | null = null;
+    let failure: { status: number; code?: string; message: string } | null = null;
     try {
       const res = await doFetch(`${base}${path}`, {
         method,
@@ -140,20 +141,22 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
       });
       if (!res.ok) {
         let message = `Request failed (${res.status})`;
+        let code: string | undefined;
         try {
-          const j = (await res.json()) as { error?: unknown };
+          const j = (await res.json()) as { error?: unknown; code?: unknown };
           if (typeof j.error === 'string' && j.error) message = j.error;
+          if (typeof j.code === 'string') code = j.code;
         } catch {
           /* keep default */
         }
-        failure = { status: res.status, message };
+        failure = code === undefined ? { status: res.status, message } : { status: res.status, code, message };
       }
     } catch (e) {
       failure = { status: 0, message: e instanceof Error ? e.message : 'Network error' };
     }
     if (failure) {
       removeOp(op.id);
-      toasts.push(failure.status === 409 ? CONFLICT_TOAST : (errorToast?.(failure.message) ?? failure.message));
+      toasts.push(failure.code === ERROR_CODES.CARD_CHANGED ? CONFLICT_TOAST : (errorToast?.(failure.message) ?? failure.message));
       void store.refetch();
       throw new Error(failure.message);
     }
