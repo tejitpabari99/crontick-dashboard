@@ -1,4 +1,4 @@
-/** Keyed warnings registry. Values surface in the snapshot's `warnings` (Task 7 wires `list()` in). */
+/** Keyed warnings registry. Values surface in the snapshot's `warnings`. */
 export interface Warnings {
   /** Set or replace the warning for `key`. */
   set(key: string, message: string): void;

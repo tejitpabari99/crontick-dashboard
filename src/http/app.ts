@@ -1,4 +1,4 @@
-/** Hono app: security envelope + read routes. Mutation routes (Tasks 8/9) attach in `mountMutations`. */
+/** Hono app: security envelope + read routes. Mutation routes attach in `mountMutations`. */
 import { Hono } from 'hono';
 import { APP_NAME } from '../constants/app.js';
 import type { ActionDeps } from '../actions/registry.js';

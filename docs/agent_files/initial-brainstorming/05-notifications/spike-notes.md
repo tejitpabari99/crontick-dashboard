@@ -9,7 +9,7 @@ date: 2026-10-05
 node-notifier stands as Task 2's adapter (provisional), behind `NotifyAdapter`. The shell-out adapter (`osascript`, PowerShell WinRT toast with AUMID `Crontick.Dashboard`, `notify-send`) is the fallback. Final go/no-go needs the owner run below.
 
 ## Verified here (Linux x64, Node v22.23.3, headless, SSH session)
-Script: `src/integrations/notify/spike/notify-spike.mjs` (throwaway, ESLint-ignored, not imported by `src`).
+Script: `scripts/notify-spike.mjs` (throwaway, ESLint-ignored, not imported by `src`).
 - `require('node-notifier')` from ESM via `createRequire` loads fine on Node 22; exports `Notification, NotifySend, NotificationCenter, WindowsToaster, WindowsBalloon, Growl`. No deprecation or load errors. Plain `import notifier from 'node-notifier'` also works (CJS default interop); Task 2 can use either.
 - No DISPLAY/WAYLAND_DISPLAY, `notify-send` present at `/usr/bin/notify-send`, no notification daemon: node-notifier does NOT throw. It invokes `notify-send "..." --expire-time 5000`, which fails with `GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.Notifications was not provided by any .service files`; delivered as `err` in the callback (exit 1 in the spike). Same result with fake `DISPLAY=:99`.
 - Implications for Task 2/6: errors arrive via callback, not exceptions, so the adapter must wrap the callback in a Promise and reject/log there; the `auto` gate (Task 3) is still needed since `notify-send` on PATH does not imply a daemon. On Linux `wait`/`appID` are ignored (no click callback, no `click` event).
@@ -34,8 +34,8 @@ Script: `src/integrations/notify/spike/notify-spike.mjs` (throwaway, ESLint-igno
 Prereq: Node >= 22.5, clone repo, checkout branch `sp05-notifications`, `npm install`.
 Run on each of Windows and macOS (note the OS version, and on mac Intel vs Apple silicon):
 ```
-node src/integrations/notify/spike/notify-spike.mjs
-node src/integrations/notify/spike/notify-spike.mjs http://127.0.0.1:7777/#card=abc
+node scripts/notify-spike.mjs
+node scripts/notify-spike.mjs http://127.0.0.1:7777/#card=abc
 ```
 The script prints JSON lines (`env`, `loaded`, `notify-call`, `event:*`, `callback`, `open-*`) and exits within 60 s. Observe and record:
 1. Toast shown? (Windows: attributed to "Crontick.Dashboard"? Start-menu shortcut created? macOS: shown as terminal-notifier or Terminal?)

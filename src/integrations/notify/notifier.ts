@@ -1,10 +1,10 @@
 /**
- * Notifier core (05 Task 4): turns 02 card events into OS toasts.
+ * Notifier core: turns 02 card events into OS toasts.
  *
  * Subscribes to `card:new` / `card:changed`; only cards with `notify:true` produce a toast.
  * 02 already guarantees non-Broken, in-window, changed-`updatedAt` and dedupes via `notified`,
- * so there is no dedupe here. All deliveries go through the single `dispatch()` seam:
- * Task 5 (burst control) wraps/replaces it, Task 6 hardens deliver() (failure isolation + warnings).
+ * so there is no dedupe here. All deliveries go through the single `dispatch()` seam.
+ * Burst control wraps `dispatch()`; `deliver()` isolates failures and records warnings.
  *
  * Body = one plain-text line (<=140 chars), never the card `data` beyond that line:
  *  markdown: first non-empty line, markdown syntax stripped
@@ -34,7 +34,7 @@ export interface NotifierOptions {
   events: Pick<CardEvents, 'on'>;
   adapter: NotifyAdapter;
   getPort: () => number;
-  /** Boolean or a resolved gate result (Task 3). Function form is re-read per event. */
+  /** Boolean or a resolved gate result. Function form is re-read per event. */
   gate: GateValue | (() => GateValue);
   /** Optional warnings registry (02 `server.warnings`): off-state + delivery-failure warnings. */
   warnings?: { set(key: string, message: string): void; clear(key: string): void };
@@ -152,7 +152,7 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     });
   }
 
-  /** Single delivery seam: burst control (Task 5) then deliver(). */
+  /** Single delivery seam: burst control then deliver(). */
   function dispatch(payload: NotifyPayload, meta: { high: boolean }): void {
     const now = clock.now().getTime();
     if (windowEnd !== 0 && now >= windowEnd) flushSummary(); // window expired: close it, start fresh

@@ -65,7 +65,7 @@ export interface CardChange {
   selfWrite?: boolean;
 }
 
-/** Fired for every accepted (valid) ingest, before the store is rebuilt. Seam for archive (T4) / self-write (T10). */
+/** Fired for every accepted (valid) ingest, before the store is rebuilt. Seam for archive. */
 export interface IngestInfo {
   file: string;
   text: string;
@@ -92,7 +92,7 @@ export interface CardStore {
 
 export interface FeedIngest {
   store: CardStore;
-  /** file name -> sha256 hex of bytes the server wrote (Task 10). Consumed on matching ingest. */
+  /** file name -> sha256 hex of bytes the server wrote. Consumed on matching ingest. */
   selfWrites: Map<string, string>;
   /** Ingest one file now (synchronous). Also used after server write-backs. */
   processFile(name: string): void;

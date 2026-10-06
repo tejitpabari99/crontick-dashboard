@@ -1,4 +1,4 @@
-// Pure table logic (04 Task 3). UI may only `import type` from src/**, so `cellText` is mirrored here
+// Pure table logic. UI may only `import type` from src/**, so `cellText` is mirrored here
 // (parity with 01's runtime `cellText` is asserted in ui/tests/types/table-logic.test.ts).
 import type { Cell, TableData } from '../../../../src/index.js';
 import { MAX_FILTER_VALUES } from '../../constants/types.ts';

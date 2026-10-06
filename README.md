@@ -28,6 +28,8 @@ Write a card to `<feedDir>/hello.json` (the file name must equal the `id`):
 
 Check it with `crontick-dashboard validate <feedDir>/hello.json`, then open the URL from `info` in a browser. Stop with `crontick-dashboard daemon stop`.
 
+Default port: 47616 (falls back to a free port if taken; `info` prints the real URL).
+
 To teach Claude agents to write cards: `crontick-dashboard skill install`.
 
 ## Documentation

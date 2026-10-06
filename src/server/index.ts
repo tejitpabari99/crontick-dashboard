@@ -1,4 +1,4 @@
-// Server entry (built to dist/server/index.js). Task 11 lifecycle spawns this detached.
+// Server entry (built to dist/server/index.js). The daemon lifecycle spawns this detached.
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ENV_UI_DIR } from '../constants/env.js';

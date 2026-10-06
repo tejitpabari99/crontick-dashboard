@@ -7,7 +7,7 @@ import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';
 
 export interface DaemonDeps {
-  /** Server entry to spawn. Default: <package root>/dist/server/index.js (the bundled lifecycle's own default would resolve under dist/cli). */
+  /** Server entry to spawn. Default: <package root>/dist/server/index.js. */
   serverEntry?: string;
   nodeArgs?: string[];
   startupTimeoutMs?: number;

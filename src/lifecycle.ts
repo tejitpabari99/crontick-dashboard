@@ -5,8 +5,6 @@
  */
 import { spawn as nodeSpawn, type SpawnOptions } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { realClock, type Clock } from './clock.js';
 import { APP_NAME } from './constants/app.js';
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE, JSON_CONTENT_TYPE } from './constants/http.js';
@@ -27,9 +25,6 @@ import { loopbackHost, loopbackUrl } from './utils/loopback.js';
 import { sleep as realSleep } from './utils/sleep.js';
 
 type Env = NodeJS.ProcessEnv;
-
-/** Production default: dist/server/index.js next to the built lifecycle module (dist/lifecycle.js). */
-export const defaultServerEntry = (): string => resolve(dirname(fileURLToPath(import.meta.url)), 'server/index.js');
 
 export interface DaemonStatus {
   running: boolean;
@@ -66,8 +61,8 @@ interface Timing {
 const timingOf = (o: DaemonOptions): Timing => ({ clock: o.clock ?? realClock, sleep: o.sleep ?? realSleep });
 
 export interface DaemonStartOptions extends DaemonOptions {
-  /** Server entry to spawn. Default: dist/server/index.js relative to this module. */
-  serverEntry?: string;
+  /** Built server entry to spawn (the CLI passes `<package root>/dist/server/index.js`). */
+  serverEntry: string;
   /** Extra node args before the entry (tests: ['--import', 'tsx']). */
   nodeArgs?: string[];
   startupTimeoutMs?: number;
@@ -142,12 +137,12 @@ export async function runForeground(
 }
 
 /** `daemon start`: idempotent detached start; serialized by an exclusive daemon.lock. */
-export async function daemonStart(opts: DaemonStartOptions = {}): Promise<DaemonStartResult> {
+export async function daemonStart(opts: DaemonStartOptions): Promise<DaemonStartResult> {
   const env = opts.env ?? process.env;
   const timeoutMs = opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS;
   const t = timingOf(opts);
   const spawn: SpawnFn = opts.spawn ?? nodeSpawn;
-  const serverEntry = opts.serverEntry ?? defaultServerEntry();
+  const serverEntry = opts.serverEntry;
   const logPath = logFilePath(env);
   const dataDir = dataDirOf(env);
   ensureDirs(env);
