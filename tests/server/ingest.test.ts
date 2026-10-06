@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,19 @@ const put = (name: string, text: string, mtimeSec?: number) => {
   writeFileSync(join(dir, name), text);
   if (mtimeSec !== undefined) utimesSync(join(dir, name), mtimeSec, mtimeSec);
 };
+
+/** Two files differing only by extension case (a.json / a.JSON) cannot coexist on case-insensitive filesystems (macOS, Windows). */
+function isCaseInsensitiveFs(): boolean {
+  const probe = mkdtempSync(join(tmpdir(), 'case-'));
+  try {
+    writeFileSync(join(probe, 'x.json'), '1');
+    writeFileSync(join(probe, 'x.JSON'), '2');
+    return readdirSync(probe).length === 1;
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+}
+const itCaseSensitive = isCaseInsensitiveFs() ? it.skip : it;
 
 function setup() {
   const changes: CardChange[] = [];
@@ -130,7 +143,7 @@ describe('feed ingest', () => {
     expect(ing.store.get('file:big.json')).toMatchObject({ status: 'broken', reason: 'too-large' });
   });
 
-  it('id collision: newest updatedAt wins; loser is duplicate-id', () => {
+  itCaseSensitive('id collision: newest updatedAt wins; loser is duplicate-id', () => {
     const { ing } = setup();
     put('a.json', card('a', '2026-01-01T00:00:00Z'));
     put('a.JSON', card('a', '2026-02-01T00:00:00Z'));
@@ -143,7 +156,7 @@ describe('feed ingest', () => {
     });
   });
 
-  it('id collision tie breaks on newest mtime', () => {
+  itCaseSensitive('id collision tie breaks on newest mtime', () => {
     const { ing } = setup();
     put('a.json', card('a'), 1000);
     put('a.JSON', card('a'), 2000);

@@ -75,10 +75,10 @@ describe('skill install', () => {
 
   it('Windows-style --dir and homedir strings are used verbatim-joined', async () => {
     const s = setup();
-    const c = await exec(['skill', 'install', '--dir', join(s.root, 'C:\\Users\\x y', 'skills')], s.deps);
+    const c = await exec(['skill', 'install', '--dir', join(s.root, 'Users\\x y', 'skills')], s.deps);
     expect(c.code).toBe(0);
     mkdirSync(join(s.root, 'ok'));
-    const d = await exec(['skill', 'install'], { ...s.deps, homedir: () => join(s.root, 'C:\\Users\\x') });
+    const d = await exec(['skill', 'install'], { ...s.deps, homedir: () => join(s.root, 'Users\\x') });
     expect(d.code).toBe(0);
   });
 

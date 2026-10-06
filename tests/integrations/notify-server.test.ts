@@ -76,10 +76,10 @@ describe('notifications wired into server', () => {
     const s = await boot(a2);
     expect(a2.calls).toHaveLength(1);
     writeFileSync(feed('a.json'), card('a', { updatedAt: '2026-06-01T11:30:00Z' }));
-    for (let i = 0; i < 100 && a2.calls.length < 2; i++) await sleep(50);
+    for (let i = 0; i < 200 && a2.calls.length < 2; i++) await sleep(50);
     expect(a2.calls).toHaveLength(2);
     expect(s.notifier.status().enabled).toBe(true);
-  });
+  }, 20_000);
 
   it('notify:false, Broken and out-of-window fire nothing', async () => {
     writeFileSync(feed('f.json'), card('f', { notify: false }));

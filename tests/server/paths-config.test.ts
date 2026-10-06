@@ -35,7 +35,7 @@ describe('paths', () => {
     expect(lockFilePath(env)).toBe(join(home, 'daemon.lock'));
   });
   it('falls back to env-paths default without override', () => {
-    expect(dataDir({})).toMatch(/crontick-dashboard$/);
+    expect(dataDir({})).toMatch(/crontick-dashboard([\\/]Data)?$/);
   });
   it('first run creates layout, default config, no state.json', () => {
     ensureDirs(env);
