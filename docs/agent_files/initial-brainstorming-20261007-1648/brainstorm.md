@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 summary: Panels become feed/<id>/ folders (card.json view def + data.json content); fixed 3-column Glance layout replaces drag/resize; alerts become single one-line files.
 date: 2026-10-07
 ---
@@ -22,7 +22,7 @@ The v0.1.0 grid lets the owner drag and resize, stores positions in `state.json`
 |---|---|---|
 | Panel = folder `<data>/feed/<id>/`; folder name is the id | Single `feed/<id>.json` (v0.1.0) | Separates view definition from agent content |
 | Root folder stays named `feed/` | `cards/` | Owner preference; "feed" already is the term |
-| `card.json` = view def: `type`, `title`, `data` (relative path, default `data.json`, must stay inside the folder), `layout`, `priority`, `notify`, `show`, `staleAfter`, `retention` | Everything in one file | View is set once; content changes constantly |
+| `card.json` = view def: `type`, `title`, `data` (relative path, default `data.json`, must stay inside the folder), `layout`, `priority`, `notify`, `show`, `staleAfter` | Everything in one file | View is set once; content changes constantly |
 | `data.json` = `{ updatedAt?, priority?, error?, data, x-… }` | Raw body only | Keeps freshness, override and error signalling with content |
 | Drop old single-file panel format, no back-compat | Support both | Pre-1.0, PR unmerged, nobody depends on it |
 | No drag, no resize; remove layout from `state.json` | Keep drag | Too much for v1; files are the source of truth |
@@ -38,11 +38,11 @@ The v0.1.0 grid lets the owner drag and resize, stores positions in `state.json`
 | Missing/invalid card.json → folder ignored with a warning | Broken card | No view def means nothing to render |
 | `updatedAt` optional in data.json; fallback to file mtime | Required | Agent writes only content. Cost: no-op rewrite counts as new (can re-notify) |
 | Only a new data.json version is "new content" (resets Done, notifies); card.json edits re-render live only | Any change counts | Layout tweaks must not spam notifications |
-| Archive keeps previous data.json versions only (`archive/<id>/`) | Archive both files | card.json is owner config; git is better for it |
+| No archive: overwritten data.json is not kept; `retention` field and `retentionDefault` config removed | Archive previous data.json versions | Owner: not needed; less mechanism |
 | Alerts are single files `feed/alerts/<id>.json`: `title`, `text` (one line, ≤ ~200 chars), `link?`, `priority?`, `notify?`, `show?`, `updatedAt?` (mtime fallback). No type, no layout. Tick moves to `feed/alerts/.done/` | Alerts as folders (earlier pick, reversed by owner) | Alerts are one-liners; two files is heavy; the shape enforces brevity |
 | Alert strip stays full width at top, alerts rendered as **line** rows | Alerts in a column | Unmissable |
 | Low-priority panels still collapse to a chip until clicked | Drop collapsing | Priority should affect presentation |
-| Done panels shrink to a chip in their own slot | Bottom Done tray (v0.1.0) | Keeps spatial memory; matches owner's "shrunk done card" idea. **Flag: confirm** |
+| Done panels shrink to a chip in their own slot | Bottom Done tray (v0.1.0) | Keeps spatial memory; matches owner's "shrunk done card" idea. |
 | JSON for all files; `new` writes a `$schema` reference into card.json; schemas generated from zod and committed | YAML / XML card.json | Editor autocomplete + validation, no new parser, agents write JSON reliably |
 | CLI: `validate <folder>` checks both files (and alert files); new `new <id> --type <t>` scaffolds a folder | Validate only | Prevents two-file mistakes |
 | Five visual types and their data schemas unchanged | Redesign types | Out of scope |
@@ -59,7 +59,6 @@ The v0.1.0 grid lets the owner drag and resize, stores positions in `state.json`
   alerts/
     deploy-failed.json
     .done/         ← ticked alerts
-archive/<id>/      ← previous data.json versions
 state.json         ← acks, hides, checks, Done (no layout)
 ```
 
@@ -109,7 +108,7 @@ Server still computes placement as a pure function (cards, state, config, clock)
 | Feed/ingest | Watch `feed/*/` folders and `feed/alerts/`; resolve `data` path safely inside folder; mtime fallback; settle-retry per file |
 | Compute | Columns + order instead of grid slots; Now at top of center; chip for Done/collapsed; priority override; "No data yet" state |
 | State | Drop layout; Done reset only on new data.json version |
-| Archive / write-back | Archive data.json; `complete` write-back edits data.json; alert tick moves file to `alerts/.done/` |
+| Write-back | `complete` write-back edits data.json; alert tick moves file to `alerts/.done/`; remove archive module, `retention`, `retentionDefault` |
 | UI | Three-column layout, heights, chip and line renderings; remove drag/resize |
 | CLI / skill | `validate <folder>`, `new`, templates per type as folders; SKILL.md teaches the folder model |
 | Docs | ADR 0002 amended, concepts/reference updated; futures.md gains the cut items |
@@ -139,4 +138,3 @@ Server still computes placement as a pure function (cards, state, config, clock)
 | Two files per card is too much friction for agents | Final acceptance: the Claude skill builds the email-summary card from scratch with `new` + one data.json write. If it fails, merge files or improve the skill |
 | Fixed ~300px sides too narrow for tables | Render the table template in a side column; fallback is guidance "tables go center" |
 | mtime fallback causes re-notify on no-op rewrites | Watch real agent behaviour; skill tells agents to set `updatedAt` when content truly changes |
-| Done-as-chip-in-place vs bottom tray | Owner confirms during brief review |
