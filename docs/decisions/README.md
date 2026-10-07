@@ -27,7 +27,7 @@ A change to a rule in [design principles](../tech/design-principles.md) that ref
 
 | # | Title | Status | Date |
 |---|-------|--------|------|
-| [0001](0001-custom-build-and-runtime-model.md) | Custom build and local runtime model | Accepted | 2026-10-05 |
-| [0002](0002-generic-visual-types-and-card-contract.md) | Generic visual types and a validated card contract | Accepted | 2026-10-05 |
-| [0003](0003-toolchain-and-distribution.md) | Toolchain and distribution | Accepted | 2026-10-05 |
+| [0001](0001-custom-build-and-runtime-model.md) | Custom build and local runtime model | Accepted, amended 2026-10-07 | 2026-10-07 |
+| [0002](0002-generic-visual-types-and-card-contract.md) | Generic visual types and a validated card contract | Accepted, amended 2026-10-07 (card folders, declared layout, no archive) | 2026-10-07 |
+| [0003](0003-toolchain-and-distribution.md) | Toolchain and distribution | Accepted, amended 2026-10-07 | 2026-10-07 |
 | [0004](0004-os-notifications-via-node-notifier.md) | OS notifications via node-notifier | Proposed | 2026-10-05 |

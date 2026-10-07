@@ -1,6 +1,6 @@
 # 0001: Custom build and local runtime model
 
-- Status: Accepted
+- Status: Accepted, amended 2026-10-07
 - Date: 2026-10-05
 
 ## Context
@@ -13,9 +13,9 @@ Existing dashboards were evaluated: Homarr was reviewed by the owner (too crowde
 
 Build a small custom dashboard, in its own repository, with no integration into crontick.
 
-- **Input is files.** Agents write one JSON file per card into `<data>/feed/`. Card config and data are one file. Any agent can feed it; sources of truth stay where they are.
+- **Input is files.** Agents write one JSON file per card into `<data>/feed/`. Card config and data are one file. *(superseded 2026-10-07, see [ADR 0002 amendment](0002-generic-visual-types-and-card-contract.md#amendment-2026-10-07-card-folders-declared-layout-single-file-alerts))* Any agent can feed it; sources of truth stay where they are.
 - **Local, single user.** Binds `127.0.0.1` only, no auth. Exposing it is the owner's infrastructure choice.
-- **Small server plus static UI.** A Node server watches the feed, validates, archives, computes visibility, serves a pure snapshot over HTTP, applies a few fixed mutations, and fires notifications. A React UI polls the snapshot.
+- **Small server plus static UI.** A Node server watches the feed, validates, archives *(archive superseded 2026-10-07, see [ADR 0002 amendment](0002-generic-visual-types-and-card-contract.md#amendment-2026-10-07-card-folders-declared-layout-single-file-alerts))*, computes visibility, serves a pure snapshot over HTTP, applies a few fixed mutations, and fires notifications. A React UI polls the snapshot.
 - **Server computes, UI draws.** Visibility, Broken, Now, and Done are computed by a pure function on the server so they are testable and identical for every client.
 - **Run model.** Started manually by CLI, crontick-style (foreground or `daemon`), one server per data dir; no autostart or service install in v1.
 - **Look.** Borrow Glance's HSL theme tokens and narrow-wide-narrow arrangement and a few cheap UX patterns (visited-link colour, relative "updated" time, search shortcut); do not use Glance itself.
@@ -38,3 +38,7 @@ Easier: agents are decoupled and need only write files; state is inspectable and
 ## Revisit when
 
 Two weeks of real use fail a kill criterion, a second producer needs push semantics, or missed notifications while the server is down become a real problem (reconsider autostart).
+
+## Amendment 2026-10-07
+
+Three statements above changed; see [ADR 0002's amendment](0002-generic-visual-types-and-card-contract.md#amendment-2026-10-07-card-folders-declared-layout-single-file-alerts) for the decision and rationale: panels are folders (`card.json` + `data.json`), not one file per card; alerts remain single files under `feed/alerts/`; the server no longer archives. The rest of this ADR is unchanged.

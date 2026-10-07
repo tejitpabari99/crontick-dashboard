@@ -1,6 +1,6 @@
 # 0003: Toolchain and distribution
 
-- Status: Accepted
+- Status: Accepted, amended 2026-10-07
 - Date: 2026-10-05
 
 ## Context
@@ -10,7 +10,7 @@ crontick-dashboard runs on the same machine as the agents (Linux VPS, Windows or
 ## Decision
 
 - **One npm package** `crontick-dashboard`, ESM-only, Node >= 22.5, containing the CLI, server, built UI, generated schemas, templates, and the Claude skill. Global install or `npx`.
-- **TypeScript everywhere.** Server and CLI built with tsup; UI is React plus Vite, with react-grid-layout for the grid; vitest for tests; Playwright for one smoke path.
+- **TypeScript everywhere.** Server and CLI built with tsup; UI is React plus Vite, with react-grid-layout for the grid *(superseded 2026-10-07: no drag/resize, fixed three-column CSS layout, so this dependency is dropped; see [ADR 0002 amendment](0002-generic-visual-types-and-card-contract.md#amendment-2026-10-07-card-folders-declared-layout-single-file-alerts))*; vitest for tests; Playwright for one smoke path.
 - **Build order:** generate schemas, build the UI, bundle the server, copy the UI into the package.
 - **Few runtime dependencies,** platform APIs preferred (see [P8](../tech/design-principles.md)): Hono, commander, croner (cron windows), env-paths, node-notifier, zod. UI libraries are bundled at build time.
 - **Data location** via `env-paths` with a `CRONTICK_DASHBOARD_HOME` override; a fixed default port on loopback with free-port fallback.

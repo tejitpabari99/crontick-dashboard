@@ -1,6 +1,6 @@
 # 0002: Generic visual types and a validated card contract
 
-- Status: Accepted
+- Status: Accepted, amended 2026-10-07
 - Date: 2026-10-05
 
 ## Context
@@ -10,6 +10,7 @@ The dashboard must show very different content (a mail table, office-hours notes
 ## Decision
 
 - **Generic, domain-agnostic types:** `markdown`, `table`, `list`, `kpi`, `media`. Agents decide content. A TickTick list is a `list`; an email summary is a `table`.
+- **One card, one file; `size`; archived versions.** *(superseded 2026-10-07, see Amendment: panels are folders, `size` becomes `layout.height`, no archive.)*
 - **One contract, schema-first.** zod is the source of truth for the envelope and each type's data. JSON Schemas are generated and committed (CI checks drift); TypeScript types are inferred. One validator serves the server and the CLI `validate`.
 - **Strict required fields, extras allowed.** Unknown fields are preserved everywhere so agents can store their own data; `x-` keys are reserved for agents.
 - **Never silent.** Invalid, errored, or stale cards render as Broken with a reason; stale data is never shown as if current.
@@ -32,3 +33,32 @@ Easier: adding a type, validating before writing, evolving agents independently.
 ## Revisit when
 
 A needed view cannot be expressed by the five types and extras (consider a new type), or schema drift between agents becomes a recurring failure.
+
+## Amendment 2026-10-07: card folders, declared layout, single-file alerts
+
+Design brief: [brainstorm.md](../agent_files/initial-brainstorming-20261007-1648/brainstorm.md). Owner-approved; pre-1.0, so no back-compat.
+
+### Decision
+
+- **Panels are folders** `<data>/feed/<id>/`: `card.json` (view definition: `type`, `title`, `data` path defaulting to `data.json` and confined to the folder, `layout`, `priority`, `notify`, `show`, `staleAfter`) and `data.json` (`updatedAt?` with file-mtime fallback, `priority?` override, `error?`, `data`, `x-` keys). View is set once; content changes constantly. The old single-file `feed/<id>.json` is dropped.
+- **Declared layout, no drag or resize.** `layout.column` (`left`/`center`/`right`, default `center`), `layout.order` (integer, ties by id), `layout.height` (`S`/`M`/`L`/`auto`) replace `size`. Nothing about layout is stored in `state.json`. Three fixed columns: fixed ~300px sides, flexible center; Now zone at the top of the center column.
+- **Compact presentation by engine:** Done and low-priority panels render as title chips in their own slot (no bottom Done tray).
+- **Alerts are single files** `feed/alerts/<id>.json`: `title`, one-line `text` (about 200 chars max), `link?`, `priority?`, `notify?`, `show?`, `updatedAt?`. No type, no layout. Shown as one-line rows in a full-width strip; ticking moves the file to `feed/alerts/.done/`.
+- **No archive.** Overwritten `data.json` is not kept; the `retention` card field and `retentionDefault` config are removed.
+- **JSON with `$schema`:** `card.json` carries a `$schema` reference for editor validation (schemas still generated from zod and committed). CLI gains `new <id> --type <t>` (scaffold a folder) and `validate <folder>` (checks both files and alert files).
+- Only a new `data.json` version counts as new content (resets Done, notifies); `card.json` edits re-render live only.
+
+### Supersedes
+
+- "One card, one file" (also ADR 0001's "card config and data are one file").
+- `size` (replaced by `layout.height`), drag/resize grid placement, and layout persisted in `state.json`.
+- Bottom Done tray.
+- Archive of previous versions, `retention`, `retentionDefault` (also "archives" in ADR 0001).
+
+### Consequences
+
+Easier: agents rewrite only content; layout is plain files, diffable and reviewable; less server mechanism (no archive module, no grid dependency); schema editor support. Harder: two files per panel (mitigated by `new` and `validate`); no-op `data.json` rewrites count as new content when `updatedAt` is omitted (can re-notify); no way to rearrange from the UI; no recovery of overwritten data.
+
+### Unchanged
+
+The five visual types and their data schemas, the strict-required/extras-allowed contract, the never-silent Broken rule, the registry model, and the fixed action set.
