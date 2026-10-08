@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { Command } from 'commander';
-import { validateCardFile, type ValidationResult } from '../../contract/index.js';
+import { validateCardFile, type ValidationResult } from '../../feed/legacy-envelope.js';
 import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';
 import { errnoCode } from '../../utils/errors.js';

@@ -6,7 +6,8 @@ import { buildSchemas } from '../../scripts/schemas-build.js';
 import { alertSchema } from '../../src/contract/alert.js';
 import { cardDefSchema } from '../../src/contract/card-def.js';
 import { dataFileSchema } from '../../src/contract/data-file.js';
-import { dataRequired, getExample, getLegacyExample, listTypes, registry, validateCardFile } from '../../src/index.js';
+import { dataRequired, getExample, listTypes, registry } from '../../src/index.js';
+import { getLegacyExample, validateCardFile } from '../../src/feed/legacy-envelope.js';
 
 const root = join(import.meta.dirname, '..', '..');
 const read = (p: string) => readFileSync(join(root, p), 'utf8');

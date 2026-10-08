@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { envelopeSchema } from '../../src/contract/envelope.js';
+import { envelopeSchema } from '../../src/feed/legacy-envelope.js';
 import { listTypes } from '../../src/contract/registry.js';
 
 const base = {

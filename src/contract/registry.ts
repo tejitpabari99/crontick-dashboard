@@ -9,11 +9,6 @@ import mediaCard from '../../templates/media/card.json' with { type: 'json' };
 import mediaData from '../../templates/media/data.json' with { type: 'json' };
 import tableCard from '../../templates/table/card.json' with { type: 'json' };
 import tableData from '../../templates/table/data.json' with { type: 'json' };
-import kpiExample from '../../templates/kpi.example.json' with { type: 'json' };
-import listExample from '../../templates/list.example.json' with { type: 'json' };
-import markdownExample from '../../templates/markdown.example.json' with { type: 'json' };
-import mediaExample from '../../templates/media.example.json' with { type: 'json' };
-import tableExample from '../../templates/table.example.json' with { type: 'json' };
 import { kpiDataSchema, kpiSummary } from './types/kpi.js';
 import { listDataSchema, listSummary } from './types/list.js';
 import { markdownDataSchema, markdownSummary } from './types/markdown.js';
@@ -68,33 +63,4 @@ export function getExample(type: string): Example | undefined {
 export function dataRequired(type: string): boolean {
   void type;
   return true;
-}
-
-// --- Legacy shims (single-file envelope era); removed by Tasks 4/5 and SP04. ---
-const LEGACY_EXAMPLES = {
-  markdown: markdownExample,
-  table: tableExample,
-  list: listExample,
-  kpi: kpiExample,
-  media: mediaExample,
-} as const satisfies Record<RegisteredType, unknown>;
-const LEGACY_KINDS = {
-  markdown: ['panel', 'alert'],
-  table: ['panel'],
-  list: ['panel', 'alert'],
-  kpi: ['panel', 'alert'],
-  media: ['panel'],
-} as const satisfies Record<RegisteredType, readonly string[]>;
-
-/** @deprecated legacy envelope example card (templates/<type>.example.json). */
-export function getLegacyExample(type: string): unknown {
-  return isRegisteredType(type) ? structuredClone(LEGACY_EXAMPLES[type]) : undefined;
-}
-/** @deprecated legacy example file name. */
-export function getExampleFile(type: string): string | undefined {
-  return isRegisteredType(type) ? `${type}.example.json` : undefined;
-}
-/** @deprecated legacy allowed kinds per type. */
-export function legacyAllowedKinds(type: RegisteredType): readonly string[] {
-  return LEGACY_KINDS[type];
 }

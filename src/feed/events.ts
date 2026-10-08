@@ -13,7 +13,7 @@
  * A card turning into a Broken file emits nothing.
  */
 import type { Clock } from '../clock.js';
-import type { Card } from '../contract/validate.js';
+import type { Card } from './legacy-envelope.js';
 import { brokenReason, inWindow } from '../compute/snapshot.js';
 import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';

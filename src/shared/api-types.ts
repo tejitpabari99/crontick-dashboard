@@ -2,7 +2,7 @@
  * Shared API DTOs. TYPE-ONLY: nothing here may exist at runtime, so UI/CLI code
  * can `import type` from this file without pulling in server code.
  */
-import type { BrokenReason } from '../contract/validate.js';
+import type { BrokenReason } from '../feed/legacy-envelope.js';
 
 export type ViewReason = BrokenReason | 'error' | 'stale' | 'duplicate-id';
 

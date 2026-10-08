@@ -1,9 +1,74 @@
+// TEMPORARY: v0.1.0 envelope kept only until SP02/SP04 rewrite ingest/CLI; delete then.
+// Not exported from src/index.ts. Moved verbatim from src/contract/{envelope,validate,registry}.ts.
+import { z } from 'zod';
 import { realClock } from '../clock.js';
 import { CLOCK_SKEW_MS, ID_PATTERN, MAX_CARD_BYTES } from '../constants/contract.js';
 import { MS_PER_MINUTE } from '../constants/time.js';
+import { cronSchema, durationSchema, timestampSchema } from '../contract/formats.js';
+import { isRegisteredType, registry, type RegisteredType } from '../contract/registry.js';
 import { errorMessage } from '../utils/errors.js';
-import { envelopeSchema, type Envelope } from './envelope.js';
-import { isRegisteredType, legacyAllowedKinds, registry } from './registry.js';
+import kpiExample from '../../templates/kpi.example.json' with { type: 'json' };
+import listExample from '../../templates/list.example.json' with { type: 'json' };
+import markdownExample from '../../templates/markdown.example.json' with { type: 'json' };
+import mediaExample from '../../templates/media.example.json' with { type: 'json' };
+import tableExample from '../../templates/table.example.json' with { type: 'json' };
+
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
+
+function isValidId(v: string): boolean {
+  if (!ID_PATTERN.test(v)) return false;
+  if (v.endsWith('.')) return false;
+  // Windows reserves the name before the first dot, with or without extension.
+  return !WINDOWS_RESERVED.test(v.split('.')[0]!);
+}
+
+export const idSchema = z.string().refine(isValidId, {
+  message:
+    `id must match ${ID_PATTERN.source}, not end with ".", and not be a Windows reserved name (con, prn, aux, nul, com1-9, lpt1-9)`,
+});
+
+export const showSchema = z.looseObject({
+  cron: cronSchema,
+  for: durationSchema.optional(),
+});
+
+/**
+ * Card envelope. Unknown keys are preserved untouched everywhere (C2).
+ * Keys starting with `x-` are reserved: the contract will never use them, agents may.
+ */
+export const envelopeSchema = z
+  .looseObject({
+    id: idSchema,
+    kind: z.enum(['panel', 'alert']),
+    type: z.string(),
+    title: z.string().min(1).max(200),
+    updatedAt: timestampSchema,
+    priority: z.number().int().min(0).max(5).default(2),
+    notify: z.boolean().default(false),
+    show: showSchema.optional(),
+    staleAfter: durationSchema.optional(),
+    retention: durationSchema.optional(),
+    size: z.enum(['S', 'M', 'L']).default('M'),
+    error: z
+      .string()
+      .nullable()
+      .transform((v) => (v === '' ? null : v))
+      .default(null),
+    data: z.looseObject({}).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.data === undefined && v.error === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['data'],
+        message: 'data is required unless error is set to a non-empty string',
+      });
+    }
+  });
+
+export type Envelope = z.infer<typeof envelopeSchema>;
+export type EnvelopeInput = z.input<typeof envelopeSchema>;
+export type Show = z.infer<typeof showSchema>;
 
 export type Card = Omit<Envelope, 'data'> & { data?: Record<string, unknown> };
 
@@ -138,4 +203,30 @@ function validate(text: string, opts?: ValidateOptions): ValidationResult {
     warnings.push(`updatedAt is more than ${CLOCK_SKEW_MS / MS_PER_MINUTE} minutes in the future (clock skew?)`);
   }
   return { ok: true, card: card as Card, warnings };
+}
+
+// --- Legacy example/kind helpers (single-file envelope era). ---
+const LEGACY_EXAMPLES = {
+  markdown: markdownExample,
+  table: tableExample,
+  list: listExample,
+  kpi: kpiExample,
+  media: mediaExample,
+} as const satisfies Record<RegisteredType, unknown>;
+const LEGACY_KINDS = {
+  markdown: ['panel', 'alert'],
+  table: ['panel'],
+  list: ['panel', 'alert'],
+  kpi: ['panel', 'alert'],
+  media: ['panel'],
+} as const satisfies Record<RegisteredType, readonly string[]>;
+
+export function getLegacyExample(type: string): unknown {
+  return isRegisteredType(type) ? structuredClone(LEGACY_EXAMPLES[type]) : undefined;
+}
+export function getExampleFile(type: string): string | undefined {
+  return isRegisteredType(type) ? `${type}.example.json` : undefined;
+}
+export function legacyAllowedKinds(type: RegisteredType): readonly string[] {
+  return LEGACY_KINDS[type];
 }

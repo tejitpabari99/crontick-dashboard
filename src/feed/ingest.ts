@@ -10,7 +10,7 @@ import { FEED_SETTLE_DELAYS_MS } from '../constants/feed.js';
 import { errnoCode, errorMessage } from '../utils/errors.js';
 import { realClock, type Clock } from '../clock.js';
 import { realTimers, type TimeoutTimers } from '../utils/timers.js';
-import { validateCardFile, type Card, type BrokenReason } from '../contract/validate.js';
+import { validateCardFile, type Card, type BrokenReason } from './legacy-envelope.js';
 
 export type StoredReason = BrokenReason | 'duplicate-id';
 

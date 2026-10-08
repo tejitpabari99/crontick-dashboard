@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { timestampSchema } from './formats.js';
 
 /**
- * data.json: agent-written content. Generic envelope; the per-type payload schema is applied
+ * data.json: agent-written content. Generic wrapper; the per-type payload schema is applied
  * by the validator via the registry (skipped when `error` is set).
  */
 export const dataFileSchema = z

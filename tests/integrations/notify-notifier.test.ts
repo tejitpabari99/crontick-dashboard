@@ -5,7 +5,7 @@ import { stripMarkdown } from '../../src/utils/markdown.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { fakeClock } from '../../src/clock.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
-import type { Card } from '../../src/contract/validate.js';
+import type { Card } from '../../src/feed/legacy-envelope.js';
 import { NOTIFY_BURST_WINDOW_MS, NOTIFY_MAX_BODY } from '../../src/constants/notify.js';
 
 function bus() {

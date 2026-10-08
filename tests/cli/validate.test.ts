@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { run, type CliIo } from '../../src/cli/main.js';
 import { checkNodeVersion, guardedMain } from '../../src/cli/guard.js';
-import { validateCardFile } from '../../src/index.js';
+import { validateCardFile } from '../../src/feed/legacy-envelope.js';
 import { ENV_HOME, ENV_VERBOSE } from '../../src/constants/env.js';
 
 const root = join(import.meta.dirname, '..', '..');

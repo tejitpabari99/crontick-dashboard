@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 import { run, type CliIo } from '../../src/cli/main.js';
-import { legacyAllowedKinds, listTypes } from '../../src/contract/index.js';
+import { listTypes } from '../../src/contract/index.js';
+import { legacyAllowedKinds } from '../../src/feed/legacy-envelope.js';
 
 interface Cap {
   io: CliIo;

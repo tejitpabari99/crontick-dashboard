@@ -5,7 +5,7 @@ import { resolveNotifyMode } from '../../src/integrations/notify/gate.js';
 import { createWarnings } from '../../src/state/warnings.js';
 import { computeSnapshot } from '../../src/compute/snapshot.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
-import type { Card } from '../../src/contract/validate.js';
+import type { Card } from '../../src/feed/legacy-envelope.js';
 
 function bus() {
   const ls: Record<string, Set<CardEventListener>> = {};

@@ -14,7 +14,7 @@
  *  media:    first caption, else "N images"
  */
 import type { CardEvents, CardEventPayload } from '../../feed/events.js';
-import type { Card } from '../../contract/validate.js';
+import type { Card } from '../../feed/legacy-envelope.js';
 import { isRegisteredType, registry } from '../../contract/registry.js';
 import { envelope } from '../../feed/ingest.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';

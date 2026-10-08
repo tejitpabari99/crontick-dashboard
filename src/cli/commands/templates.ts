@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Command } from 'commander';
-import { getExampleFile, legacyAllowedKinds, listTypes, type RegisteredType } from '../../contract/index.js';
+import { listTypes, type RegisteredType } from '../../contract/index.js';
+import { getExampleFile, legacyAllowedKinds } from '../../feed/legacy-envelope.js';
 import { packageAssets } from '../assets.js';
 import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';

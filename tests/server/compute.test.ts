@@ -3,7 +3,7 @@ import { computeSnapshot } from '../../src/compute/snapshot.js';
 import type { BrokenEntry, CardEntry, OkEntry } from '../../src/feed/ingest.js';
 import type { StateData } from '../../src/state/store.js';
 import type { DashboardConfig } from '../../src/config.js';
-import type { Card } from '../../src/contract/validate.js';
+import type { Card } from '../../src/feed/legacy-envelope.js';
 import { DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION } from '../../src/constants/config.js';
 import { POLL_DEFAULT_MS } from '../../src/constants/poll.js';
 

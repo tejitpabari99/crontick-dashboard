@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { validateCardFile, listTypes, getLegacyExample, parseDuration, windowActive, cellText } from '../../src/index.js';
+import { parseDuration, windowActive, cellText, listTypes } from '../../src/index.js';
+import { validateCardFile, getLegacyExample } from '../../src/feed/legacy-envelope.js';
 
 const base = {
   id: 'my-card',
