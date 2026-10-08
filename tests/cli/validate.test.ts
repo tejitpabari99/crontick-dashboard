@@ -1,11 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { run, type CliIo } from '../../src/cli/main.js';
 import { checkNodeVersion, guardedMain } from '../../src/cli/guard.js';
-import { validateCardFile } from '../../src/feed/legacy-envelope.js';
 import { ENV_HOME, ENV_VERBOSE } from '../../src/constants/env.js';
 
 const root = join(import.meta.dirname, '..', '..');
@@ -13,15 +12,10 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'cd-validate-'));
 });
-/** Copy a shipped template to `<dir>/<id>.json` so the filename-stem check passes. */
-const tpl = (n: string): string => {
-  const text = readFileSync(join(root, 'templates', `${n}.example.json`), 'utf8');
-  const id = (JSON.parse(text) as { id: string }).id;
-  const p = join(dir, `${id}.json`);
-  writeFileSync(p, text);
-  return p;
-};
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+const tpl = (type: string, file: 'card' | 'data'): string =>
+  readFileSync(join(root, 'templates', type, `${file}.json`), 'utf8');
 
 interface Cap {
   io: CliIo;
@@ -41,102 +35,215 @@ function cap(stdin = '', env: Record<string, string | undefined> = {}): Cap {
 }
 const write = (name: string, text: string): string => {
   const p = join(dir, name);
+  mkdirSync(join(p, '..'), { recursive: true });
   writeFileSync(p, text);
   return p;
 };
-const good = readFileSync(join(root, 'templates', 'kpi.example.json'), 'utf8');
+/** Make `<dir>/<id>/` with the given files; returns the folder path. */
+function folder(id: string, files: { card?: string; data?: string }): string {
+  const f = join(dir, id);
+  mkdirSync(f, { recursive: true });
+  if (files.card !== undefined) writeFileSync(join(f, 'card.json'), files.card);
+  if (files.data !== undefined) writeFileSync(join(f, 'data.json'), files.data);
+  return f;
+}
+const okFolder = (id = 'service-health'): string =>
+  folder(id, { card: tpl('kpi', 'card'), data: tpl('kpi', 'data') });
+const alertText = JSON.stringify({ title: 'Deploy failed' });
 
-describe('validate', () => {
-  it('exit 0 when all ok, prints OK lines', async () => {
+describe('validate folders', () => {
+  it('ok folder -> OK line, exit 0', async () => {
     const c = cap();
-    const code = await run(['validate', tpl('kpi'), tpl('table')], c.io);
-    expect(code).toBe(0);
-    expect(c.out).toMatch(/^OK /m);
-    expect(c.out).not.toMatch(/BROKEN/);
+    expect(await run(['validate', okFolder()], c.io)).toBe(0);
+    expect(c.out).toMatch(/^OK service-health \(kpi\)/m);
   });
 
-  it('exit 1 for truncated JSON with reason', async () => {
-    const f = write('x.json', good.slice(0, 40));
+  it('no data.json -> NO DATA, exit 0, hint', async () => {
+    const f = folder('empty', { card: tpl('kpi', 'card') });
+    const c = cap();
+    expect(await run(['validate', f], c.io)).toBe(0);
+    expect(c.out).toMatch(/^NO DATA empty/m);
+    expect(c.out).toMatch(/write data\.json/);
+  });
+
+  it('truncated data.json -> BROKEN malformed-json, exit 1', async () => {
+    const f = folder('trunc', { card: tpl('kpi', 'card'), data: tpl('kpi', 'data').slice(0, 30) });
     const c = cap();
     expect(await run(['validate', f], c.io)).toBe(1);
     expect(c.out).toMatch(/^BROKEN malformed-json: /m);
   });
 
-  it('exit 1 for bad id with issue lines', async () => {
-    const card = JSON.parse(good) as Record<string, unknown>;
-    card.id = 'Bad ID!';
-    const f = write('Bad ID!.json', JSON.stringify(card));
+  it('schema-invalid payload -> BROKEN with issue lines', async () => {
+    const f = folder('bad-kpi', { card: tpl('kpi', 'card'), data: JSON.stringify({ data: { items: 'x' } }) });
     const c = cap();
     expect(await run(['validate', f], c.io)).toBe(1);
-    expect(c.out).toMatch(/^BROKEN /m);
-    expect(c.out).toMatch(/^ {2}\/id: /m);
+    expect(c.out).toMatch(/^BROKEN schema-invalid: /m);
+    expect(c.out).toMatch(/^ {2}\/data/m);
   });
 
-  it('exit 1 for javascript: link', async () => {
-    const card = JSON.parse(good) as Record<string, unknown>;
-    card.id = 'js-link';
-    (card.data as { items: { link?: string }[] }).items[0]!.link = 'javascript:alert(1)';
-    const f = write('js-link.json', JSON.stringify(card));
+  it('javascript: link in data -> BROKEN', async () => {
+    const data = JSON.parse(tpl('list', 'data')) as { data: { items: { link?: string }[] } };
+    data.data.items[0]!.link = 'javascript:alert(1)';
+    const f = folder('js-link', { card: tpl('list', 'card'), data: JSON.stringify(data) });
     const c = cap();
     expect(await run(['validate', f], c.io)).toBe(1);
     expect(c.out).toMatch(/^BROKEN /m);
   });
 
-  it('any broken among several -> 1, ok ones still reported', async () => {
-    const bad = write('bad.json', '{');
+  it('missing card.json -> SKIPPED card-def-missing, exit 1', async () => {
+    const f = folder('nocard', { data: tpl('kpi', 'data') });
     const c = cap();
-    expect(await run(['validate', tpl('kpi'), bad], c.io)).toBe(1);
+    expect(await run(['validate', f], c.io)).toBe(1);
+    expect(c.out).toMatch(/^SKIPPED card-def-missing: /m);
+  });
+
+  it('reserved folder name -> SKIPPED reserved-id', async () => {
+    const f = folder('alerts', { card: tpl('kpi', 'card') });
+    const c = cap();
+    expect(await run(['validate', f], c.io)).toBe(1);
+    expect(c.out).toMatch(/^SKIPPED reserved-id: /m);
+  });
+
+  it('data path escaping via symlink -> SKIPPED data-path-invalid', async () => {
+    const f = folder('escape', { card: tpl('kpi', 'card') });
+    const outside = write('outside.json', tpl('kpi', 'data'));
+    symlinkSync(outside, join(f, 'data.json'));
+    const c = cap();
+    expect(await run(['validate', f], c.io)).toBe(1);
+    expect(c.out).toMatch(/^SKIPPED data-path-invalid: /m);
+  });
+});
+
+describe('validate path dispatch', () => {
+  it('card.json and data.json paths validate the containing folder', async () => {
+    const f = okFolder();
+    for (const file of ['card.json', 'data.json']) {
+      const c = cap();
+      expect(await run(['validate', join(f, file)], c.io)).toBe(0);
+      expect(c.out).toMatch(/^OK service-health \(kpi\)/m);
+    }
+  });
+
+  it('other .json file is an alert (id = stem)', async () => {
+    const p = write('alerts/deploy-failed.json', alertText);
+    const c = cap();
+    expect(await run(['validate', p], c.io)).toBe(0);
+    expect(c.out).toMatch(/^OK deploy-failed \(alert\)/m);
+  });
+
+  it('broken alert file -> BROKEN, exit 1', async () => {
+    const p = write('alerts/no-title.json', '{}');
+    const c = cap();
+    expect(await run(['validate', p], c.io)).toBe(1);
+    expect(c.out).toMatch(/^BROKEN schema-invalid: /m);
+  });
+
+  it('several paths: header per path, any failure -> 1', async () => {
+    const bad = folder('trunc', { card: tpl('kpi', 'card'), data: '{' });
+    const c = cap();
+    expect(await run(['validate', okFolder(), bad], c.io)).toBe(1);
     expect(c.out).toMatch(/^OK /m);
     expect(c.out).toMatch(/^BROKEN /m);
+    expect(c.out).toMatch(/^# /m);
   });
 
-  it('missing file -> 2, single stderr line', async () => {
+  it('missing path -> 2, single stderr line, no stack', async () => {
     const c = cap();
-    const code = await run(['validate', join(dir, 'nope.json')], c.io);
-    expect(code).toBe(2);
+    expect(await run(['validate', join(dir, 'nope')], c.io)).toBe(2);
     expect(c.err.trim().split('\n')).toHaveLength(1);
-    expect(c.err).toMatch(/nope\.json/);
+    expect(c.err).toMatch(/nope/);
     expect(c.err).not.toMatch(/\n\s+at /);
   });
 
-  it('no file args -> 2 usage error', async () => {
+  it('no path args -> 2 usage error', async () => {
     const c = cap();
     expect(await run(['validate'], c.io)).toBe(2);
     expect(c.err).toMatch(/error/i);
   });
 
-  it('stdin via "-" skips filename check', async () => {
-    const card = JSON.parse(good) as { id: string };
-    const c = cap(JSON.stringify({ ...card, id: 'whatever-id' }));
-    expect(await run(['validate', '-'], c.io)).toBe(0);
-    expect(c.out).toMatch(/^OK whatever-id /m);
-  });
-
-  it('--json prints [{file,result}] equal to validateCardFile', async () => {
-    const bad = write('bad.json', '{"id":');
-    const c = cap();
-    const kpiPath = tpl('kpi');
-    const code = await run(['validate', '--json', kpiPath, bad], c.io);
-    expect(code).toBe(1);
-    const parsed = JSON.parse(c.out) as { file: string; result: unknown }[];
-    expect(parsed.map((p) => p.file)).toEqual([kpiPath, bad]);
-    expect(parsed[0]!.result).toEqual(
-      JSON.parse(JSON.stringify(validateCardFile(good, { filename: 'service-health.json' }))),
-    );
-    expect(parsed[1]!.result).toMatchObject({ broken: true, reason: 'malformed-json' });
-  });
-
-  it('--json stdin uses "-" as file name', async () => {
-    const c = cap(good);
-    // filename check skipped, so the template id need not match
-    expect(await run(['validate', '--json', '-'], c.io)).toBe(0);
-    expect((JSON.parse(c.out) as { file: string }[])[0]!.file).toBe('-');
-  });
-
   it('does not need a data dir (env without home)', async () => {
     const c = cap('', { [ENV_HOME]: join(dir, 'never-created') });
-    expect(await run(['validate', tpl('kpi')], c.io)).toBe(0);
-    expect(() => mkdirSync(join(dir, 'never-created'))).not.toThrow();
+    expect(await run(['validate', okFolder()], c.io)).toBe(0);
+    expect(existsSync(join(dir, 'never-created'))).toBe(false);
+  });
+});
+
+describe('validate stdin', () => {
+  it('missing --as -> 2', async () => {
+    const c = cap(tpl('kpi', 'data'));
+    expect(await run(['validate', '-'], c.io)).toBe(2);
+    expect(c.err).toMatch(/--as/);
+  });
+
+  it('bad --as value -> 2', async () => {
+    expect(await run(['validate', '-', '--as', 'nope'], cap('{}').io)).toBe(2);
+  });
+
+  it('--as card: ok with default and custom id', async () => {
+    const c = cap(tpl('table', 'card'));
+    expect(await run(['validate', '-', '--as', 'card'], c.io)).toBe(0);
+    expect(c.out).toMatch(/^OK stdin \(table\)/m);
+    const c2 = cap(tpl('table', 'card'));
+    expect(await run(['validate', '-', '--as', 'card', '--id', 'email-summary'], c2.io)).toBe(0);
+    expect(c2.out).toMatch(/^OK email-summary \(table\)/m);
+  });
+
+  it('--as card: invalid card.json -> SKIPPED, exit 1', async () => {
+    const c = cap('{"type":"table"}');
+    expect(await run(['validate', '-', '--as', 'card'], c.io)).toBe(1);
+    expect(c.out).toMatch(/^SKIPPED card-def-invalid: /m);
+  });
+
+  it('--as data --type: ok, broken, missing/unknown type', async () => {
+    const ok = cap(tpl('table', 'data'));
+    expect(await run(['validate', '-', '--as', 'data', '--type', 'table'], ok.io)).toBe(0);
+    expect(ok.out).toMatch(/^OK stdin \(table\)/m);
+
+    const bad = cap(tpl('table', 'data'));
+    expect(await run(['validate', '-', '--as', 'data', '--type', 'kpi'], bad.io)).toBe(1);
+    expect(bad.out).toMatch(/^BROKEN schema-invalid: /m);
+
+    expect(await run(['validate', '-', '--as', 'data'], cap('{}').io)).toBe(2);
+    expect(await run(['validate', '-', '--as', 'data', '--type', 'nope'], cap('{}').io)).toBe(2);
+  });
+
+  it('--as alert: ok and broken', async () => {
+    const ok = cap(alertText);
+    expect(await run(['validate', '-', '--as', 'alert', '--id', 'disk-full'], ok.io)).toBe(0);
+    expect(ok.out).toMatch(/^OK disk-full \(alert\)/m);
+    const bad = cap('{');
+    expect(await run(['validate', '-', '--as', 'alert'], bad.io)).toBe(1);
+    expect(bad.out).toMatch(/^BROKEN malformed-json: /m);
+  });
+
+  it('--as without stdin, or several documents -> 2', async () => {
+    expect(await run(['validate', okFolder(), '--as', 'card'], cap().io)).toBe(2);
+    expect(await run(['validate', '-', '-', '--as', 'card'], cap('{}').io)).toBe(2);
+  });
+});
+
+describe('validate --json', () => {
+  it('prints [{path,result}] with the validator result verbatim', async () => {
+    const f = okFolder();
+    const bad = folder('trunc', { card: tpl('kpi', 'card'), data: '{' });
+    const c = cap();
+    expect(await run(['validate', '--json', f, bad], c.io)).toBe(1);
+    const parsed = JSON.parse(c.out) as { path: string; result: { status: string; reason?: string; card?: { id: string } } }[];
+    expect(parsed.map((p) => p.path)).toEqual([f, bad]);
+    expect(parsed[0]!.result.status).toBe('ok');
+    expect(parsed[0]!.result.card!.id).toBe('service-health');
+    expect(parsed[1]!.result).toMatchObject({ status: 'broken', reason: 'malformed-json' });
+  });
+
+  it('no-data and skipped keep their status; stdin path is "-"', async () => {
+    const nd = folder('empty', { card: tpl('kpi', 'card') });
+    const c = cap();
+    expect(await run(['validate', '--json', nd], c.io)).toBe(0);
+    expect((JSON.parse(c.out) as { result: { status: string } }[])[0]!.result.status).toBe('no-data');
+
+    const c2 = cap(alertText);
+    expect(await run(['validate', '--json', '-', '--as', 'alert'], c2.io)).toBe(0);
+    expect((JSON.parse(c2.out) as { path: string }[])[0]!.path).toBe('-');
   });
 });
 
@@ -160,7 +267,7 @@ describe('cross-cutting', () => {
   });
 
   it('red only on TTY without NO_COLOR', async () => {
-    const f = join(dir, 'nope.json');
+    const f = join(dir, 'nope');
     const tty = cap();
     tty.io.isTTY = true;
     await run(['validate', f], tty.io);
@@ -176,11 +283,11 @@ describe('cross-cutting', () => {
     throwing.io.readStdin = async () => {
       throw new Error('boom');
     };
-    expect(await run(['validate', '-'], throwing.io)).toBe(1);
+    expect(await run(['validate', '-', '--as', 'alert'], throwing.io)).toBe(1);
     expect(throwing.err).not.toMatch(/\n\s+at /);
     const v = cap('', { [ENV_VERBOSE]: '1' });
     v.io.readStdin = throwing.io.readStdin;
-    await run(['validate', '-'], v.io);
+    await run(['validate', '-', '--as', 'alert'], v.io);
     expect(v.err).toMatch(/\n\s+at /);
   });
 });
@@ -237,18 +344,17 @@ describe('spawned binary (tsx)', () => {
     });
 
   it('exit codes 0/1/2 end to end', () => {
-    expect(spawn(['validate', tpl('kpi')]).status).toBe(0);
-    const bad = write('b.json', '{');
-    const r1 = spawn(['validate', bad]);
+    expect(spawn(['validate', okFolder()]).status).toBe(0);
+    const r1 = spawn(['validate', folder('trunc', { card: tpl('kpi', 'card'), data: '{' })]);
     expect(r1.status).toBe(1);
     expect(r1.stdout).toMatch(/BROKEN/);
-    const r2 = spawn(['validate', join(dir, 'missing.json')]);
+    const r2 = spawn(['validate', join(dir, 'missing')]);
     expect(r2.status).toBe(2);
     expect(r2.stderr.trim().split('\n')).toHaveLength(1);
   });
 
   it('stdin end to end', () => {
-    const r = spawn(['validate', '-'], good);
-    expect(r.status).toBe(0);
+    expect(spawn(['validate', '-', '--as', 'data', '--type', 'kpi'], tpl('kpi', 'data')).status).toBe(0);
+    expect(spawn(['validate', '-'], tpl('kpi', 'data')).status).toBe(2);
   });
 });

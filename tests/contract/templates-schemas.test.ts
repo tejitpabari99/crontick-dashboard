@@ -7,46 +7,9 @@ import { alertSchema } from '../../src/contract/alert.js';
 import { cardDefSchema } from '../../src/contract/card-def.js';
 import { dataFileSchema } from '../../src/contract/data-file.js';
 import { dataRequired, getExample, listTypes, registry } from '../../src/index.js';
-import { getLegacyExample, validateCardFile } from '../../src/feed/legacy-envelope.js';
 
 const root = join(import.meta.dirname, '..', '..');
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
-
-describe('templates', () => {
-  it('has a registered type for every template file and vice versa', () => {
-    const files = readdirSync(join(root, 'templates')).filter((f) => f.endsWith('.example.json')).sort();
-    expect(files).toEqual(listTypes().map((t) => `${t}.example.json`).sort());
-  });
-
-  for (const type of listTypes()) {
-    it(`${type} example validates ok and matches its file`, () => {
-      const text = read(`templates/${type}.example.json`);
-      const r = validateCardFile(text, { filename: `${JSON.parse(text).id}.json` });
-      expect(r).toMatchObject({ ok: true });
-      expect(JSON.parse(text).type).toBe(type);
-      expect(getLegacyExample(type)).toEqual(JSON.parse(text));
-    });
-
-    it(`${type} has an example file name and a summary`, () => {
-      expect(typeof registry[type]).toBe('object');
-      expect(typeof registry[type].summary).toBe('function');
-    });
-  }
-
-  it('getLegacyExample is undefined for unknown types', () => {
-    expect(getLegacyExample('nope')).toBeUndefined();
-  });
-
-  it('demonstrates cell link next to row link, complete action, private extra', () => {
-    const table = getLegacyExample('table') as { data: { rows: { link?: string; cells: unknown[] }[] } };
-    expect(table.data.rows[0]!.link).toBeDefined();
-    expect(table.data.rows[0]!.cells.some((c) => typeof c === 'object' && c !== null)).toBe(true);
-    const list = getLegacyExample('list') as { data: { items: Record<string, unknown>[] } };
-    expect(list.data.items.some((i) => i.action !== undefined && 'ticktick' in i)).toBe(true);
-    const kpi = getLegacyExample('kpi') as { data: { items: unknown[] } };
-    expect(kpi.data.items.length).toBeGreaterThan(1);
-  });
-});
 
 describe('folder templates', () => {
   const json = (p: string) => JSON.parse(read(p)) as Record<string, unknown>;
