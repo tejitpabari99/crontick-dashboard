@@ -9,13 +9,13 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/03-ui-colu
 | # | Task | Depends on | Status |
 |---|---|---|---|
 | 1 | Layout tokens and breakpoint test | — | done |
-| 2 | API client and optimistic state over new DTO | SP02 | in-progress |
-| 3 | CardFrame heights, no-data state, collapsed Chip, type mode cleanup | SP01, SP02 | todo |
-| 4 | Columns shell, Now zone, grid removal | 1, 2, 3 | todo |
-| 5 | One-line AlertStrip | 2, 4 | todo |
-| 6 | Header All/Alerts/Cards filter | 4, 5 | todo |
-| 7 | Completed section | 2, 4, 6 | todo |
-| 8 | Search scope and deep-link updates | 5, 6, 7 | todo |
+| 2 | API client and optimistic state over new DTO | SP02 | done |
+| 3 | CardFrame heights, no-data state, collapsed Chip, type mode cleanup | SP01, SP02 | done |
+| 4 | Columns shell, Now zone, grid removal | 1, 2, 3 | done |
+| 5 | One-line AlertStrip | 2, 4 | done |
+| 6 | Header All/Alerts/Cards filter | 4, 5 | done |
+| 7 | Completed section | 2, 4, 6 | done |
+| 8 | Search scope and deep-link updates | 5, 6, 7 | in-progress |
 | 9 | Acceptance closure: poll stability, removals, 300px check | 4–8 | todo |
 
 ## Task 1 — Layout tokens and breakpoint test

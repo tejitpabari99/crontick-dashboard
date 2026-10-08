@@ -15,10 +15,10 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/02-feed-an
 | 5 | Alert and completed-alert ingest | 4 | done |
 | 6 | Recursive watcher and rescan | 4, 5 | done |
 | 7 | Column snapshot and DTO | 2, 4, 5 | done |
-| 8 | Mutations, actions, startup wiring | 5, 7 | in-progress |
+| 8 | Mutations, actions, startup wiring | 5, 7 | done |
 | 9 | `complete` write-back pins updatedAt | 4 | done |
-| 10 | Events and notifier view payload | 4, 5 | todo |
-| 11 | Test sweep and acceptance check | 1-10 | todo |
+| 10 | Events and notifier view payload | 4, 5 | done |
+| 11 | Test sweep and acceptance check | 1-10 | done |
 
 ## Task 1 — Remove archive, retention and layout surface
 What it is / what it means: Delete the archive seam and the user-arranged layout concept (Decisions on archive removal; Requirements "Archive removal", "Mutations").

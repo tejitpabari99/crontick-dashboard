@@ -14,7 +14,7 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/04-cli-ski
 | 4 | `templates` rewrite and CLI cleanup | SP01 | done |
 | 5 | SKILL.md rewrite and skill tests | 2, 3, 4 | done |
 | 6 | Acceptance test and smoke case | 5, SP02, SP03 | todo |
-| 7 | Concept and reference docs | 2, 3, 4, SP01, SP02, SP03 | todo |
+| 7 | Concept and reference docs | 2, 3, 4, SP01, SP02, SP03 | done |
 | 8 | Remaining docs sweep and ADR 0002 | 7 | todo |
 | 9 | Futures backlog and changeset | 5 | done |
 
