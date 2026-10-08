@@ -14,11 +14,12 @@ import { registerInfo } from './commands/info.js';
 import { registerStart } from './commands/start.js';
 import { registerDaemon } from './commands/daemon.js';
 import { registerSkill } from './commands/skill.js';
+import { registerNew } from './commands/new.js';
 
 export type { CliIo, CliContext } from './io.js';
 export { CliError } from './io.js';
 
-const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate, registerTemplates, registerInfo, registerStart, registerDaemon, registerSkill];
+const COMMANDS: ((program: Command, ctx: CliContext) => void)[] = [registerValidate, registerTemplates, registerInfo, registerStart, registerDaemon, registerSkill, registerNew];
 
 export async function run(argv: string[], io: CliIo): Promise<number> {
   let code = 0;

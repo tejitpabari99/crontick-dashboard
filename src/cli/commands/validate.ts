@@ -70,7 +70,7 @@ function validateStdin(text: string, as: As, opts: { type?: string; id?: string 
   if (as === 'card') return parseCardDef(id, text);
   const type = opts.type;
   if (type === undefined) {
-    throw new CliError('error: --as data requires --type <type>', 2);
+    throw new CliError('error: --as data requires --type <type>', 2, ERROR_CODES.INVALID_OPTION);
   }
   if (!isRegisteredType(type)) {
     throw new CliError(`error: unknown type "${type}" (valid types: ${Object.keys(registry).join(', ')})`, 2, ERROR_CODES.UNKNOWN_TYPE);
@@ -91,20 +91,20 @@ export function registerValidate(program: Command, ctx: CliContext): void {
     .action(async (paths: string[], opts: { json?: boolean; as?: string; type?: string; id?: string }) => {
       const stdinCount = paths.filter((p) => p === '-').length;
       if (stdinCount > 1 || (stdinCount === 1 && paths.length > 1)) {
-        throw new CliError('error: "-" (stdin) takes exactly one document per call', 2);
+        throw new CliError('error: "-" (stdin) takes exactly one document per call', 2, ERROR_CODES.INVALID_OPTION);
       }
       if (stdinCount === 0 && opts.as !== undefined) {
-        throw new CliError('error: --as only applies to stdin ("-")', 2);
+        throw new CliError('error: --as only applies to stdin ("-")', 2, ERROR_CODES.INVALID_OPTION);
       }
       let as: As | undefined;
       if (opts.as !== undefined) {
         if (!AS_VALUES.includes(opts.as as As)) {
-          throw new CliError(`error: --as must be one of ${AS_VALUES.join(', ')}`, 2);
+          throw new CliError(`error: --as must be one of ${AS_VALUES.join(', ')}`, 2, ERROR_CODES.INVALID_OPTION);
         }
         as = opts.as as As;
       }
       if (stdinCount === 1 && as === undefined) {
-        throw new CliError('error: reading stdin requires --as card|data|alert', 2);
+        throw new CliError('error: reading stdin requires --as card|data|alert', 2, ERROR_CODES.INVALID_OPTION);
       }
 
       const out: { path: string; result: AnyResult }[] = [];
