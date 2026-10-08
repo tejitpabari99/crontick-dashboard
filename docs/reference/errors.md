@@ -41,17 +41,31 @@ Source of truth: `src/constants/error-codes.ts`. Codes appear in HTTP bodies (`{
 
 ## Broken reasons
 
-Cards are never partially shown; they render Broken with one of these reasons (`validate` reports the first seven; the snapshot also adds the last three).
+A card folder whose `card.json` parsed but whose content cannot be shown renders as a Broken card with one of these reasons. Cards are never partially shown. `validate` and the snapshot use the same reasons (alert files use the same set except `unknown-type`).
 
 | Reason | Meaning |
 |--------|---------|
-| `unreadable` | Not valid UTF-8 text or could not be processed |
+| `unreadable` | Not valid UTF-8 text, the data file could not be read, or it could not be processed |
 | `malformed-json` | Empty or invalid JSON |
 | `not-object` | Top-level value is not an object |
-| `too-large` | Over 1 MiB |
-| `schema-invalid` | Envelope or `data` violates the contract, or kind not allowed for the type; issues list JSON pointers |
-| `unknown-type` | `type` is not registered ("Unsupported type" in the UI) |
-| `id-mismatch` | `id` differs from the file name stem |
-| `error` | Card declares a non-empty `error` |
-| `stale` | Older than its `staleAfter` |
-| `duplicate-id` | Another file declares the same id |
+| `too-large` | Over the size cap (1 MiB for a data file) |
+| `schema-invalid` | Data file envelope or `data` violates the contract, or the payload does not fit the type; issues list JSON pointers |
+| `unknown-type` | `type` in `card.json` is not registered ("Unsupported type" in the UI) |
+
+`duplicate-id` is unreachable for card folders: folder names are unique within `feed/`, and the folder name is the id. Kept as a note pending SP02 confirmation.
+
+## Skipped folders
+
+A folder that cannot be treated as a card at all is skipped. It is not rendered as a card; the user sees a snapshot warning instead. Dot-prefixed folders (e.g. `.done`) are ignored silently, with no warning.
+
+| Reason | Cause | What the user sees |
+|--------|-------|--------------------|
+| `card-def-missing` | Folder has no `card.json` | Snapshot warning, no card |
+| `card-def-invalid` | `card.json` is unreadable, empty, invalid JSON, not an object, over its size cap, or violates the card definition schema (any issue other than the `data` path) | Snapshot warning, no card |
+| `data-path-invalid` | The `data` path in `card.json` breaks the data path rule | Snapshot warning, no card |
+| `invalid-id` | Folder name is not a valid card id | Snapshot warning, no card |
+| `reserved-id` | Folder name is reserved (`alerts`) | Snapshot warning, no card |
+
+## No data yet
+
+Not an error. When `card.json` is valid but the data file it points to is absent, the folder yields a `no-data` result and the card renders muted ("no data yet") until the data file appears. It is not Broken and raises no warning.
