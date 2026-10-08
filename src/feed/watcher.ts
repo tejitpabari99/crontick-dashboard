@@ -24,14 +24,17 @@ export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
   let rescanTimer: unknown;
   let running = false;
 
-  function schedule(name: string): void {
-    const old = pending.get(name);
+  function schedule(name: string, kind: 'folder' | 'alert' | 'done' = 'folder'): void {
+    const slot = `${kind}:${name}`;
+    const old = pending.get(slot);
     if (old !== undefined) timers.clearTimeout(old);
     pending.set(
-      name,
+      slot,
       timers.setTimeout(() => {
-        pending.delete(name);
-        ingest.processFolder(name);
+        pending.delete(slot);
+        if (kind === 'alert') ingest.processAlert(name);
+        else if (kind === 'done') ingest.processCompletedAlert(name);
+        else ingest.processFolder(name);
       }, debounce),
     );
   }
@@ -55,8 +58,14 @@ export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
           if (filename === null || filename === undefined) return void ingest.rescan();
           const parts = String(filename).split(/[\\/]/);
           const id = parts[0] ?? '';
-          if (id === '' || id === 'alerts') return; // alerts are ingested separately
+          if (id === '') return;
           const leaf = parts[parts.length - 1] ?? '';
+          if (id === 'alerts') {
+            if (leaf.startsWith('.') || /\.tmp$/i.test(leaf)) return;
+            if (parts.length === 2) schedule(leaf, 'alert');
+            else if (parts.length === 3 && parts[1] === '.done') schedule(leaf, 'done');
+            return;
+          }
           if (parts.length > 1 && (leaf.startsWith('.') || /\.tmp$/i.test(leaf))) return;
           schedule(id); // one debounce slot per folder
         });

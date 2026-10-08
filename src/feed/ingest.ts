@@ -1,17 +1,17 @@
 /**
  * Feed ingest: turns feed/<id>/{card.json,data.json} folders into a CardStore, tolerant of partial writes,
  * any write order and bad files. Core is synchronous and timer-injectable; the fs.watch wiring lives in
- * watcher.ts. Cards are keyed by folder name. `alerts` is reserved (alerts are ingested separately).
+ * watcher.ts. Cards are keyed by folder name; `alerts` is reserved and ingested separately (alerts / completedAlerts stores).
  */
 import { createHash } from 'node:crypto';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CARD_DEF_FILE } from '../constants/contract.js';
 import type { BrokenReason } from '../constants/error-codes.js';
 import { FEED_SETTLE_DELAYS_MS } from '../constants/feed.js';
 import { realClock, type Clock } from '../clock.js';
-import type { NoDataCard, ValidCard } from '../contract/folder-validate.js';
-import { isCardFolderName, validateCardFolder } from '../contract/folder-validate.js';
+import type { NoDataCard, ValidAlert, ValidCard } from '../contract/folder-validate.js';
+import { isCardFolderName, validateAlertFile, validateCardFolder } from '../contract/folder-validate.js';
 import { sameInstant } from '../instant.js';
 import { realTimers, type TimeoutTimers } from '../utils/timers.js';
 import { readCardFolder, type CardFolderRead } from './read-card-folder.js';
@@ -111,12 +111,76 @@ export interface CardChange {
   contentChanged: boolean;
 }
 
+/** Valid file in feed/alerts/. */
+export interface OkAlertEntry {
+  status: 'ok';
+  /** Store key = file stem = alert id. */
+  key: string;
+  /** `alerts/<stem>.json` (watcher-relative path). */
+  file: string;
+  /** sha256 of the file bytes. */
+  hash: string;
+  mtimeMs: number;
+  alert: ValidAlert;
+  warnings: string[];
+}
+/** Invalid alert file: kept as a tickable broken row. */
+export interface BrokenAlertEntry {
+  status: 'broken';
+  key: string;
+  file: string;
+  id: string;
+  /** Title when the file parsed far enough to have one, else the id. */
+  title: string;
+  reason: BrokenReason;
+  message: string;
+  hash: string;
+  mtimeMs: number;
+}
+export type AlertEntry = OkAlertEntry | BrokenAlertEntry;
+
+/** Ticked alert (`feed/alerts/.done/<stem>.json`); only valid files are kept. */
+export interface CompletedAlertEntry {
+  /** `.done` file stem (may carry a collision suffix). */
+  key: string;
+  file: string;
+  title: string;
+  text?: string;
+  link?: string;
+  priority: number;
+  /** File mtime as ISO (the tick moved it and set mtime = tick time). */
+  tickedAt: string;
+  mtimeMs: number;
+}
+
+/** Change to `alerts` (never emitted for `.done/` files). Fires only when file content (hash) changed. */
+export interface AlertChange {
+  type: 'new' | 'changed' | 'removed';
+  key: string;
+  file: string;
+  entry?: AlertEntry;
+  prev?: AlertEntry;
+  /** True for new alerts and when the file bytes changed; false for removals. */
+  contentChanged: boolean;
+}
+
+export interface AlertStore {
+  get(key: string): AlertEntry | undefined;
+  list(): AlertEntry[];
+}
+export interface CompletedAlertStore {
+  get(key: string): CompletedAlertEntry | undefined;
+  list(): CompletedAlertEntry[];
+}
+
 export interface FeedIngestOptions {
   feedDir: string;
   timers?: TimeoutTimers;
   /** Time source for card validation (default real clock). */
   clock?: Clock;
   onChange?: (change: CardChange) => void;
+  /** Alert file add/change/remove (for notifications). */
+  onAlertChange?: (change: AlertChange) => void;
 }
 
 export interface CardStore {
@@ -126,11 +190,19 @@ export interface CardStore {
 
 export interface FeedIngest {
   store: CardStore;
+  /** feed/alerts/*.json by file stem (ok and broken). */
+  alerts: AlertStore;
+  /** feed/alerts/.done/*.json by file stem (valid only). */
+  completedAlerts: CompletedAlertStore;
   /** `<id>/data.json` -> sha256 hex of bytes the server wrote. Consumed on matching ingest. */
   selfWrites: Map<string, string>;
   /** Evaluate one feed/ child (folder, or loose file) now (synchronous). Also used after write-backs. */
   processFolder(id: string): void;
-  /** Full scan: evaluate every child, drop vanished ones. */
+  /** Evaluate feed/alerts/<name> (file name `x.json`) now. Dot-prefixed, `.tmp` and non-.json names are ignored. */
+  processAlert(name: string): void;
+  /** Evaluate feed/alerts/.done/<name> now. Invalid files are skipped silently. */
+  processCompletedAlert(name: string): void;
+  /** Full scan: evaluate every child (feed/, alerts/, alerts/.done/), drop vanished ones. */
   rescan(): void;
   /** Stable warnings: skipped folders, loose files, folders without card.json. */
   issues(): string[];
@@ -167,6 +239,14 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
   const missingTimers = new Map<string, unknown>();
   const issueMap = new Map<string, string>();
   const selfWrites = new Map<string, string>();
+  const alertEntries = new Map<string, AlertEntry>();
+  const doneEntries = new Map<string, CompletedAlertEntry>();
+  const alertSettling = new Map<string, Settling>();
+  const alertsDir = join(opts.feedDir, 'alerts');
+  const doneDir = join(alertsDir, '.done');
+
+  const alerts: AlertStore = { get: (k) => alertEntries.get(k), list: () => [...alertEntries.values()] };
+  const completedAlerts: CompletedAlertStore = { get: (k) => doneEntries.get(k), list: () => [...doneEntries.values()] };
 
   const store: CardStore = {
     get: (key) => entries.get(key),
@@ -427,6 +507,173 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     });
   }
 
+  // --- alerts ---
+
+  /** Stem of a `*.json` alert file name, or undefined when the name is not an alert file (ignored). */
+  function alertStem(name: string): string | undefined {
+    if (name.startsWith('.') || /\.tmp$/i.test(name)) return undefined;
+    const m = /^(.+)\.json$/i.exec(name);
+    return m ? (m[1] as string) : undefined;
+  }
+
+  function emitAlert(c: AlertChange): void {
+    try {
+      opts.onAlertChange?.(c);
+    } catch {
+      /* listener errors must not break ingest */
+    }
+  }
+
+  function dropAlert(key: string): void {
+    const s = alertSettling.get(key);
+    if (s) {
+      timers.clearTimeout(s.timer);
+      alertSettling.delete(key);
+    }
+    const prev = alertEntries.get(key);
+    if (!prev) return;
+    alertEntries.delete(key);
+    emitAlert({ type: 'removed', key, file: prev.file, prev, contentChanged: false });
+  }
+
+  /** Same schedule as card files; own map so card settling keys never mix with alert stems. */
+  function alertNeedSettle(key: string, mtimeMs: number, tick: boolean): 'final' | 'waiting' {
+    const arm = (s: Settling): void => {
+      const delay = FEED_SETTLE_DELAYS_MS[s.attempt] as number;
+      const wait = s.attempt === 0 ? delay : delay - (FEED_SETTLE_DELAYS_MS[s.attempt - 1] as number);
+      s.timer = timers.setTimeout(() => evaluateAlert(key, true), wait);
+    };
+    const cur = alertSettling.get(key);
+    if (!cur) {
+      const s: Settling = { mtimeMs, attempt: 0, timer: undefined };
+      alertSettling.set(key, s);
+      arm(s);
+      return 'waiting';
+    }
+    if (cur.mtimeMs !== mtimeMs) {
+      timers.clearTimeout(cur.timer);
+      cur.mtimeMs = mtimeMs;
+      cur.attempt = 0;
+      arm(cur);
+      return 'waiting';
+    }
+    if (!tick) return 'waiting';
+    if (cur.attempt + 1 >= FEED_SETTLE_DELAYS_MS.length) {
+      alertSettling.delete(key);
+      return 'final';
+    }
+    cur.attempt += 1;
+    arm(cur);
+    return 'waiting';
+  }
+
+  function evaluateAlert(stem: string, tick = false): void {
+    const name = `${stem}.json`;
+    const path = join(alertsDir, name);
+    let mtimeMs: number;
+    let text: string | undefined;
+    try {
+      const st = statSync(path);
+      if (!st.isFile()) return dropAlert(stem);
+      mtimeMs = st.mtimeMs;
+    } catch {
+      return dropAlert(stem);
+    }
+    try {
+      text = readFileSync(path, 'utf8');
+    } catch {
+      text = undefined;
+    }
+    const res =
+      text === undefined
+        ? ({ status: 'broken', reason: 'unreadable', message: 'file is not readable', issues: [], id: stem } as const)
+        : validateAlertFile({ name, text, mtimeMs, now: clock.now() });
+    const file = `alerts/${name}`;
+    const hash = sha256(text ?? '');
+    let entry: AlertEntry;
+    if (res.status === 'ok') {
+      const s = alertSettling.get(stem);
+      if (s) {
+        timers.clearTimeout(s.timer);
+        alertSettling.delete(stem);
+      }
+      entry = { status: 'ok', key: stem, file, hash, mtimeMs, alert: res.alert, warnings: res.warnings };
+    } else {
+      if (res.reason === 'malformed-json' || res.reason === 'unreadable') {
+        if (alertNeedSettle(stem, mtimeMs, tick) === 'waiting') return; // keep previous entry
+      } else {
+        const s = alertSettling.get(stem);
+        if (s) {
+          timers.clearTimeout(s.timer);
+          alertSettling.delete(stem);
+        }
+      }
+      let title = stem;
+      try {
+        const o = JSON.parse(text ?? '') as unknown;
+        const t = o !== null && typeof o === 'object' ? (o as { title?: unknown }).title : undefined;
+        if (typeof t === 'string' && t.trim() !== '') title = t;
+      } catch {
+        /* keep stem */
+      }
+      entry = { status: 'broken', key: stem, file, id: stem, title, reason: res.reason, message: res.message, hash, mtimeMs };
+    }
+    const prev = alertEntries.get(stem);
+    alertEntries.set(stem, entry);
+    if (prev && prev.hash === entry.hash) return; // mtime-only refresh
+    emitAlert({ type: prev ? 'changed' : 'new', key: stem, file, entry, ...(prev ? { prev } : {}), contentChanged: true });
+  }
+
+  function processAlert(name: string): void {
+    const stem = alertStem(name);
+    if (stem !== undefined) evaluateAlert(stem);
+  }
+
+  function evaluateCompleted(stem: string): void {
+    const name = `${stem}.json`;
+    const path = join(doneDir, name);
+    try {
+      const st = statSync(path);
+      if (!st.isFile()) throw new Error('not a file');
+      const res = validateAlertFile({ name, text: readFileSync(path, 'utf8'), mtimeMs: st.mtimeMs, now: clock.now() });
+      if (res.status !== 'ok') throw new Error('invalid');
+      const a = res.alert;
+      doneEntries.set(stem, {
+        key: stem,
+        file: `alerts/.done/${name}`,
+        title: a.title,
+        ...(a.text !== undefined ? { text: a.text } : {}),
+        ...(a.link !== undefined ? { link: a.link } : {}),
+        priority: a.priority,
+        tickedAt: new Date(st.mtimeMs).toISOString(),
+        mtimeMs: st.mtimeMs,
+      });
+    } catch {
+      doneEntries.delete(stem); // missing or invalid: silently no row
+    }
+  }
+
+  function processCompletedAlert(name: string): void {
+    const stem = alertStem(name);
+    if (stem !== undefined) evaluateCompleted(stem);
+  }
+
+  function rescanAlerts(): void {
+    const list = (dir: string): Set<string> => {
+      try {
+        return new Set(readdirSync(dir).flatMap((n) => alertStem(n) ?? []));
+      } catch {
+        return new Set();
+      }
+    };
+    const live = list(alertsDir);
+    for (const k of new Set([...alertEntries.keys(), ...alertSettling.keys()])) if (!live.has(k)) evaluateAlert(k);
+    for (const k of live) evaluateAlert(k);
+    const done = list(doneDir);
+    for (const k of [...doneEntries.keys()]) if (!done.has(k)) evaluateCompleted(k);
+    for (const k of done) evaluateCompleted(k);
+  }
+
   function processFolder(id: string): void {
     evaluate(id);
   }
@@ -445,18 +692,25 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     for (const k of issueMap.keys()) known.add(k.slice(k.indexOf(':') + 1));
     for (const id of known) if (!present.has(id)) evaluate(id);
     for (const id of names) evaluate(id);
+    rescanAlerts();
   }
 
   return {
     store,
+    alerts,
+    completedAlerts,
     selfWrites,
     processFolder,
+    processAlert,
+    processCompletedAlert,
     rescan,
     issues: () => [...issueMap.values()],
     dispose() {
       for (const k of [...settling.keys()]) clearSettling(k);
       for (const t of missingTimers.values()) timers.clearTimeout(t);
       missingTimers.clear();
+      for (const s of alertSettling.values()) timers.clearTimeout(s.timer);
+      alertSettling.clear();
     },
   };
 }

@@ -117,6 +117,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
       present.add(e.key); // a no-data or temporarily broken card keeps its owner state
       if (e.status === 'ok') current.set(e.key, e.dataVersion);
     }
+    for (const a of watcher.alerts.list()) present.add(`alert:${a.key}`); // alert owner state (notified/lastSeen)
     if (stopped) return;
     const p: Promise<void> = state
       .reconcile(present, current)
