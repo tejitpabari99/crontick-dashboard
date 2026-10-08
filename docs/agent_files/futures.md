@@ -9,10 +9,11 @@ Future ideas, not in v1. Remove an item when it ships.
 ## Visual types cut from v1
 - **Embed / iframe** — new card type.
 - **Inline video** — in media cards (v1 links to recordings only).
-- **History viewer** — browse archived versions of a card (server already archives with retention).
+- **History viewer** — browse past versions of a card. Archive is gone, so this needs a new archive design.
 
 ## Interaction
 - **UI → agent inputs** — type values into a card (e.g. weather location), written back for next agent run.
+- **Un-tick alerts from Completed** — move a completed alert back to active.
 - **Run / re-run job buttons** — v1 non-goal; revisit only if needed.
 
 ## Running & delivery
@@ -28,4 +29,12 @@ Future ideas, not in v1. Remove an item when it ships.
 ## Access & layout
 - **Remote access** — expose via ngrok / Tailscale (owner sets up when needed; needs auth).
 - **Mobile layout**.
+
+## Layout and model
+- **`span`** — card spans 2-3 cards per row.
+- **Page-level `dashboard.json`** — dashboard-wide settings file.
 - **Multiple pages** — e.g. Work / Personal boards.
+- **Configurable column widths**.
+- **Shared data files** — several cards reading one data file.
+- **Data-optional types** — e.g. calendar; per-type registry flag.
+- **YAML input** — accept YAML card/data files.
