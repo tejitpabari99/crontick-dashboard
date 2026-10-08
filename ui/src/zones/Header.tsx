@@ -1,15 +1,9 @@
 import { useState } from 'react';
 import type { ViewCard } from '../api/types.ts';
-import { isUnseen } from '../lib/seen.ts';
 import { cycleTheme, readChoice } from '../lib/theme.ts';
 import { HiddenPopover } from './HiddenPopover.tsx';
 import { SearchBox, type SearchBoxProps } from './SearchBox.tsx';
 import './header.css';
-
-/** Alerts + unseen notify panels (the `(n)` in `document.title`). */
-export function attentionCount(alerts: readonly ViewCard[], panels: readonly ViewCard[]): number {
-  return alerts.length + panels.filter((c) => c.kind !== 'alert' && c.notify && isUnseen(c)).length;
-}
 
 export interface HeaderProps {
   alertCount: number;

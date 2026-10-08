@@ -130,7 +130,7 @@ describe('DoneTray', () => {
     });
     const store = createSnapshotStore({ client: createClient({ fetch: fetchFn }), doc: undefined });
     const m = createMutations({ store, toasts: createToastStore(), fetch: fetchFn });
-    render(<DoneTray cards={[card('x')]} onReopen={(id) => void m.undone(id)} />);
+    render(<DoneTray cards={[card('x')]} onReopen={(id) => void m.reopen(id)} />);
     const chip = screen.getByRole('button', { name: /T-x/ });
     expect(chip.textContent).toMatch(/ago|just now/);
     fireEvent.click(chip);

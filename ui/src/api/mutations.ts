@@ -1,16 +1,17 @@
 import { JSON_CONTENT_TYPE, MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../../src/constants/http.js';
 import { ERROR_CODES } from '../../../src/constants/error-codes.js';
 import { useSyncExternalStore } from 'react';
-import type { LayoutItem, Snapshot, ViewCard } from './types.ts';
+import type { Snapshot, ViewCard } from './types.ts';
 import { getSnapshotStore, type SnapshotStore, type StoreState } from './store.ts';
 import { getToastStore, type ToastStore } from './toasts.ts';
 
 import { CONFLICT_TOAST } from '../constants/messages.ts';
 
 type Op =
-  | { id: number; kind: 'zone'; cardId: string; zone: 'tray' | 'hidden' | 'restore' | 'drop' }
-  | { id: number; kind: 'layout'; layout: LayoutItem[] }
+  | { id: number; kind: 'flag'; cardId: string; flag: Flag }
   | { id: number; kind: 'item'; cardId: string; itemId: string; checked: boolean };
+
+type Flag = 'done' | 'reopen' | 'hide' | 'unhide' | 'tick';
 
 export interface MutationView {
   /** Store state with optimistic patches applied. */
@@ -26,13 +27,10 @@ export interface Mutations {
   getChecked(cardId: string): ReadonlySet<string>;
   getPending(cardId: string): ReadonlySet<string>;
   done(cardId: string): Promise<void>;
-  undone(cardId: string): Promise<void>;
+  reopen(cardId: string): Promise<void>;
   hide(cardId: string): Promise<void>;
   unhide(cardId: string): Promise<void>;
   tick(cardId: string): Promise<void>;
-  putLayout(layout: LayoutItem[]): Promise<void>;
-  /** Fire-and-forget PUT with `keepalive` for `pagehide`; no optimistic patch, no refetch, never throws. */
-  putLayoutKeepalive(layout: LayoutItem[]): void;
   /** Resolves on success, rejects with the server message. */
   onItemAction(cardId: string, itemId: string, checked?: boolean): Promise<void>;
 }
@@ -44,25 +42,42 @@ export interface MutationOptions {
   baseUrl?: string;
 }
 
-const ZONES = ['alerts', 'now', 'grid', 'tray', 'hidden'] as const;
-
-function without(list: string[] | undefined, id: string): string[] {
-  return (list ?? []).filter((x) => x !== id);
+function without(list: readonly string[], id: string): string[] {
+  return list.filter((x) => x !== id);
 }
 
-function applyZone(snap: Snapshot, cardId: string, zone: 'tray' | 'hidden' | 'restore' | 'drop'): Snapshot {
-  const zones: Record<string, string[]> = {};
-  for (const z of ZONES) zones[z] = without(snap.zones?.[z], cardId);
-  if (zone === 'drop') {
-    // alert tick: the file leaves the dashboard (feed/done), no tray entry
-  } else if (zone === 'restore') {
-    const kind = snap.cards[cardId]?.kind;
-    const target = kind === 'alert' ? 'alerts' : 'grid';
-    zones[target] = [...zones[target]!, cardId];
-  } else {
-    zones[zone] = [...zones[zone]!, cardId];
+/** Optimistic patch per PRD "API client / state". reopen/unhide leave the card to the next refetch. */
+function applyFlag(snap: Snapshot, cardId: string, flag: Flag): Snapshot {
+  const card = snap.cards[cardId];
+  switch (flag) {
+    case 'done':
+    case 'hide': {
+      const columns = {
+        left: without(snap.columns.left, cardId),
+        center: without(snap.columns.center, cardId),
+        right: without(snap.columns.right, cardId),
+      };
+      const now = without(snap.now, cardId);
+      if (flag === 'hide') return { ...snap, columns, now, hidden: [...without(snap.hidden, cardId), cardId] };
+      return {
+        ...snap,
+        columns,
+        now,
+        completed: [{ kind: 'card', id: cardId }, ...snap.completed.filter((c) => !(c.kind === 'card' && c.id === cardId))],
+        cards: card ? { ...snap.cards, [cardId]: { ...card, done: true } } : snap.cards,
+      };
+    }
+    case 'reopen':
+      return {
+        ...snap,
+        completed: snap.completed.filter((c) => !(c.kind === 'card' && c.id === cardId)),
+        cards: card ? { ...snap.cards, [cardId]: { ...card, done: false } } : snap.cards,
+      };
+    case 'unhide':
+      return { ...snap, hidden: without(snap.hidden, cardId) };
+    case 'tick':
+      return { ...snap, alerts: without(snap.alerts, cardId) };
   }
-  return { ...snap, zones: zones as unknown as Snapshot['zones'] };
 }
 
 function baseChecked(card: ViewCard | undefined): Set<string> {
@@ -103,7 +118,7 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
         if (!s) pending.set(op.cardId, (s = new Set()));
         s.add(op.itemId);
       } else if (snapshot) {
-        snapshot = op.kind === 'zone' ? applyZone(snapshot, op.cardId, op.zone) : { ...snapshot, layout: op.layout };
+        snapshot = applyFlag(snapshot, op.cardId, op.flag);
       }
     }
     return { state: snapshot === state.snapshot ? state : { ...state, snapshot }, pending };
@@ -167,19 +182,14 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
 
   /** Public wrapper: toast already shown; the promise still rejects for callers that care. */
   const swallow = (p: Promise<void>): Promise<void> => p.catch(() => undefined);
-  const zoneOp = (cardId: string, zone: 'tray' | 'hidden' | 'restore' | 'drop'): Op => ({
-    id: seq++,
-    kind: 'zone',
-    cardId,
-    zone,
-  });
+  const flagOp = (cardId: string, flag: Flag): Op => ({ id: seq++, kind: 'flag', cardId, flag });
   const enc = encodeURIComponent;
 
   return {
     subscribe(listener) {
       listeners.add(listener);
       const off = store.subscribe(() => {
-        // Server down: discard optimistic patches, pending sets and queued layout writes.
+        // Server down: discard optimistic patches, pending sets.
         if (store.getSnapshot().serverDown && ops.length > 0) ops = [];
         listener();
       });
@@ -201,24 +211,11 @@ export function createMutations(opts: MutationOptions = {}): Mutations {
       return out.size === 0 ? EMPTY : out;
     },
     getPending: (cardId) => getView().pending.get(cardId) ?? EMPTY,
-    done: (id) => swallow(run('POST', `/api/cards/${enc(id)}/done`, undefined, zoneOp(id, 'tray'))),
-    undone: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/done`, undefined, zoneOp(id, 'restore'))),
-    hide: (id) => swallow(run('PUT', `/api/cards/${enc(id)}/hidden`, undefined, zoneOp(id, 'hidden'))),
-    unhide: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/hidden`, undefined, zoneOp(id, 'restore'))),
-    tick: (id) => swallow(run('POST', `/api/alerts/${enc(id)}/tick`, undefined, zoneOp(id, 'drop'))),
-    putLayout: (layout) => swallow(run('PUT', '/api/layout', layout, { id: seq++, kind: 'layout', layout })),
-    putLayoutKeepalive(layout) {
-      try {
-        void doFetch(`${base}/api/layout`, {
-          method: 'PUT',
-          headers: { 'Content-Type': JSON_CONTENT_TYPE, [MUTATION_HEADER]: MUTATION_HEADER_VALUE },
-          body: JSON.stringify(layout),
-          keepalive: true,
-        }).catch(() => undefined);
-      } catch {
-        /* page is going away */
-      }
-    },
+    done: (id) => swallow(run('POST', `/api/cards/${enc(id)}/done`, undefined, flagOp(id, 'done'))),
+    reopen: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/done`, undefined, flagOp(id, 'reopen'))),
+    hide: (id) => swallow(run('PUT', `/api/cards/${enc(id)}/hidden`, undefined, flagOp(id, 'hide'))),
+    unhide: (id) => swallow(run('DELETE', `/api/cards/${enc(id)}/hidden`, undefined, flagOp(id, 'unhide'))),
+    tick: (id) => swallow(run('POST', `/api/alerts/${enc(id)}/tick`, undefined, flagOp(id, 'tick'))),
     onItemAction(cardId, itemId, checked = true) {
       const card = store.getSnapshot().snapshot?.cards[cardId];
       return run(

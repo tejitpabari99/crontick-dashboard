@@ -10,12 +10,17 @@ function snap(rev: string, pollIntervalMs = POLL_DEFAULT_MS, extra: Record<strin
     rev,
     warnings: [],
     config: { pollIntervalMs, nowPriorityThreshold: 5 },
-    zones: {},
+    columns: { left: [], center: [], right: [] },
+    now: [],
+    alerts: [],
+    hidden: [],
+    completed: [],
+    alertItems: {},
+    completedAlertItems: {},
     cards: {
       a: { id: 'a', title: 'A', ...extra },
       b: { id: 'b', title: 'B' },
     },
-    layout: [],
   } as unknown as Snapshot;
 }
 

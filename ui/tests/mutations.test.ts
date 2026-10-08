@@ -9,25 +9,42 @@ import { CONFLICT_TOAST } from '../src/constants/messages.ts';
 import { createToastStore } from '../src/api/toasts.ts';
 import type { Snapshot } from '../src/api/types.ts';
 
+const card = (id: string, over: Record<string, unknown> = {}) => ({
+  id,
+  type: 'list',
+  title: id.toUpperCase(),
+  priority: 1,
+  notify: false,
+  updatedAt: '2026-01-01T00:00:00Z',
+  column: 'left',
+  height: 'M',
+  status: 'ok',
+  collapsed: false,
+  done: false,
+  ...over,
+});
+
 const snap = (over: Partial<Snapshot> = {}): Snapshot =>
   ({
     serverTime: 't',
     rev: 'r1',
     warnings: [],
     config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
-    zones: { alerts: ['al'], now: [], grid: ['a', 'b'], tray: [], hidden: [] },
+    columns: { left: ['a', 'b'], center: ['c'], right: [] },
+    now: ['n'],
+    alerts: ['al'],
+    hidden: ['h'],
+    completed: [{ kind: 'card', id: 'd' }],
     cards: {
-      a: {
-        id: 'a',
-        kind: 'panel',
-        updatedAt: '2026-01-01T00:00:00Z',
-        checked: ['d1'],
-        data: { items: [{ id: 'i1', checked: true }, { id: 'i2' }, { id: 'i3' }] },
-      },
-      b: { id: 'b', kind: 'panel', updatedAt: 'x' },
-      al: { id: 'al', kind: 'alert', updatedAt: 'x' },
+      a: card('a', { checked: ['d1'], data: { items: [{ id: 'i1', checked: true }, { id: 'i2' }, { id: 'i3' }] } }),
+      b: card('b', { updatedAt: 'x' }),
+      c: card('c', { column: 'center' }),
+      n: card('n', { priority: 9 }),
+      h: card('h'),
+      d: card('d', { done: true, doneAt: '2026-01-02T00:00:00Z' }),
     },
-    layout: [],
+    alertItems: { al: { id: 'al', title: 'AL', priority: 1, updatedAt: 'x', status: 'ok' } },
+    completedAlertItems: {},
     ...over,
   }) as unknown as Snapshot;
 
@@ -55,13 +72,16 @@ function setup(mutRes: Array<Response | Error | Promise<Response>>) {
 
 
 describe('mutations', () => {
-  it('done: optimistic tray patch, headers, refetch, then settled', async () => {
+  it('done: optimistic patch, headers, refetch, then settled', async () => {
     const t = setup([json(200, { rev: 'r2' })]);
     await t.store.refetch();
     const p = t.m.done('a');
-    expect(t.m.getView().state.snapshot?.zones.tray).toEqual(['a']);
-    expect(t.m.getView().state.snapshot?.zones.grid).toEqual(['b']);
-    t.setCurrent(snap({ zones: { alerts: ['al'], now: [], grid: ['b'], tray: ['a'], hidden: [] } }));
+    const s = t.m.getView().state.snapshot!;
+    expect(s.columns.left).toEqual(['b']);
+    expect(s.completed).toEqual([{ kind: 'card', id: 'a' }, { kind: 'card', id: 'd' }]);
+    expect(s.cards.a!.done).toBe(true);
+    expect(s.columns.center).toEqual(['c']);
+    t.setCurrent(snap({ columns: { left: ['b'], center: ['c'], right: [] } }));
     await p;
     expect(t.calls[0]!.url).toBe('/api/cards/a/done');
     expect(t.calls[0]!.init.method).toBe('POST');
@@ -69,13 +89,39 @@ describe('mutations', () => {
       'Content-Type': JSON_CONTENT_TYPE,
       [MUTATION_HEADER]: MUTATION_HEADER_VALUE,
     });
-    expect(t.m.getView().state.snapshot?.zones.tray).toEqual(['a']);
     expect(t.toasts.getSnapshot()).toEqual([]);
+  });
+
+  it('done removes from now and columns.*', async () => {
+    const t = setup([new Promise<Response>(() => undefined)]);
+    await t.store.refetch();
+    void t.m.done('n');
+    expect(t.m.getView().state.snapshot!.now).toEqual([]);
+    void t.m.done('c');
+    expect(t.m.getView().state.snapshot!.columns.center).toEqual([]);
+  });
+
+  it('reopen: DELETE /done; leaves completed + done=false, card not re-added until refetch', async () => {
+    let release!: (r: Response) => void;
+    const t = setup([new Promise<Response>((r) => (release = r))]);
+    await t.store.refetch();
+    const p = t.m.reopen('d');
+    const s = t.m.getView().state.snapshot!;
+    expect(s.completed).toEqual([]);
+    expect(s.cards.d!.done).toBe(false);
+    expect([...s.now, ...s.columns.left, ...s.columns.center, ...s.columns.right]).not.toContain('d');
+    await vi.waitFor(() => expect(t.calls).toHaveLength(1));
+    expect(t.calls[0]!.url).toBe('/api/cards/d/done');
+    expect(t.calls[0]!.init.method).toBe('DELETE');
+    t.setCurrent(snap({ completed: [], columns: { left: ['a', 'b', 'd'], center: ['c'], right: [] } }));
+    release(json(200, {}));
+    await p;
+    expect(t.m.getView().state.snapshot!.columns.left).toEqual(['a', 'b', 'd']);
   });
 
   it('mutation during an in-flight poll: waits and refetches fresh, patch is not dropped by stale data', async () => {
     const before = snap();
-    const after = snap({ zones: { alerts: ['al'], now: [], grid: ['b'], tray: ['a'], hidden: [] } });
+    const after = snap({ columns: { left: ['b'], center: ['c'], right: [] }, completed: [{ kind: 'card', id: 'a' }] });
     let applied = false;
     let releasePoll!: () => void;
     const gate = new Promise<void>((r) => (releasePoll = r));
@@ -99,21 +145,39 @@ describe('mutations', () => {
     await new Promise((r) => setTimeout(r, 0));
     releasePoll(); // pre-mutation data arrives
     await poll;
-    expect(m.getView().state.snapshot?.zones.tray).toEqual(['a']); // optimistic patch still applied
+    expect(m.getView().state.snapshot?.columns.left).toEqual(['b']); // optimistic patch still applied
     await p;
     expect(gets).toBe(2);
-    expect(m.getView().state.snapshot?.zones.tray).toEqual(['a']);
+    expect(m.getView().state.snapshot?.columns.left).toEqual(['b']);
   });
 
-  it('500: rolls back and toasts server error', async () => {
+  it('hide: removes from now/columns, adds to hidden; 500 rolls back and toasts', async () => {
     const t = setup([json(500, { error: 'disk full' })]);
     await t.store.refetch();
     const p = t.m.hide('a');
-    expect(t.m.getView().state.snapshot?.zones.hidden).toEqual(['a']);
+    const s = t.m.getView().state.snapshot!;
+    expect(s.hidden).toEqual(['h', 'a']);
+    expect(s.columns.left).toEqual(['b']);
     await p;
-    expect(t.m.getView().state.snapshot?.zones.hidden).toEqual([]);
-    expect(t.m.getView().state.snapshot?.zones.grid).toEqual(['a', 'b']);
+    const r = t.m.getView().state.snapshot!;
+    expect(r.hidden).toEqual(['h']);
+    expect(r.columns.left).toEqual(['a', 'b']);
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual(['disk full']);
+  });
+
+  it('unhide: removes from hidden only (card absent from columns until refetch)', async () => {
+    let release!: (r: Response) => void;
+    const t = setup([new Promise<Response>((r) => (release = r))]);
+    await t.store.refetch();
+    const p = t.m.unhide('h');
+    const s = t.m.getView().state.snapshot!;
+    expect(s.hidden).toEqual([]);
+    expect([...s.now, ...s.columns.left, ...s.columns.center, ...s.columns.right]).not.toContain('h');
+    await vi.waitFor(() => expect(t.calls).toHaveLength(1));
+    expect(t.calls[0]!.url).toBe('/api/cards/h/hidden');
+    expect(t.calls[0]!.init.method).toBe('DELETE');
+    release(json(200, {}));
+    await p;
   });
 
   it('409: reverts, silently refetches, toasts "card updated, try again"', async () => {
@@ -121,21 +185,24 @@ describe('mutations', () => {
     await t.store.refetch();
     const before = t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length;
     await t.m.tick('al');
-    expect(t.m.getView().state.snapshot?.zones.alerts).toEqual(['al']);
+    expect(t.m.getView().state.snapshot?.alerts).toEqual(['al']);
     expect(t.toasts.getSnapshot().map((x) => x.message)).toEqual([CONFLICT_TOAST]);
     await vi.waitFor(() =>
       expect(t.fetchFn.mock.calls.filter((c) => c[0] === '/api/snapshot').length).toBeGreaterThan(before),
     );
   });
 
-  it('tick optimistically removes the alert from alerts and does not add it to tray', async () => {
+  it('tick optimistically removes the alert from alerts only', async () => {
     let release!: (r: Response) => void;
     const t = setup([new Promise<Response>((r) => (release = r))]);
     await t.store.refetch();
     const p = t.m.tick('al');
-    const z = t.m.getView().state.snapshot?.zones;
-    expect(z?.alerts).toEqual([]);
-    expect(z?.tray).toEqual([]);
+    const s = t.m.getView().state.snapshot!;
+    expect(s.alerts).toEqual([]);
+    expect(s.completed).toEqual([{ kind: 'card', id: 'd' }]);
+    await vi.waitFor(() => expect(t.calls).toHaveLength(1));
+    expect(t.calls[0]!.url).toBe('/api/alerts/al/tick');
+    expect(t.calls[0]!.init.method).toBe('POST');
     release(json(200, {}));
     await p;
   });
@@ -143,21 +210,9 @@ describe('mutations', () => {
   it('network failure rolls back and toasts', async () => {
     const t = setup([new Error('boom')]);
     await t.store.refetch();
-    await t.m.unhide('a');
+    await t.m.unhide('h');
     expect(t.toasts.getSnapshot()).toHaveLength(1);
-  });
-
-  it('layout: patches layout, PUT body is the layout', async () => {
-    const t = setup([json(200, { rev: 'r2' })]);
-    await t.store.refetch();
-    const layout = [{ i: 'a', x: 0, y: 0, w: 3, h: 4 }];
-    const p = t.m.putLayout(layout);
-    expect(t.m.getView().state.snapshot?.layout).toEqual(layout);
-    await p;
-    expect(t.calls[0]!.url).toBe('/api/layout');
-    expect(t.calls[0]!.init.method).toBe('PUT');
-    expect(JSON.parse(String(t.calls[0]!.init.body))).toEqual(layout);
-    expect(t.m.getView().state.snapshot?.layout).toEqual([]);
+    expect(t.m.getView().state.snapshot?.hidden).toEqual(['h']);
   });
 
   it('onItemAction: checked/pending sets, body, resolves on 200', async () => {
@@ -225,20 +280,5 @@ describe('toast store', () => {
     expect(s.getSnapshot()).toEqual([]);
     s.dismiss(id);
     expect(l).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('putLayoutKeepalive', () => {
-  it('sends PUT /api/layout with keepalive and CSRF header, no refetch', () => {
-    const { m, calls, fetchFn } = setup([json(200, {})]);
-    const layout = [{ i: 'a', x: 0, y: 0, w: 3, h: 7 }];
-    m.putLayoutKeepalive(layout);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe('/api/layout');
-    expect(calls[0]!.init.method).toBe('PUT');
-    expect(calls[0]!.init.keepalive).toBe(true);
-    expect(JSON.parse(String(calls[0]!.init.body))).toEqual(layout);
-    expect((calls[0]!.init.headers as Record<string, string>)[MUTATION_HEADER]).toBe(MUTATION_HEADER_VALUE);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });

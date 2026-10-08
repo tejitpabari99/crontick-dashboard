@@ -5,11 +5,12 @@ import type { ViewCard } from './api/types.ts';
 import { CardFrame } from './frame/CardFrame.tsx';
 import { Fullscreen } from './frame/Fullscreen.tsx';
 import { buildCardHash, parseCardHash, replaceHash, useHash } from './lib/hash.ts';
+import { attentionCount } from './lib/attention.ts';
 import { getSeenVersion, subscribeSeen } from './lib/seen.ts';
 import { matchCards, toSearchCard } from './lib/search.ts';
 import { DoneTray } from './zones/DoneTray.tsx';
 import { Grid } from './zones/Grid.tsx';
-import { attentionCount, Header } from './zones/Header.tsx';
+import { Header } from './zones/Header.tsx';
 import { NowZone } from './zones/NowZone.tsx';
 import { ServerDown } from './zones/ServerDown.tsx';
 import { ToastHost } from './zones/ToastHost.tsx';
@@ -85,7 +86,7 @@ export function App(props: AppProps = {}) {
   }, [target, snap, toasts]);
 
   useSyncExternalStore(subscribeSeen, getSeenVersion);
-  const count = attentionCount(alerts, [...now, ...grid]);
+  const count = snap ? attentionCount(snap) : 0;
   useEffect(() => {
     document.title = down ? 'Server down' : count > 0 ? `(${count}) Crontick` : 'Crontick';
   }, [count, down]);
@@ -106,7 +107,7 @@ export function App(props: AppProps = {}) {
           visibleIds,
           total: visibleIds.length + others.length,
           others,
-          onReopen: (id) => void m.undone(id),
+          onReopen: (id) => void m.reopen(id),
           onUnhide: (id) => void m.unhide(id),
         }}
       />
@@ -163,7 +164,7 @@ export function App(props: AppProps = {}) {
               )}
             />
             </section>
-            <DoneTray cards={tray} onReopen={(id) => void m.undone(id)} />
+            <DoneTray cards={tray} onReopen={(id) => void m.reopen(id)} />
           </>
         ) : null}
       </main>
