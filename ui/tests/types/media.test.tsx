@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/media/index.ts';
-import example from '../../../templates/media.example.json';
+import example from '../../../templates/media/data.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
 import type { MediaData } from '../../../src/index.js';
 

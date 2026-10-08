@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/markdown/index.ts';
-import example from '../../../templates/markdown.example.json';
+import example from '../../../templates/markdown/data.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
 import type { MarkdownData } from '../../../src/index.js';
 
@@ -95,7 +95,7 @@ describe('markdown type', () => {
     expect(screen.getByText('(empty)')).toBeTruthy();
   });
 
-  it('renders templates/markdown.example.json', () => {
+  it('renders templates/markdown/data.json', () => {
     const { container } = renderMd((example.data as MarkdownData).text);
     expect(container.querySelector('h1')).toBeNull();
     expect(container.querySelector('h4')?.textContent).toBe('Today');

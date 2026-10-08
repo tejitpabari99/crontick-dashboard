@@ -1,11 +1,11 @@
 /**
- * Browser smoke: boots 02's server from source on a fixture feed (01 examples plus a
- * broken card and an alert) against the built UI (ui/dist) and drives it in Chromium.
+ * Browser smoke: boots the server from source on a fixture feed (templates/<type>/ card folders plus a
+ * broken card, an alert and the SKILL.md email-summary table) against the built UI (ui/dist) and drives it in Chromium.
  * Asserts every fixture type renders its real body (04 registry), never the
  * "Unsupported type" fallback.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
@@ -22,14 +22,31 @@ interface Harness {
   home: string;
 }
 
-async function boot(cards: Record<string, unknown>[]): Promise<Harness> {
+interface FixtureCard {
+  id: string;
+  card: Record<string, unknown>;
+  /** data.json text or object; omitted = no data.json */
+  data?: unknown;
+}
+
+function writeAtomic(file: string, text: string): void {
+  writeFileSync(`${file}.tmp`, text);
+  renameSync(`${file}.tmp`, file);
+}
+
+async function boot(cards: FixtureCard[], alerts: Record<string, unknown>[] = []): Promise<Harness> {
   const home = mkdtempSync(join(tmpdir(), 'crontick-smoke-'));
   const env = { ...process.env, [ENV_HOME]: home };
   ensureDirs(env);
-  for (const card of cards) {
-    const file = join(feedDir(env), `${String(card['id'])}.json`);
-    writeFileSync(`${file}.tmp`, JSON.stringify(card));
-    renameSync(`${file}.tmp`, file);
+  for (const c of cards) {
+    const dir = join(feedDir(env), c.id);
+    mkdirSync(dir, { recursive: true });
+    writeAtomic(join(dir, 'card.json'), JSON.stringify(c.card));
+    if (c.data !== undefined) writeAtomic(join(dir, 'data.json'), typeof c.data === 'string' ? c.data : JSON.stringify(c.data));
+  }
+  if (alerts.length > 0) {
+    mkdirSync(join(feedDir(env), 'alerts'), { recursive: true });
+    for (const a of alerts) writeAtomic(join(feedDir(env), 'alerts', `${String(a['id'])}.json`), JSON.stringify({ ...a, id: undefined }));
   }
   const server = await startServer({ env, uiDir: UI_DIR, port: 0, notifyAdapter: new FakeNotifyAdapter() });
   return { server, home };
@@ -50,35 +67,34 @@ function watchErrors(page: Page): string[] {
   return errors;
 }
 
-const example = (type: string): Record<string, unknown> =>
-  JSON.parse(readFileSync(join(ROOT, 'templates', `${type}.example.json`), 'utf8')) as Record<string, unknown>;
+const readJson = (...parts: string[]): Record<string, unknown> =>
+  JSON.parse(readFileSync(join(ROOT, ...parts), 'utf8')) as Record<string, unknown>;
 
-const card = (card: Record<string, unknown>, over: Record<string, unknown>) => ({ ...card, ...over });
+/** Shipped templates/<type>/{card,data}.json as a fixture card (folder name = type). */
+const template = (type: string): FixtureCard => ({
+  id: type,
+  card: readJson('templates', type, 'card.json'),
+  data: { ...readJson('templates', type, 'data.json'), updatedAt: new Date().toISOString() },
+});
+
+/** The email-summary data.json block from SKILL.md (the doc an agent is told to write). */
+function skillBlock(kind: 'card' | 'data'): Record<string, unknown> {
+  const md = readFileSync(join(ROOT, 'src/skill/SKILL.md'), 'utf8');
+  const m = new RegExp(`<!-- example:${kind} email-summary -->\\s*\`\`\`json\\n([\\s\\S]*?)\`\`\``).exec(md);
+  if (!m) throw new Error(`SKILL.md has no ${kind} example`);
+  return JSON.parse(m[1]!) as Record<string, unknown>;
+}
 
 test.describe('populated feed', () => {
   let h: Harness | undefined;
   test.beforeAll(async () => {
-    const cards = TYPES.map(example);
-    // Panels only: ensure examples are panels so the alert/broken ones are the only others.
-    const base = cards.map((c) => card(c, { kind: 'panel', priority: 1, updatedAt: new Date().toISOString() }));
-    base.push(
-      card(example('markdown'), {
-        id: 'smoke-alert',
-        kind: 'alert',
-        title: 'Smoke alert',
-        priority: 5,
-        data: { text: 'Disk almost full' },
-      }),
-      {
-        id: 'smoke-broken',
-        kind: 'panel',
-        type: 'markdown',
-        title: 'Smoke broken',
-        updatedAt: '2026-10-05T07:30:00Z',
-        error: 'Upstream API unreachable',
-      },
-    );
-    h = await boot(base);
+    const cards: FixtureCard[] = TYPES.map(template);
+    cards.push({
+      id: 'smoke-broken',
+      card: { type: 'markdown', title: 'Smoke broken' },
+      data: { updatedAt: '2026-10-05T07:30:00Z', error: 'Upstream API unreachable' },
+    });
+    h = await boot(cards, [{ id: 'smoke-alert', title: 'Smoke alert', text: 'Disk almost full', priority: 5 }]);
   });
   test.afterAll(() => shutdown(h));
 
@@ -99,13 +115,14 @@ test.describe('populated feed', () => {
     const errors = watchErrors(page);
     await page.goto(h!.server.url);
 
-    // One rendered card element per fixture type (ids come from the 01 examples).
-    for (const type of TYPES) {
-      const id = String(example(type)['id']);
-      await expect(page.locator(`[data-card-id="${id}"]`).first(), type).toBeVisible();
-    }
+    // One rendered card element per fixture type (folder name = type).
+    for (const type of TYPES) await expect(page.locator(`[data-card-id="${type}"]`).first(), type).toBeVisible();
+    // Three columns: left | center | right placement comes from each template's card.json layout.
+    await expect(page.locator('[data-column="left"] [data-card-id="table"]')).toBeVisible();
+    await expect(page.locator('[data-column="center"] [data-card-id="markdown"]')).toBeVisible();
+    await expect(page.locator('[data-column="right"] [data-card-id="kpi"]')).toBeVisible();
     // Collapsed panels render as chips; expand them all so the real bodies mount.
-    const expanders = page.getByRole('button', { name: 'Expand' });
+    const expanders = page.getByRole('button', { name: /^Expand/ });
     while (await expanders.count()) await expanders.first().click();
     await expect(page.getByText(/Unsupported type/i)).toHaveCount(0);
     await expect(page.locator('table').first()).toBeVisible(); // table body
@@ -120,22 +137,43 @@ test.describe('populated feed', () => {
 
     // Alert strip.
     const alerts = page.getByRole('region', { name: 'Alerts' });
-    await expect(alerts.locator('[data-card-id="smoke-alert"]')).toBeVisible();
+    await expect(alerts.locator('[data-alert-id="smoke-alert"]')).toBeVisible();
 
-    // Done on a panel, then reopen from the tray chip.
-    const id = String(example('table')['id']);
+    // Done on a panel moves it to the Completed section; Reopen brings it back.
+    const id = 'table';
     const panel = page.locator(`section[data-card-id="${id}"]`);
-    const expand = panel.getByRole('button', { name: 'Expand' });
-    if (await expand.count()) await expand.click(); // collapsed examples render as chips
     await panel.getByRole('button', { name: 'Done' }).click();
-    const tray = page.getByTestId('done-tray');
-    const chip = tray.locator(`[data-card-id="${id}"]`);
-    await expect(chip).toBeVisible();
+    const completed = page.getByTestId('completed');
+    await expect(completed).toBeVisible();
+    const head = completed.getByRole('button', { name: /^Completed/ });
+    if ((await head.getAttribute('aria-expanded')) === 'false') await head.click();
+    const row = completed.locator(`[data-completed-id="${id}"]`);
+    await expect(row).toBeVisible();
     await expect(panel).toHaveCount(0);
-    await chip.click();
+    await row.getByRole('button', { name: 'Reopen' }).click();
     await expect(page.locator(`section[data-card-id="${id}"]`)).toBeVisible();
-    await expect(page.getByTestId('done-tray')).toHaveCount(0);
 
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('SKILL.md email-summary table', () => {
+  let h: Harness | undefined;
+  test.beforeAll(async () => {
+    h = await boot([{ id: 'email-summary', card: skillBlock('card'), data: skillBlock('data') }]);
+  });
+  test.afterAll(() => shutdown(h));
+
+  test('renders the documented table card in the center column', async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto(h!.server.url);
+    const card = page.locator('[data-column="center"] [data-card-id="email-summary"]');
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('columnheader', { name: /From/ })).toBeVisible();
+    await expect(card.getByRole('columnheader', { name: /Subject/ })).toBeVisible();
+    await expect(card.locator('tbody tr')).toHaveCount(5);
+    await expect(card.getByText('Q4 planning notes', { exact: true })).toBeVisible();
+    await expect(card.getByText(/Unsupported type|No data yet/i)).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 });

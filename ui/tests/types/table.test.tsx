@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/table/index.ts';
-import example from '../../../templates/table.example.json';
+import example from '../../../templates/table/data.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
 import { PAGE } from '../../src/constants/types.ts';
 import type { TableData } from '../../../src/index.js';

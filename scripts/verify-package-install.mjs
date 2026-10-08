@@ -124,24 +124,28 @@ async function main() {
   assert(r.code === 0 && r.stdout.trim() === pkg.version, `--version: code=${r.code} out=${r.stdout.trim()} expected ${pkg.version}`);
   log(`--version -> ${r.stdout.trim()}`);
 
-  // templates lists 5 types
+  // templates lists 5 types + alert
   r = cli(['templates']);
   assert(r.code === 0, `templates exit ${r.code}: ${r.stderr}`);
-  for (const t of TYPES) assert(new RegExp(`^${t}\\s`, 'm').test(r.stdout), `templates output missing type ${t}`);
-  log('templates lists 5 types');
+  for (const t of [...TYPES, 'alert']) assert(new RegExp(`^${t}\\s`, 'm').test(r.stdout), `templates output missing type ${t}`);
+  log('templates lists 5 types + alert');
 
-  // every shipped template validates (via stdin: example filenames differ from card ids)
+  // every shipped example (card.json + data.json) validates via stdin
   for (const t of TYPES) {
-    const ex = cli(['templates', t]);
-    assert(ex.code === 0 && ex.stdout.length > 0, `templates ${t} failed: ${ex.stderr}`);
-    const v = cli(['validate', '-'], { input: ex.stdout });
-    assert(v.code === 0, `validate ${t} example exit ${v.code}: ${v.stdout}${v.stderr}`);
+    const c = cli(['templates', t, '--file', 'card']);
+    const d = cli(['templates', t, '--file', 'data']);
+    assert(c.code === 0 && d.code === 0 && c.stdout.length > 0 && d.stdout.length > 0, `templates ${t} --file failed: ${c.stderr}${d.stderr}`);
+    const vc = cli(['validate', '-', '--as', 'card'], { input: c.stdout });
+    assert(vc.code === 0, `validate ${t} card exit ${vc.code}: ${vc.stdout}${vc.stderr}`);
+    const vd = cli(['validate', '-', '--as', 'data', '--type', t], { input: d.stdout });
+    assert(vd.code === 0, `validate ${t} data exit ${vd.code}: ${vd.stdout}${vd.stderr}`);
   }
   log('5 shipped templates validate (exit 0)');
 
-  // broken fixture exits 1 with parseable --json
-  const broken = join(scratch, 'broken.json');
-  writeFileSync(broken, JSON.stringify({ id: 'broken', kind: 'panel', type: 'kpi', title: 'x' }));
+  // broken card folder exits 1 with parseable --json
+  const broken = join(scratch, 'broken');
+  mkdirSync(broken, { recursive: true });
+  writeFileSync(join(broken, 'card.json'), JSON.stringify({ type: 'not-a-type', title: 'x' }));
   r = cli(['validate', '--json', broken]);
   assert(r.code === 1, `broken fixture expected exit 1, got ${r.code}\n${r.stdout}${r.stderr}`);
   let parsed;
@@ -150,7 +154,7 @@ async function main() {
   } catch {
     fail(`validate --json output is not JSON: ${r.stdout}`);
   }
-  assert(Array.isArray(parsed) && parsed[0]?.result && 'broken' in parsed[0].result, 'validate --json result lacks "broken"');
+  assert(Array.isArray(parsed) && parsed[0]?.result?.status === 'broken', 'validate --json result is not broken');
   log('broken fixture exit 1, --json parses');
 
   // info --json paths exist
@@ -174,15 +178,22 @@ async function main() {
   assert(index.status === 200 && /<html/i.test(index.body), `GET / not HTML: ${index.status}`);
   log('GET /api/health ok, GET / returns HTML');
 
-  // tmp+rename card appears in snapshot
-  const card = JSON.parse(cli(['templates', 'markdown']).stdout);
-  card.id = 'verify-install-card';
-  card.updatedAt = new Date().toISOString();
+  // `new` then `validate` from the packed tarball (feed dir comes from info --json)
   const feed = info.feedDir;
-  mkdirSync(feed, { recursive: true });
-  const tmpName = join(feed, '.verify-install-card.json.tmp');
-  writeFileSync(tmpName, JSON.stringify(card));
-  renameSync(tmpName, join(feed, 'verify-install-card.json'));
+  r = cli(['new', 'verify-install-card', '--type', 'table', '--title', 'Verify install', '--column', 'center', '--height', 'M']);
+  assert(r.code === 0, `new exit ${r.code}: ${r.stdout}${r.stderr}`);
+  const folder = join(feed, 'verify-install-card');
+  assert(existsSync(join(folder, 'card.json')), 'new did not write card.json');
+  r = cli(['validate', folder]);
+  assert(r.code === 0 && /NO DATA/.test(r.stdout), `validate before data expected exit 0 + NO DATA: ${r.code} ${r.stdout}${r.stderr}`);
+  const data = JSON.parse(cli(['templates', 'table', '--file', 'data']).stdout);
+  data.updatedAt = new Date().toISOString();
+  const tmpName = join(folder, 'data.json.tmp');
+  writeFileSync(tmpName, JSON.stringify(data));
+  renameSync(tmpName, join(folder, 'data.json'));
+  r = cli(['validate', folder]);
+  assert(r.code === 0 && /^OK /m.test(r.stdout) && !/warning/.test(r.stdout), `validate after data expected OK, no warnings: ${r.code} ${r.stdout}${r.stderr}`);
+  log('new + validate (exit 0, no warnings) from tarball');
   let seen = false;
   for (let i = 0; i < 50 && !seen; i++) {
     const s = await get('/api/snapshot');

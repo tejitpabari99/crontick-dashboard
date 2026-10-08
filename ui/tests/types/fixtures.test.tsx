@@ -1,6 +1,6 @@
 import axe from 'axe-core';
 import { cleanup, render } from '@testing-library/react';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
@@ -8,9 +8,13 @@ import type { CardTypeProps, Mode } from '../../src/registry/registry.ts';
 import '../../src/types/index.ts';
 
 const dir = join(import.meta.dirname, '../../../templates');
-const examples = readdirSync(dir)
-  .filter((f) => f.endsWith('.example.json'))
-  .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')) as { id: string; type: string; data: unknown });
+const examples = readdirSync(dir, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && existsSync(join(dir, d.name, 'card.json')))
+  .map((d) => {
+    const card = JSON.parse(readFileSync(join(dir, d.name, 'card.json'), 'utf8')) as { type: string };
+    const file = JSON.parse(readFileSync(join(dir, d.name, 'data.json'), 'utf8')) as { data: unknown };
+    return { type: card.type, data: file.data };
+  });
 
 afterEach(cleanup);
 
@@ -29,7 +33,7 @@ function mount(type: string, data: unknown, mode: Mode, query = '') {
   );
 }
 
-describe('templates/*.example.json fixtures', () => {
+describe('templates/<type>/ fixtures', () => {
   it('covers all five types', () => {
     expect(examples.map((e) => e.type).sort()).toEqual(['kpi', 'list', 'markdown', 'media', 'table']);
   });

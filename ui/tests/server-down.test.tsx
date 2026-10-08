@@ -10,9 +10,9 @@ import { DOWN_BACKOFF_MS } from '../src/constants/polling.ts';
 import type { Snapshot, ViewCard } from '../src/api/types.ts';
 import { snapshotOf, valert, vcard, type Placement } from './helpers/snapshot.ts';
 import '../src/types/index.ts';
-import table from '../../templates/table.example.json';
-import list from '../../templates/list.example.json';
-import media from '../../templates/media.example.json';
+import table from '../../templates/table/data.json';
+import list from '../../templates/list/data.json';
+import media from '../../templates/media/data.json';
 
 const card = (id: string, over: Partial<ViewCard> = {}): ViewCard =>
   vcard(id, 'markdown', { title: `Title-${id}`, data: { text: `Data-${id}` } as never, ...over });

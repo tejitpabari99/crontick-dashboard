@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/kpi/index.ts';
-import example from '../../../templates/kpi.example.json';
+import example from '../../../templates/kpi/data.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
 import type { KpiData } from '../../../src/index.js';
 

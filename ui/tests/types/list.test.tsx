@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/list/index.ts';
-import example from '../../../templates/list.example.json';
+import example from '../../../templates/list/data.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
 import { PAGE } from '../../src/constants/types.ts';
 import type { ListData } from '../../../src/index.js';
