@@ -15,7 +15,7 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/03-ui-colu
 | 5 | One-line AlertStrip | 2, 4 | done |
 | 6 | Header All/Alerts/Cards filter | 4, 5 | done |
 | 7 | Completed section | 2, 4, 6 | done |
-| 8 | Search scope and deep-link updates | 5, 6, 7 | in-progress |
+| 8 | Search scope and deep-link updates | 5, 6, 7 | done |
 | 9 | Acceptance closure: poll stability, removals, 300px check | 4–8 | todo |
 
 ## Task 1 — Layout tokens and breakpoint test
