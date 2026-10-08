@@ -1,7 +1,6 @@
 /** POST /api/cards/:id/actions — server-authoritative item actions (Decision 8). */
 import type { Hono } from 'hono';
 import { z } from 'zod';
-import { envelope } from '../feed/ingest.js';
 import { sameInstant } from '../instant.js';
 import { findItemAction } from '../actions/lookup.js';
 import { actionRegistry } from '../actions/registry.js';
@@ -32,7 +31,7 @@ export function mountActions(app: Hono, ctx: AppContext): void {
     const body = BodySchema.safeParse(raw);
     if (!body.success) return apiError(c, 400, ERROR_CODES.INVALID_BODY, 'body must be { itemId, updatedAt, checked? }');
     const { itemId, updatedAt } = body.data;
-    const env = envelope(entry);
+    const env = entry.card;
     if (!sameInstant(updatedAt, env.updatedAt)) return apiError(c, 409, ERROR_CODES.CARD_CHANGED, CARD_CHANGED_MESSAGE);
     const item = findItemAction(env.data, itemId);
     if (!item) return apiError(c, 404, ERROR_CODES.ITEM_NOT_FOUND, 'no such item on this card; reload the page');

@@ -45,9 +45,9 @@ npm run format               # Prettier (write)
 ## Source organization
 
 - `src/contract/` -- card contract: zod types, envelope, formats, registry, validation. Exported via `src/index.ts`.
-- `src/feed/` -- feed ingest, watcher, events, archive.
+- `src/feed/` -- feed ingest (card folders `feed/<id>/{card.json,data.json}` and `feed/alerts/*.json`), `read-card-folder` (shared fs reader, also used by the CLI), one recursive watcher plus rescan, events, Done/tick moves. No archive.
 - `src/state/` -- state store and warnings.
-- `src/compute/` -- snapshot computation served to the UI.
+- `src/compute/` -- pure snapshot computation served to the UI (columns, Now, alerts, Completed list).
 - `src/actions/` -- action registry and writeback.
 - `src/http/` -- Hono app, guards (Host allowlist, mutation guard), routes, port binding, static UI serving.
 - `src/server/` -- server process entry.

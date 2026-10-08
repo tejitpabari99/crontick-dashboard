@@ -5,11 +5,9 @@ import { parseDuration, windowActive } from '../contract/formats.js';
 import { COMPLETED_ALERT_MAX, COMPLETED_ALERT_MAX_AGE_MS } from '../constants/feed.js';
 import type { Layout } from '../contract/card-def.js';
 import {
-  envelope,
   type AlertEntry,
   type BrokenEntry,
   type CardEntry,
-  type CardEnvelope,
   type CompletedAlertEntry,
   type NoDataEntry,
   type OkEntry,
@@ -41,7 +39,7 @@ export function inWindow(show: Show | undefined, now: Date, timezone: string): b
   }
 }
 
-export function brokenReason(card: Pick<CardEnvelope, 'updatedAt' | 'error' | 'staleAfter'>, now: Date): { reason: ViewReason; message: string } | null {
+export function brokenReason(card: { updatedAt: string; error?: string | null; staleAfter?: string }, now: Date): { reason: ViewReason; message: string } | null {
   if (card.error !== null && card.error !== undefined && card.error !== '') return { reason: 'error', message: card.error };
   if (card.staleAfter !== undefined) {
     try {
@@ -57,7 +55,7 @@ export function brokenReason(card: Pick<CardEnvelope, 'updatedAt' | 'error' | 's
 }
 
 function okItem(e: OkEntry, st: Readonly<StateData>, now: Date, tz: string): Item | null {
-  const c = envelope(e);
+  const c = e.card;
   if (!inWindow(c.show, now, tz)) return null;
   const l = slot(e.card.layout);
   const view: ViewCard = {

@@ -68,40 +68,6 @@ export interface BrokenEntry {
 }
 export type CardEntry = OkEntry | NoDataEntry | BrokenEntry;
 
-/** Flat typed view of an ok entry (what snapshot/events/notifier read). */
-export interface CardEnvelope {
-  id: string;
-  kind: 'panel' | 'alert';
-  type: string;
-  title: string;
-  updatedAt: string;
-  priority: number;
-  notify: boolean;
-  show?: { cron: string; for?: string };
-  staleAfter?: string;
-  size?: 'S' | 'M' | 'L';
-  error?: string | null;
-  data?: Record<string, unknown>;
-}
-export const envelope = (e: OkEntry): CardEnvelope => {
-  const c = e.card;
-  const h = c.layout.height;
-  return {
-    id: c.id,
-    kind: 'panel',
-    type: c.type,
-    title: c.title,
-    updatedAt: c.updatedAt,
-    priority: c.priority,
-    notify: c.notify,
-    ...(c.show ? { show: c.show } : {}),
-    ...(c.staleAfter !== undefined ? { staleAfter: c.staleAfter } : {}),
-    ...(h === 'S' || h === 'M' || h === 'L' ? { size: h } : {}),
-    error: c.error,
-    ...(c.data !== undefined ? { data: c.data } : {}),
-  };
-};
-
 export interface CardChange {
   type: 'new' | 'changed' | 'removed';
   key: string;
