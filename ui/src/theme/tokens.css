@@ -18,4 +18,14 @@
   --fs-meta: 12px;
   --lh: 1.35;
   --radius: 8px;
+
+  /* Layout. The 1200px narrow breakpoint is a literal in columns.css
+     (CSS cannot use var() in @media); tests/helpers/breakpoint.ts mirrors it. */
+  --col-side: 300px;
+  --col-gap: 16px;
+  --page-pad: 16px;
+  --h-S: 180px;
+  --h-M: 360px;
+  --h-L: 600px;
+  --chip-h: 32px;
 }
