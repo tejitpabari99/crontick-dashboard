@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick card definition (card.json)",
+  "description": "Not expressible in JSON Schema, enforced by the validator: the card id comes from the folder name (^[a-z0-9][a-z0-9._-]{0,63}$, no trailing \".\", no Windows reserved names), never from the file; a stray \"id\" key is ignored with a warning; type must be a registered card type; \"data\" is a plain file name inside the card folder (1-100 chars, ends with .json, no \"/\", no backslash or control chars, not leading \".\", not card.json) and defaults to data.json; show.cron must be a valid 5-field cron (no aliases, no seconds); durations (staleAfter, show.for) match ^[1-9]\\d*(m|h|d|w)$, max 3650d; defaults are applied by the validator (data \"data.json\", layout {column:\"center\",order:0,height:\"auto\"}, notify false). Unknown keys are preserved; keys starting with \"x-\" are reserved for agents.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "markdown",
+        "table",
+        "list",
+        "kpi",
+        "media"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "data": {
+      "default": "data.json",
+      "type": "string"
+    },
+    "layout": {
+      "default": {
+        "column": "center",
+        "order": 0,
+        "height": "auto"
+      },
+      "type": "object",
+      "properties": {
+        "column": {
+          "default": "center",
+          "type": "string",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "order": {
+          "default": 0,
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "height": {
+          "default": "auto",
+          "type": "string",
+          "enum": [
+            "S",
+            "M",
+            "L",
+            "auto"
+          ]
+        }
+      },
+      "additionalProperties": {}
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "notify": {
+      "default": false,
+      "type": "boolean"
+    },
+    "show": {
+      "type": "object",
+      "properties": {
+        "cron": {
+          "type": "string"
+        },
+        "for": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cron"
+      ],
+      "additionalProperties": {}
+    },
+    "staleAfter": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "title"
+  ],
+  "additionalProperties": {}
+}

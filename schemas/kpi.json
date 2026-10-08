@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick kpi card data",
+  "description": "Not expressible in JSON Schema, enforced by the validator: data must use either \"items\" or the flat single-metric form (value, label, unit, state, trend, link at the top level), not both; the flat form is normalized to items of length 1. This schema describes the canonical \"items\" form only; link values must be http, https, mailto or ms-outlook.",
+  "type": "object",
+  "properties": {
+    "items": {
+      "minItems": 1,
+      "maxItems": 12,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "pending",
+              "fail",
+              "warn"
+            ]
+          },
+          "trend": {
+            "type": "object",
+            "properties": {
+              "delta": {
+                "type": "number"
+              },
+              "dir": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              },
+              "good": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down"
+                ]
+              }
+            },
+            "required": [
+              "delta"
+            ],
+            "additionalProperties": {}
+          },
+          "link": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": {}
+      }
+    }
+  },
+  "additionalProperties": {}
+}

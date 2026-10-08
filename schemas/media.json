@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick media card data",
+  "description": "Not expressible in JSON Schema, enforced by the validator: src must be an http(s) URL or a data:image/* URI; link values must be http, https, mailto or ms-outlook.",
+  "type": "object",
+  "properties": {
+    "items": {
+      "minItems": 1,
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "src": {
+            "type": "string"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "caption": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "src"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "layout": {
+      "type": "string",
+      "enum": [
+        "grid",
+        "single"
+      ]
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": {}
+}

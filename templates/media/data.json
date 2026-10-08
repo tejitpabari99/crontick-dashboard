@@ -1,0 +1,20 @@
+{
+  "$schema": "../../schemas/data.media.json",
+  "updatedAt": "2026-10-05T07:55:00Z",
+  "data": {
+    "layout": "grid",
+    "items": [
+      {
+        "src": "https://example.com/cam/front.jpg",
+        "alt": "Front door",
+        "caption": "Front door, 07:55",
+        "link": "https://example.com/cam/front"
+      },
+      {
+        "src": "https://example.com/cam/back.jpg",
+        "alt": "Back yard",
+        "caption": "Back yard, 07:55"
+      }
+    ]
+  }
+}

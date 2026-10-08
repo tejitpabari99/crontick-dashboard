@@ -1,0 +1,2 @@
+.now-zone { display: flex; flex-direction: column; gap: var(--col-gap); }
+.now-zone__panel { display: flex; flex-direction: column; }

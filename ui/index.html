@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Crontick</title>
+    <script>
+      /* Pre-paint theme: must match ui/src/lib/theme.ts (key + resolution). */
+      (function () {
+        var choice = 'system';
+        try {
+          var v = localStorage.getItem('crontick-dashboard.theme');
+          if (v === 'light' || v === 'dark' || v === 'system') choice = v;
+        } catch (e) {}
+        var dark = true;
+        if (choice === 'light') dark = false;
+        else if (choice === 'system' && window.matchMedia)
+          dark = !window.matchMedia('(prefers-color-scheme: light)').matches;
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

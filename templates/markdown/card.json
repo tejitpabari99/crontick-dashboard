@@ -1,0 +1,14 @@
+{
+  "$schema": "../../schemas/card-def.json",
+  "type": "markdown",
+  "title": "Daily briefing",
+  "data": "data.json",
+  "layout": {
+    "column": "center",
+    "order": 0,
+    "height": "auto"
+  },
+  "priority": 3,
+  "notify": false,
+  "staleAfter": "26h"
+}

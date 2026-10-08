@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick list card data file",
+  "description": "Data file (data.json) for a list card: the data key is bound to the list payload. Not expressible in JSON Schema, enforced by the validator: data must be an object unless error is a non-empty string; error \"\" is treated as null (default null); updatedAt must be an RFC 3339 timestamp with offset or Z. When error is set the payload is not validated. The generic data.json leaves the payload open; the validator applies the per-type payload schema chosen by the card type.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "data": {
+      "title": "crontick list card data",
+      "description": "Not expressible in JSON Schema, enforced by the validator: item ids must be unique; an item with action requires id; due is YYYY-MM-DD or an RFC 3339 datetime; checkedAt is an RFC 3339 timestamp; link values must be http, https, mailto or ms-outlook. A bare string action (\"complete\") is accepted as shorthand for {\"type\":\"complete\"}.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "subtitle": {
+                "type": "string"
+              },
+              "checked": {
+                "type": "boolean"
+              },
+              "checkedAt": {
+                "type": "string"
+              },
+              "due": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "links": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "link"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "action": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "dismiss",
+                      "complete"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "dismiss",
+                          "complete"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "additionalProperties": {}
+                  }
+                ]
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "emptyText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": {}
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": {},
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "enum": [
+              null,
+              ""
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "data"
+        ]
+      }
+    }
+  ]
+}

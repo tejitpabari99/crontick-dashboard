@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crontick card data file",
+  "description": "Not expressible in JSON Schema, enforced by the validator: data must be an object unless error is a non-empty string; error \"\" is treated as null (default null); updatedAt must be an RFC 3339 timestamp with offset or Z. When error is set the payload is not validated. The generic data.json leaves the payload open; the validator applies the per-type payload schema chosen by the card type.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "data": {},
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": {}
+}

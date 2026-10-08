@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/data.table.json",
+  "updatedAt": "2026-10-05T07:45:00Z",
+  "data": {
+    "columns": [
+      {
+        "key": "from",
+        "label": "From",
+        "sort": "text"
+      },
+      {
+        "key": "subject",
+        "label": "Subject",
+        "sort": "text"
+      },
+      {
+        "key": "received",
+        "label": "Received",
+        "sort": "date"
+      }
+    ],
+    "rows": [
+      {
+        "link": "https://mail.example.com/msg/1001",
+        "cells": [
+          {
+            "text": "Alice Park",
+            "link": "mailto:alice@example.com"
+          },
+          "Q4 planning notes",
+          "2026-10-05T06:12:00Z"
+        ]
+      },
+      {
+        "link": "https://mail.example.com/msg/1002",
+        "cells": [
+          "Billing",
+          "Your invoice is ready",
+          "2026-10-04T18:03:00Z"
+        ]
+      }
+    ],
+    "defaultSort": {
+      "column": 2,
+      "dir": "desc"
+    },
+    "searchable": true
+  }
+}

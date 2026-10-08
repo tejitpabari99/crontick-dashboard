@@ -1,0 +1,2 @@
+export const TOAST_MS = 5000;
+export const SPINNER_DELAY_MS = 150;
