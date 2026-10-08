@@ -35,3 +35,24 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
 /** Shared by the HTTP layer and write-back so every CARD_CHANGED response reads the same. */
 export const CARD_CHANGED_MESSAGE = 'card was updated; reload and retry';
+
+/** Why a card folder or alert file is Broken (card still shown, with an error). Source for validator, snapshot and docs/reference/errors.md. */
+export const BROKEN_REASONS = [
+  'unreadable',
+  'malformed-json',
+  'not-object',
+  'too-large',
+  'schema-invalid',
+  'unknown-type',
+] as const;
+export type BrokenReason = (typeof BROKEN_REASONS)[number];
+
+/** Why a card folder is skipped entirely (surfaced as a snapshot warning). */
+export const SKIP_REASONS = [
+  'card-def-missing',
+  'card-def-invalid',
+  'data-path-invalid',
+  'invalid-id',
+  'reserved-id',
+] as const;
+export type SkipReason = (typeof SKIP_REASONS)[number];
