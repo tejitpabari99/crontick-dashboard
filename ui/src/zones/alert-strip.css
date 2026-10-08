@@ -4,5 +4,10 @@
   padding: 6px 10px; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
 }
 .alert-strip__title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-base); flex: none; max-width: 30%; }
-.alert-strip__body { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert-strip__body { flex: 1 1 0; min-width: 0; }
+.alert-strip__sep { flex: none; color: var(--text-muted, inherit); }
+.alert-strip__link { flex: none; }
+.alert-strip__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.alert-strip__dot--high { background: var(--negative); }
+.alert-strip__row--broken { border-color: var(--negative); background: color-mix(in srgb, var(--negative) 12%, var(--surface-1)); }
 .alert-strip__tick { flex: none; margin-left: auto; }
