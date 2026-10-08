@@ -1,0 +1,14 @@
+{
+  "$schema": "../../schemas/card-def.json",
+  "type": "table",
+  "title": "Unread email",
+  "data": "data.json",
+  "layout": {
+    "column": "left",
+    "order": 1,
+    "height": "auto"
+  },
+  "priority": 2,
+  "notify": false,
+  "staleAfter": "2h"
+}

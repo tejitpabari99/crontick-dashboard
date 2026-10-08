@@ -1,0 +1,13 @@
+{
+  "$schema": "../../schemas/alert.json",
+  "title": "Backup failed",
+  "text": "Nightly backup exited with code 2",
+  "link": "https://example.com/runbook/backup",
+  "priority": 4,
+  "notify": true,
+  "show": {
+    "cron": "0 7 * * *",
+    "for": "2h"
+  },
+  "updatedAt": "2026-10-05T07:00:00Z"
+}

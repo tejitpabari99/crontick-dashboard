@@ -1,0 +1,13 @@
+{
+  "$schema": "../../schemas/card-def.json",
+  "type": "list",
+  "title": "Today's tasks",
+  "data": "data.json",
+  "layout": {
+    "column": "left",
+    "order": 0,
+    "height": "auto"
+  },
+  "priority": 3,
+  "notify": false
+}

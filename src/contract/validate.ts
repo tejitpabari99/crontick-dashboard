@@ -3,7 +3,7 @@ import { CLOCK_SKEW_MS, ID_PATTERN, MAX_CARD_BYTES } from '../constants/contract
 import { MS_PER_MINUTE } from '../constants/time.js';
 import { errorMessage } from '../utils/errors.js';
 import { envelopeSchema, type Envelope } from './envelope.js';
-import { isRegisteredType, registry } from './registry.js';
+import { isRegisteredType, legacyAllowedKinds, registry } from './registry.js';
 
 export type Card = Omit<Envelope, 'data'> & { data?: Record<string, unknown> };
 
@@ -117,7 +117,7 @@ function validate(text: string, opts?: ValidateOptions): ValidationResult {
     }
   }
   const entry = registry[card.type];
-  if (!(entry.allowedKinds as readonly string[]).includes(card.kind)) {
+  if (!legacyAllowedKinds(card.type).includes(card.kind)) {
     const issues = [{ path: '/type', message: `type "${card.type}" is not allowed on kind "${card.kind}"` }];
     return fail('schema-invalid', summarize(issues), issues, card.id);
   }

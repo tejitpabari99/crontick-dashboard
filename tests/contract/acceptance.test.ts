@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { validateCardFile, getExample, listTypes } from '../../src/index.js';
+import { validateCardFile, getLegacyExample, listTypes } from '../../src/index.js';
 import { MAX_CARD_BYTES } from '../../src/constants/contract.js';
 
 type R = ReturnType<typeof validateCardFile>;
@@ -32,7 +32,7 @@ const tbl = (cell: unknown) => table({ columns: ['a'], rows: [{ cells: [cell] }]
 describe('AC1 examples + negative fixtures', () => {
   it('every template example validates ok', () => {
     for (const type of listTypes()) {
-      const ex = getExample(type);
+      const ex = getLegacyExample(type);
       expect(ex, type).toBeDefined();
       expect('ok' in validateCardFile(JSON.stringify(ex)), type).toBe(true);
     }
@@ -205,7 +205,7 @@ describe('AC8 fuzz: never throws', () => {
     }
   });
   it('mutated valid cards', () => {
-    const s = JSON.stringify(getExample('table'));
+    const s = JSON.stringify(getLegacyExample('table'));
     for (let i = 0; i < s.length; i += 7) {
       settle(s.slice(0, i));
       settle(s.slice(0, i) + '\u0000' + s.slice(i + 1));

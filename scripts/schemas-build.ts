@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { envelopeSchema } from '../src/contract/envelope.js';
-import { registry, listTypes, type RegisteredType } from '../src/contract/registry.js';
+import { registry, listTypes, legacyAllowedKinds, type RegisteredType } from '../src/contract/registry.js';
 
 type Json = Record<string, unknown>;
 
@@ -63,7 +63,7 @@ export function buildSchemas(): Record<string, string> {
         required: ['type'],
       },
       then: {
-        properties: { kind: { enum: [...entry.allowedKinds] }, data: { $ref: `#/$defs/${type}` } },
+        properties: { kind: { enum: [...legacyAllowedKinds(type)] }, data: { $ref: `#/$defs/${type}` } },
       },
     });
   }

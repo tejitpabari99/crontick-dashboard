@@ -1,7 +1,7 @@
 export { validateCardFile } from './validate.js';
 export type { Card, ValidateOptions, ValidationResult, BrokenReason, Issue } from './validate.js';
-export { listTypes, getExample, getExampleFile, registry } from './registry.js';
-export type { RegisteredType, KnownType, CardKind } from './registry.js';
+export { listTypes, getExample, getLegacyExample, getExampleFile, legacyAllowedKinds, dataRequired, registry } from './registry.js';
+export type { RegisteredType, KnownType, Example } from './registry.js';
 export { parseDuration, windowActive } from './formats.js';
 export { cellText } from './types/table.js';
 export type { TableData, Cell, Column } from './types/table.js';

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Command } from 'commander';
-import { getExampleFile, listTypes, registry, type RegisteredType } from '../../contract/index.js';
+import { getExampleFile, legacyAllowedKinds, listTypes, type RegisteredType } from '../../contract/index.js';
 import { packageAssets } from '../assets.js';
 import { ERROR_CODES } from '../../constants/error-codes.js';
 import { CliError, type CliContext } from '../io.js';
@@ -18,11 +18,11 @@ export function registerTemplates(program: Command, ctx: CliContext): void {
       if (type === undefined) {
         const types = listTypes();
         const w = Math.max(4, ...types.map((t) => t.length));
-        const kw = Math.max(5, ...types.map((t) => registry[t].allowedKinds.join(',').length));
+        const kw = Math.max(5, ...types.map((t) => legacyAllowedKinds(t).join(',').length));
         ctx.io.stdout(`${'TYPE'.padEnd(w)}  ${'KINDS'.padEnd(kw)}  EXAMPLE\n`);
         for (const t of types) {
-          const kinds = registry[t].allowedKinds.join(',');
-          ctx.io.stdout(`${t.padEnd(w)}  ${kinds.padEnd(kw)}  ${join(templatesDir, registry[t].example)}\n`);
+          const kinds = legacyAllowedKinds(t).join(',');
+          ctx.io.stdout(`${t.padEnd(w)}  ${kinds.padEnd(kw)}  ${join(templatesDir, getExampleFile(t)!)}\n`);
         }
         return;
       }

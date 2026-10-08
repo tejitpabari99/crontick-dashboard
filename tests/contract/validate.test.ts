@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateCardFile, listTypes, getExample, parseDuration, windowActive, cellText } from '../../src/index.js';
+import { validateCardFile, listTypes, getLegacyExample, parseDuration, windowActive, cellText } from '../../src/index.js';
 
 const base = {
   id: 'my-card',
@@ -102,7 +102,7 @@ describe('validateCardFile', () => {
   });
   it('registry and helper exports', () => {
     expect(listTypes().sort()).toEqual(['kpi', 'list', 'markdown', 'media', 'table']);
-    expect(typeof getExample).toBe('function');
+    expect(typeof getLegacyExample).toBe('function');
     expect(parseDuration('2h')).toBe(7_200_000);
     expect(typeof windowActive).toBe('function');
     expect(cellText({ text: 'a' })).toBe('a');

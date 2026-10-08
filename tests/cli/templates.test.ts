@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 import { run, type CliIo } from '../../src/cli/main.js';
-import { listTypes, registry } from '../../src/contract/index.js';
+import { legacyAllowedKinds, listTypes } from '../../src/contract/index.js';
 
 interface Cap {
   io: CliIo;
@@ -30,7 +30,7 @@ describe('templates', () => {
     expect(rows.map((l) => l.trim().split(/\s+/)[0])).toEqual(listTypes());
     for (const t of listTypes()) {
       const row = rows.find((l) => l.trim().startsWith(`${t} `))!;
-      expect(row).toContain(registry[t].allowedKinds.join(','));
+      expect(row).toContain(legacyAllowedKinds(t).join(','));
       expect(row).toContain(`${t}.example.json`);
     }
   });

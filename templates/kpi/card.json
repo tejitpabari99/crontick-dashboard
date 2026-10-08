@@ -1,0 +1,14 @@
+{
+  "$schema": "../../schemas/card-def.json",
+  "type": "kpi",
+  "title": "Service health",
+  "data": "data.json",
+  "layout": {
+    "column": "right",
+    "order": 0,
+    "height": "auto"
+  },
+  "priority": 2,
+  "notify": false,
+  "staleAfter": "30m"
+}

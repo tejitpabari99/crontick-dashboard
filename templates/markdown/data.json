@@ -1,0 +1,7 @@
+{
+  "$schema": "../../schemas/data.markdown.json",
+  "updatedAt": "2026-10-05T07:30:00Z",
+  "data": {
+    "text": "## Today\n\n- Standup at **10:00**\n- Review the open PRs\n- Renew the domain (expires Friday)\n\nSee the [runbook](https://example.com/runbook) for details."
+  }
+}

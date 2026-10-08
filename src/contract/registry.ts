@@ -1,4 +1,14 @@
 import type { z } from 'zod';
+import kpiCard from '../../templates/kpi/card.json' with { type: 'json' };
+import kpiData from '../../templates/kpi/data.json' with { type: 'json' };
+import listCard from '../../templates/list/card.json' with { type: 'json' };
+import listData from '../../templates/list/data.json' with { type: 'json' };
+import markdownCard from '../../templates/markdown/card.json' with { type: 'json' };
+import markdownData from '../../templates/markdown/data.json' with { type: 'json' };
+import mediaCard from '../../templates/media/card.json' with { type: 'json' };
+import mediaData from '../../templates/media/data.json' with { type: 'json' };
+import tableCard from '../../templates/table/card.json' with { type: 'json' };
+import tableData from '../../templates/table/data.json' with { type: 'json' };
 import kpiExample from '../../templates/kpi.example.json' with { type: 'json' };
 import listExample from '../../templates/list.example.json' with { type: 'json' };
 import markdownExample from '../../templates/markdown.example.json' with { type: 'json' };
@@ -10,26 +20,28 @@ import { markdownDataSchema, markdownSummary } from './types/markdown.js';
 import { mediaDataSchema, mediaSummary } from './types/media.js';
 import { tableDataSchema, tableSummary } from './types/table.js';
 
-export type CardKind = 'panel' | 'alert';
+/** Embedded example card folder: card.json + data.json contents. */
+export interface Example {
+  card: Record<string, unknown>;
+  data: Record<string, unknown>;
+}
 
 export interface TypeEntry {
+  /** Payload schema for this type's `data` (the `data` key of data.json). */
   schema: z.ZodType;
-  /** File name under templates/ (the same JSON is embedded below, so no fs access is needed). */
-  example: string;
-  /** Parsed template card, embedded at build time (bundler-safe, no DOM/fs deps). */
-  exampleCard: unknown;
   /** Plain-text one-line notification summary of this type's `data` (defensive: data may be unvalidated on error cards). */
   summary: (data: unknown) => string;
-  allowedKinds: readonly CardKind[];
+  /** Example folder, embedded at build time from templates/<type>/ (bundler-safe, no fs). */
+  template: Example;
 }
 
 /** The single place card types are registered (D7). */
 export const registry = {
-  markdown: { schema: markdownDataSchema, example: 'markdown.example.json', exampleCard: markdownExample, summary: markdownSummary, allowedKinds: ['panel', 'alert'] },
-  table: { schema: tableDataSchema, example: 'table.example.json', exampleCard: tableExample, summary: tableSummary, allowedKinds: ['panel'] },
-  list: { schema: listDataSchema, example: 'list.example.json', exampleCard: listExample, summary: listSummary, allowedKinds: ['panel', 'alert'] },
-  kpi: { schema: kpiDataSchema, example: 'kpi.example.json', exampleCard: kpiExample, summary: kpiSummary, allowedKinds: ['panel', 'alert'] },
-  media: { schema: mediaDataSchema, example: 'media.example.json', exampleCard: mediaExample, summary: mediaSummary, allowedKinds: ['panel'] },
+  markdown: { schema: markdownDataSchema, summary: markdownSummary, template: { card: markdownCard, data: markdownData } },
+  table: { schema: tableDataSchema, summary: tableSummary, template: { card: tableCard, data: tableData } },
+  list: { schema: listDataSchema, summary: listSummary, template: { card: listCard, data: listData } },
+  kpi: { schema: kpiDataSchema, summary: kpiSummary, template: { card: kpiCard, data: kpiData } },
+  media: { schema: mediaDataSchema, summary: mediaSummary, template: { card: mediaCard, data: mediaData } },
 } as const satisfies Record<string, TypeEntry>;
 
 export type RegisteredType = keyof typeof registry;
@@ -44,12 +56,45 @@ export function listTypes(): RegisteredType[] {
   return Object.keys(registry) as RegisteredType[];
 }
 
-/** Example template card (parsed JSON) for a type; undefined if unknown type. */
-export function getExample(type: string): unknown {
-  return isRegisteredType(type) ? structuredClone(registry[type].exampleCard) : undefined;
+/** Example folder ({ card, data }) for a type; undefined if unknown type. */
+export function getExample(type: string): Example | undefined {
+  return isRegisteredType(type) ? structuredClone(registry[type].template) as Example : undefined;
 }
 
-/** Example template file name (under templates/) for a type; undefined if unknown type. */
+/**
+ * Whether a card of this type must have a data file. Always true today; seam for a future
+ * per-type `dataOptional` registry flag.
+ */
+export function dataRequired(type: string): boolean {
+  void type;
+  return true;
+}
+
+// --- Legacy shims (single-file envelope era); removed by Tasks 4/5 and SP04. ---
+const LEGACY_EXAMPLES = {
+  markdown: markdownExample,
+  table: tableExample,
+  list: listExample,
+  kpi: kpiExample,
+  media: mediaExample,
+} as const satisfies Record<RegisteredType, unknown>;
+const LEGACY_KINDS = {
+  markdown: ['panel', 'alert'],
+  table: ['panel'],
+  list: ['panel', 'alert'],
+  kpi: ['panel', 'alert'],
+  media: ['panel'],
+} as const satisfies Record<RegisteredType, readonly string[]>;
+
+/** @deprecated legacy envelope example card (templates/<type>.example.json). */
+export function getLegacyExample(type: string): unknown {
+  return isRegisteredType(type) ? structuredClone(LEGACY_EXAMPLES[type]) : undefined;
+}
+/** @deprecated legacy example file name. */
 export function getExampleFile(type: string): string | undefined {
-  return isRegisteredType(type) ? registry[type].example : undefined;
+  return isRegisteredType(type) ? `${type}.example.json` : undefined;
+}
+/** @deprecated legacy allowed kinds per type. */
+export function legacyAllowedKinds(type: RegisteredType): readonly string[] {
+  return LEGACY_KINDS[type];
 }
