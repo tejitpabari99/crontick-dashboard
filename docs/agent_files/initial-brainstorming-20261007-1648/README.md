@@ -45,3 +45,9 @@ SP01 ──► SP02 ──► SP03
 - Two-file friction for agents: tested only by the SP04 final acceptance test (plus owner-run real-Claude check).
 - mtime fallback re-notifies on no-op rewrites without explicit `updatedAt`.
 - Completed alert list growth bounded by 7 d / 50 in the UI; ticked files stay on disk.
+
+## Run records
+- [01-card-folder-contract](01-card-folder-contract/code-2026-10-08-0447.md)
+- [02-feed-and-snapshot](02-feed-and-snapshot/code-2026-10-08-0447.md)
+- [03-ui-columns](03-ui-columns/code-2026-10-08-0447.md)
+- [04-cli-skill-docs](04-cli-skill-docs/code-2026-10-08-0447.md)
