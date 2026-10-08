@@ -14,9 +14,8 @@
  *  media:    first caption, else "N images"
  */
 import type { CardEvents, CardEventPayload } from '../../feed/events.js';
-import type { Card } from '../../feed/legacy-envelope.js';
 import { isRegisteredType, registry } from '../../contract/registry.js';
-import { envelope } from '../../feed/ingest.js';
+import type { CardEnvelope } from '../../feed/ingest.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
 import { realClock, type Clock } from '../../clock.js';
 import { DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../constants/config.js';
@@ -65,8 +64,7 @@ function truncate(s: string): string {
 }
 
 /** Plain-text one-line summary of a card's data (type-specific via the registry, capped at NOTIFY_MAX_BODY). */
-function summarize(card: Card): string {
-  const e = envelope(card);
+function summarize(e: CardEnvelope): string {
   return isRegisteredType(e.type) ? truncate(registry[e.type].summary(e.data)) : '';
 }
 
@@ -175,14 +173,13 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     }
   }
 
-  function handleInner(card: Card): void {
+  function handleInner(e: CardEnvelope): void {
     syncGateWarning();
-    const e = envelope(card);
     if (e.notify !== true || !gateOn()) return;
     dispatch(
       {
         title: e.title,
-        body: summarize(card),
+        body: summarize(e),
         openUrl: loopbackUrl(opts.getPort(), `/#card=${encodeURIComponent(e.id)}`),
       },
       { high: e.kind === 'alert' && e.priority >= threshold() },

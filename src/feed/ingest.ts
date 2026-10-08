@@ -1,43 +1,71 @@
 /**
- * Feed ingest: turns feed/*.json into a CardStore, tolerant of partial writes and bad files.
- * Core is synchronous and timer-injectable; the fs.watch wiring lives in watcher.ts.
+ * Feed ingest: turns feed/<id>/{card.json,data.json} folders into a CardStore, tolerant of partial writes,
+ * any write order and bad files. Core is synchronous and timer-injectable; the fs.watch wiring lives in
+ * watcher.ts. Cards are keyed by folder name. `alerts` is reserved (alerts are ingested separately).
  */
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { MAX_CARD_BYTES } from '../constants/contract.js';
+import { CARD_DEF_FILE } from '../constants/contract.js';
+import type { BrokenReason } from '../constants/error-codes.js';
 import { FEED_SETTLE_DELAYS_MS } from '../constants/feed.js';
-import { errnoCode, errorMessage } from '../utils/errors.js';
 import { realClock, type Clock } from '../clock.js';
+import type { NoDataCard, ValidCard } from '../contract/folder-validate.js';
+import { isCardFolderName, validateCardFolder } from '../contract/folder-validate.js';
+import { sameInstant } from '../instant.js';
 import { realTimers, type TimeoutTimers } from '../utils/timers.js';
-import { validateCardFile, type Card, type BrokenReason } from './legacy-envelope.js';
+import { readCardFolder, type CardFolderRead } from './read-card-folder.js';
 
-export type StoredReason = BrokenReason | 'duplicate-id';
-
+/** Folder with a valid card.json and a valid data file. */
 export interface OkEntry {
   status: 'ok';
-  /** Store key = card id. */
+  /** Store key = folder name = card id. */
+  key: string;
+  /** `<id>/<data file name>`: the selfWrites key and the watcher-relative path. */
+  file: string;
+  /** Absolute resolved data file path (write-back target). */
+  dataPath: string;
+  /** sha256 of card.json bytes. */
+  viewHash: string;
+  /** sha256 of the data file bytes. */
+  dataHash: string;
+  /** Effective updatedAt (data.updatedAt, else data file mtime ISO). */
+  dataVersion: string;
+  viewMtimeMs: number;
+  dataMtimeMs: number;
+  card: ValidCard;
+  warnings: string[];
+}
+
+/** Valid card.json, data file absent. Shown muted; `staleAfter` reference = `viewMtimeMs`. */
+export interface NoDataEntry {
+  status: 'no-data';
   key: string;
   file: string;
-  hash: string;
-  mtimeMs: number;
-  card: Card;
+  dataPath: string;
+  viewHash: string;
+  viewMtimeMs: number;
+  card: NoDataCard;
+  warnings: string[];
 }
+
+/** Folder shown as broken (bad/unreadable data, unknown type). */
 export interface BrokenEntry {
   status: 'broken';
-  /** `broken.id` (reason != id-mismatch, not shadowing a valid card) else `file:<name>`. */
   key: string;
   file: string;
-  hash: string;
-  mtimeMs: number;
-  id?: string;
+  id: string;
   title: string;
-  reason: StoredReason;
+  reason: BrokenReason;
   message: string;
+  viewHash: string;
+  dataHash?: string;
+  /** Best available mtime (data file, else card.json). */
+  mtimeMs: number;
 }
-export type CardEntry = OkEntry | BrokenEntry;
+export type CardEntry = OkEntry | NoDataEntry | BrokenEntry;
 
-/** Typed view of the validated card envelope (the 01 `Card` type surfaces its fields as unknown). */
+/** Flat typed view of an ok entry (what snapshot/events/notifier read). */
 export interface CardEnvelope {
   id: string;
   kind: 'panel' | 'alert';
@@ -52,7 +80,24 @@ export interface CardEnvelope {
   error?: string | null;
   data?: Record<string, unknown>;
 }
-export const envelope = (card: Card): CardEnvelope => card as unknown as CardEnvelope;
+export const envelope = (e: OkEntry): CardEnvelope => {
+  const c = e.card;
+  const h = c.layout.height;
+  return {
+    id: c.id,
+    kind: 'panel',
+    type: c.type,
+    title: c.title,
+    updatedAt: c.updatedAt,
+    priority: c.priority,
+    notify: c.notify,
+    ...(c.show ? { show: c.show } : {}),
+    ...(c.staleAfter !== undefined ? { staleAfter: c.staleAfter } : {}),
+    ...(h === 'S' || h === 'M' || h === 'L' ? { size: h } : {}),
+    error: c.error,
+    ...(c.data !== undefined ? { data: c.data } : {}),
+  };
+};
 
 export interface CardChange {
   type: 'new' | 'changed' | 'removed';
@@ -62,6 +107,8 @@ export interface CardChange {
   prev?: CardEntry;
   /** True when the ingest that caused this change was a server write-back (never fires events). */
   selfWrite?: boolean;
+  /** New entry, or data file bytes / effective updatedAt differ. False for card.json-only changes and removals. */
+  contentChanged: boolean;
 }
 
 export interface FeedIngestOptions {
@@ -79,31 +126,20 @@ export interface CardStore {
 
 export interface FeedIngest {
   store: CardStore;
-  /** file name -> sha256 hex of bytes the server wrote. Consumed on matching ingest. */
+  /** `<id>/data.json` -> sha256 hex of bytes the server wrote. Consumed on matching ingest. */
   selfWrites: Map<string, string>;
-  /** Ingest one file now (synchronous). Also used after server write-backs. */
-  processFile(name: string): void;
-  /** Full scan: ingest changed/new files, drop vanished ones. */
+  /** Evaluate one feed/ child (folder, or loose file) now (synchronous). Also used after write-backs. */
+  processFolder(id: string): void;
+  /** Full scan: evaluate every child, drop vanished ones. */
   rescan(): void;
+  /** Stable warnings: skipped folders, loose files, folders without card.json. */
+  issues(): string[];
   /** Cancel pending settling timers. */
   dispose(): void;
 }
 
-export function isFeedFile(name: string): boolean {
-  return /\.json$/i.test(name) && !name.startsWith('.') && !/\.tmp$/i.test(name);
-}
-
-type Parsed =
-  | { ok: true; card: Card }
-  | { ok: false; reason: BrokenReason; message: string; id?: string };
-
-interface FileRec {
-  name: string;
-  hash: string;
-  mtimeMs: number;
-  size: number;
-  parsed: Parsed;
-}
+const sha256 = (s: string): string => createHash('sha256').update(s, 'utf8').digest('hex');
+const MISSING_CARD_WAIT_MS = FEED_SETTLE_DELAYS_MS[FEED_SETTLE_DELAYS_MS.length - 1] as number;
 
 interface Settling {
   mtimeMs: number;
@@ -111,43 +147,26 @@ interface Settling {
   timer: unknown;
 }
 
-type ReadResult =
-  | { kind: 'gone' }
-  | { kind: 'dir' }
-  | { kind: 'toolarge'; mtimeMs: number; size: number }
-  | { kind: 'error'; mtimeMs: number; size: number; message: string }
-  | { kind: 'read'; mtimeMs: number; size: number; buf: Buffer };
-
-const RETRY_CODES = new Set(['EBUSY', 'EPERM']);
-
-function readFeedFile(path: string): ReadResult {
-  let last: unknown;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const st = statSync(path);
-      if (st.isDirectory()) return { kind: 'dir' };
-      if (st.size > MAX_CARD_BYTES) return { kind: 'toolarge', mtimeMs: st.mtimeMs, size: st.size };
-      const buf = readFileSync(path);
-      return { kind: 'read', mtimeMs: st.mtimeMs, size: st.size, buf };
-    } catch (e) {
-      last = e;
-      const code = errnoCode(e) ?? '';
-      if (code === 'ENOENT') return { kind: 'gone' };
-      if (!RETRY_CODES.has(code)) break;
-    }
+/** card.json text that is empty or not parseable JSON (may be half-written). */
+function malformedJson(text: string): boolean {
+  const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  if (src.trim() === '') return true;
+  try {
+    JSON.parse(src);
+    return false;
+  } catch {
+    return true;
   }
-  return { kind: 'error', mtimeMs: 0, size: 0, message: errorMessage(last) };
 }
-
-const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex');
 
 export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
   const timers = opts.timers ?? realTimers;
   const clock = opts.clock ?? realClock;
-  const recs = new Map<string, FileRec>();
+  const entries = new Map<string, CardEntry>();
   const settling = new Map<string, Settling>();
+  const missingTimers = new Map<string, unknown>();
+  const issueMap = new Map<string, string>();
   const selfWrites = new Map<string, string>();
-  let entries = new Map<string, CardEntry>();
 
   const store: CardStore = {
     get: (key) => entries.get(key),
@@ -162,250 +181,282 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     }
   }
 
-  function stamp(card: Card): number {
-    const t = Date.parse(envelope(card).updatedAt);
-    return Number.isNaN(t) ? 0 : t;
-  }
+  const setIssue = (key: string, message: string): void => void issueMap.set(key, message);
+  const clearIssue = (key: string): void => void issueMap.delete(key);
 
-  function rebuild(selfWrite = false): void {
-    const next = new Map<string, CardEntry>();
-    const okByKey = new Map<string, FileRec[]>();
-    const broken: FileRec[] = [];
-    for (const r of recs.values()) {
-      if (r.parsed.ok) {
-        const id = envelope(r.parsed.card).id;
-        const list = okByKey.get(id) ?? [];
-        list.push(r);
-        okByKey.set(id, list);
-      } else broken.push(r);
-    }
-    for (const [id, list] of okByKey) {
-      const sorted = [...list].sort((a, b) => {
-        const ua = stamp((a.parsed as { card: Card }).card);
-        const ub = stamp((b.parsed as { card: Card }).card);
-        return ub - ua || b.mtimeMs - a.mtimeMs || (a.name < b.name ? -1 : 1);
-      });
-      const win = sorted[0] as FileRec;
-      const wp = win.parsed as { ok: true; card: Card };
-      next.set(id, { status: 'ok', key: id, file: win.name, hash: win.hash, mtimeMs: win.mtimeMs, card: wp.card });
-      for (const lose of sorted.slice(1)) {
-        const key = `file:${lose.name}`;
-        next.set(key, {
-          status: 'broken',
-          key,
-          file: lose.name,
-          hash: lose.hash,
-          mtimeMs: lose.mtimeMs,
-          id,
-          title: id,
-          reason: 'duplicate-id',
-          message: `duplicate id \`${id}\` also in \`${win.name}\``,
-        });
-      }
-    }
-    // Broken files whose stem equals their id claim the id key first.
-    const stem = (n: string): string => n.replace(/\.json$/i, '');
-    broken.sort((a, b) => {
-      const sa = a.parsed.ok === false && a.parsed.id === stem(a.name) ? 0 : 1;
-      const sb = b.parsed.ok === false && b.parsed.id === stem(b.name) ? 0 : 1;
-      return sa - sb || (a.name < b.name ? -1 : 1);
-    });
-    for (const r of broken) {
-      const p = r.parsed as Extract<Parsed, { ok: false }>;
-      const idKey = p.id !== undefined && p.reason !== 'id-mismatch' && !next.has(p.id) ? p.id : undefined;
-      const key = idKey ?? `file:${r.name}`;
-      next.set(key, {
-        status: 'broken',
-        key,
-        file: r.name,
-        hash: r.hash,
-        mtimeMs: r.mtimeMs,
-        ...(p.id !== undefined ? { id: p.id } : {}),
-        title: p.id ?? r.name,
-        reason: p.reason,
-        message: p.message,
-      });
-    }
+  // --- settling (per folder and file kind: `<id>:card` / `<id>:data`) ---
 
-    const prev = entries;
-    entries = next;
-    for (const [key, e] of next) {
-      const old = prev.get(key);
-      if (!old) emit({ type: 'new', key, file: e.file, entry: e, ...(selfWrite ? { selfWrite } : {}) });
-      else if (old.hash !== e.hash || old.file !== e.file || old.status !== e.status || (old.status === 'broken' && e.status === 'broken' && old.message !== e.message))
-        emit({ type: 'changed', key, file: e.file, entry: e, prev: old, ...(selfWrite ? { selfWrite } : {}) });
-    }
-    for (const [key, old] of prev) if (!next.has(key)) emit({ type: 'removed', key, file: old.file, prev: old });
-  }
-
-  function clearSettling(name: string): void {
-    const s = settling.get(name);
+  function clearSettling(key: string): void {
+    const s = settling.get(key);
     if (s) {
       timers.clearTimeout(s.timer);
-      settling.delete(name);
+      settling.delete(key);
     }
   }
 
-  function setRec(name: string, rec: FileRec, selfWrite = false): void {
-    recs.set(name, rec);
-    rebuild(selfWrite);
-  }
-
-  function remove(name: string): void {
-    clearSettling(name);
-    selfWrites.delete(name);
-    if (recs.delete(name)) rebuild();
-  }
-
-  /** Schedule next settle check for a file whose content is malformed/unreadable. */
-  function settle(name: string, mtimeMs: number, restart: boolean): void {
-    const cur = settling.get(name);
-    let attempt = 0;
-    if (cur && !restart) attempt = cur.attempt;
-    if (cur) timers.clearTimeout(cur.timer);
-    const delay = FEED_SETTLE_DELAYS_MS[attempt] as number;
+  function arm(key: string, id: string, s: Settling): void {
+    const delay = FEED_SETTLE_DELAYS_MS[s.attempt] as number;
     // Delays are cumulative from first failure: 250ms, 1s, 3s.
-    const wait = attempt === 0 ? delay : delay - (FEED_SETTLE_DELAYS_MS[attempt - 1] as number);
-    const s: Settling = {
-      mtimeMs,
-      attempt,
-      timer: timers.setTimeout(() => settleTick(name), wait),
-    };
-    settling.set(name, s);
-  }
-
-  function settleTick(name: string): void {
-    const s = settling.get(name);
-    if (!s) return;
-    const r = readFeedFile(join(opts.feedDir, name));
-    if (r.kind === 'gone' || r.kind === 'dir') return remove(name);
-    const mtime = r.kind === 'error' ? s.mtimeMs : r.mtimeMs;
-    const changed = mtime !== s.mtimeMs;
-    // Re-evaluate; if still malformed, decide whether to keep settling.
-    const outcome = evaluate(name, r);
-    if (outcome !== 'settling') return;
-    if (changed) {
-      s.mtimeMs = mtime;
-      settle(name, mtime, true); // file still being written: restart the schedule
-      return;
-    }
-    if (s.attempt + 1 >= FEED_SETTLE_DELAYS_MS.length) {
-      finalizeBroken(name, r);
-      return;
-    }
-    s.attempt += 1;
-    settle(name, mtime, false);
-  }
-
-  function parseRead(name: string, r: ReadResult & { kind: 'read' }): { text: string; hash: string; parsed: Parsed } {
-    const text = r.buf.toString('utf8');
-    const hash = sha256(r.buf);
-    const v = validateCardFile(text, { filename: name, now: clock.now() });
-    const parsed: Parsed = 'broken' in v ? { ok: false, reason: v.reason, message: v.message, ...(v.id !== undefined ? { id: v.id } : {}) } : { ok: true, card: v.card };
-    return { text, hash, parsed };
-  }
-
-  function finalizeBroken(name: string, r: ReadResult): void {
-    clearSettling(name);
-    if (r.kind === 'read') {
-      const { hash, parsed } = parseRead(name, r);
-      setRec(name, { name, hash, mtimeMs: r.mtimeMs, size: r.size, parsed });
-    } else if (r.kind === 'error') {
-      const prev = recs.get(name);
-      setRec(name, {
-        name,
-        hash: '',
-        mtimeMs: prev?.mtimeMs ?? 0,
-        size: -1,
-        parsed: { ok: false, reason: 'unreadable', message: `could not read file: ${r.message}` },
-      });
-    }
+    const wait = s.attempt === 0 ? delay : delay - (FEED_SETTLE_DELAYS_MS[s.attempt - 1] as number);
+    s.timer = timers.setTimeout(() => evaluate(id, key), wait);
   }
 
   /**
-   * Evaluate a read result. Returns 'settling' when the content is malformed/unreadable and the caller
-   * must decide (retry or finalize); otherwise the record is committed and 'done' returned.
+   * A file is malformed/unreadable. Returns 'final' when the settle schedule is exhausted (commit as
+   * broken/skipped now), else 'waiting' (keep the previous entry). `tick` = this call is the timer firing.
    */
-  function evaluate(name: string, r: ReadResult): 'done' | 'settling' {
-    if (r.kind === 'gone' || r.kind === 'dir') {
-      remove(name);
-      return 'done';
+  function needSettle(key: string, id: string, mtimeMs: number, tick: boolean): 'final' | 'waiting' {
+    const cur = settling.get(key);
+    if (!cur) {
+      const s: Settling = { mtimeMs, attempt: 0, timer: undefined };
+      settling.set(key, s);
+      arm(key, id, s);
+      return 'waiting';
     }
-    if (r.kind === 'toolarge') {
-      clearSettling(name);
-      setRec(name, {
-        name,
-        hash: `size:${r.size}`,
-        mtimeMs: r.mtimeMs,
-        size: r.size,
-        parsed: { ok: false, reason: 'too-large', message: 'file is larger than 1 MB' },
-      });
-      return 'done';
+    if (cur.mtimeMs !== mtimeMs) {
+      // File still being written: restart the schedule.
+      timers.clearTimeout(cur.timer);
+      cur.mtimeMs = mtimeMs;
+      cur.attempt = 0;
+      arm(key, id, cur);
+      return 'waiting';
     }
-    if (r.kind === 'error') return 'settling';
-    const { hash, parsed } = parseRead(name, r);
-    if (!parsed.ok && (parsed.reason === 'malformed-json' || parsed.reason === 'unreadable')) return 'settling';
-    clearSettling(name);
-    const rec: FileRec = { name, hash, mtimeMs: r.mtimeMs, size: r.size, parsed };
-    let selfWrite = false;
-    // Same bytes and mtime already ingested (e.g. watcher event after a synchronous write-back refresh): no hook call.
-    const prevRec = recs.get(name);
-    if (parsed.ok && !(prevRec?.hash === hash && prevRec.mtimeMs === r.mtimeMs)) {
-      selfWrite = selfWrites.get(name) === hash;
-      if (selfWrite) selfWrites.delete(name);
+    if (!tick) return 'waiting'; // same mtime, schedule already running
+    if (cur.attempt + 1 >= FEED_SETTLE_DELAYS_MS.length) {
+      clearSettling(key);
+      return 'final';
     }
-    setRec(name, rec, selfWrite);
-    return 'done';
+    cur.attempt += 1;
+    arm(key, id, cur);
+    return 'waiting';
   }
 
-  function processFile(name: string): void {
-    if (!isFeedFile(name)) return;
-    const r = readFeedFile(join(opts.feedDir, name));
-    if (evaluate(name, r) === 'settling') {
-      const mtime = r.kind === 'read' || r.kind === 'toolarge' ? r.mtimeMs : 0;
-      const cur = settling.get(name);
-      // A fresh event with a new mtime restarts the schedule; same mtime keeps it running.
-      if (!cur || cur.mtimeMs !== mtime) settle(name, mtime, true);
+  // --- entries ---
+
+  function sig(e: CardEntry): string {
+    switch (e.status) {
+      case 'ok':
+        return `ok|${e.viewHash}|${e.dataHash}|${e.dataVersion}`;
+      case 'no-data':
+        return `no-data|${e.viewHash}`;
+      case 'broken':
+        return `broken|${e.viewHash}|${e.dataHash ?? ''}|${e.reason}|${e.message}`;
     }
+  }
+  const dataHashOf = (e: CardEntry | undefined): string | undefined =>
+    e?.status === 'ok' || e?.status === 'broken' ? e.dataHash : undefined;
+  const versionOf = (e: CardEntry | undefined): string | undefined => (e?.status === 'ok' ? e.dataVersion : undefined);
+
+  function commit(entry: CardEntry): void {
+    const prev = entries.get(entry.key);
+    entries.set(entry.key, entry);
+    if (prev && sig(prev) === sig(entry)) return; // same content: mtime-only refresh, no change
+    let selfWrite = false;
+    if (entry.status === 'ok' && dataHashOf(prev) !== entry.dataHash) {
+      selfWrite = selfWrites.get(entry.file) === entry.dataHash;
+      if (selfWrite) selfWrites.delete(entry.file);
+    }
+    const pv = versionOf(prev);
+    const ev = versionOf(entry);
+    const contentChanged =
+      !prev ||
+      dataHashOf(prev) !== dataHashOf(entry) ||
+      (pv === undefined) !== (ev === undefined) ||
+      (pv !== undefined && ev !== undefined && !sameInstant(pv, ev));
+    emit({
+      type: prev ? 'changed' : 'new',
+      key: entry.key,
+      file: entry.file,
+      entry,
+      ...(prev ? { prev } : {}),
+      ...(selfWrite ? { selfWrite } : {}),
+      contentChanged,
+    });
+  }
+
+  function dropEntry(id: string): void {
+    const prev = entries.get(id);
+    if (!prev) return;
+    entries.delete(id);
+    emit({ type: 'removed', key: id, file: prev.file, prev, contentChanged: false });
+  }
+
+  function forget(id: string): void {
+    clearSettling(`${id}:card`);
+    clearSettling(`${id}:data`);
+    const m = missingTimers.get(id);
+    if (m !== undefined) {
+      timers.clearTimeout(m);
+      missingTimers.delete(id);
+    }
+    clearIssue(`feed:${id}`);
+    clearIssue(`loose:${id}`);
+    for (const k of [...selfWrites.keys()]) if (k.startsWith(`${id}/`)) selfWrites.delete(k);
+  }
+
+  // --- evaluation ---
+
+  function evaluate(id: string, tickKey?: string): void {
+    const dir = join(opts.feedDir, id);
+    let st;
+    try {
+      st = statSync(dir);
+    } catch {
+      forget(id);
+      dropEntry(id);
+      return;
+    }
+    if (!st.isDirectory()) {
+      // Loose file in feed/ root: never a card.
+      clearSettling(`${id}:card`);
+      clearSettling(`${id}:data`);
+      dropEntry(id);
+      if (id.startsWith('.') || /\.tmp$/i.test(id)) return clearIssue(`loose:${id}`);
+      setIssue(`loose:${id}`, `feed/${id} ignored: panels are folders (feed/<id>/card.json)`);
+      return;
+    }
+    clearIssue(`loose:${id}`);
+    const kind = isCardFolderName(id);
+    if (kind === 'ignore' || kind === 'reserved') {
+      forget(id);
+      dropEntry(id);
+      return;
+    }
+
+    const read = readCardFolder(dir);
+    evaluateRead(id, read, tickKey);
+  }
+
+  function evaluateRead(id: string, read: CardFolderRead, tickKey?: string): void {
+    const cardKey = `${id}:card`;
+    const dataKey = `${id}:data`;
+    const result =
+      read.preset ??
+      validateCardFolder({ folderId: id, cardText: read.cardText, data: read.data, now: clock.now() });
+
+    if (result.status === 'skipped') {
+      clearSettling(dataKey);
+      if (result.reason === 'card-def-missing') {
+        clearSettling(cardKey);
+        dropEntry(id);
+        clearIssue(`feed:${id}`);
+        const fired = tickKey === `${id}:missing`;
+        if (fired) {
+          missingTimers.delete(id);
+          setIssue(`feed:${id}`, `feed/${id} ignored: ${CARD_DEF_FILE} is missing`);
+        } else if (!missingTimers.has(id)) {
+          missingTimers.set(
+            id,
+            timers.setTimeout(() => evaluate(id, `${id}:missing`), MISSING_CARD_WAIT_MS),
+          );
+        }
+        return;
+      }
+      const mt = missingTimers.get(id);
+      if (mt !== undefined) {
+        timers.clearTimeout(mt);
+        missingTimers.delete(id);
+      }
+      const cardBad =
+        result.reason === 'card-def-invalid' &&
+        (read.preset !== undefined || (read.cardText !== null && malformedJson(read.cardText)));
+      if (cardBad) {
+        const mtime = read.cardMtimeMs ?? 0;
+        if (needSettle(cardKey, id, mtime, tickKey === cardKey) === 'waiting') return; // keep previous entry
+      } else clearSettling(cardKey);
+      dropEntry(id);
+      setIssue(`feed:${id}`, `feed/${id} skipped: ${result.message}`);
+      return;
+    }
+
+    // card.json parsed: folder is shown.
+    clearSettling(cardKey);
+    const mt = missingTimers.get(id);
+    if (mt !== undefined) {
+      timers.clearTimeout(mt);
+      missingTimers.delete(id);
+    }
+    clearIssue(`feed:${id}`);
+    const viewHash = sha256(read.cardText ?? '');
+    const viewMtimeMs = read.cardMtimeMs ?? 0;
+    const dataName = read.dataPath ?? 'data.json';
+    const file = `${id}/${dataName}`;
+    const dataPath = join(opts.feedDir, id, dataName);
+
+    if (result.status === 'broken') {
+      const dataMtime = 'text' in read.data ? read.data.mtimeMs : 0;
+      const dataText = 'text' in read.data ? read.data.text : undefined;
+      const retry = result.reason === 'malformed-json' || result.reason === 'unreadable';
+      if (retry) {
+        const mtime = dataMtime || viewMtimeMs;
+        if (needSettle(dataKey, id, mtime, tickKey === dataKey) === 'waiting') return; // keep previous entry
+      } else clearSettling(dataKey);
+      commit({
+        status: 'broken',
+        key: id,
+        file,
+        id,
+        title: result.def?.title ?? id,
+        reason: result.reason,
+        message: result.message,
+        viewHash,
+        ...(dataText !== undefined ? { dataHash: sha256(dataText) } : {}),
+        mtimeMs: dataMtime || viewMtimeMs,
+      });
+      return;
+    }
+
+    clearSettling(dataKey);
+    if (result.status === 'no-data') {
+      commit({ status: 'no-data', key: id, file, dataPath, viewHash, viewMtimeMs, card: result.card, warnings: result.warnings });
+      return;
+    }
+    const data = read.data as { text: string; mtimeMs: number };
+    commit({
+      status: 'ok',
+      key: id,
+      file,
+      dataPath,
+      viewHash,
+      dataHash: sha256(data.text),
+      dataVersion: result.card.updatedAt,
+      viewMtimeMs,
+      dataMtimeMs: data.mtimeMs,
+      card: result.card,
+      warnings: result.warnings,
+    });
+  }
+
+  function processFolder(id: string): void {
+    evaluate(id);
   }
 
   function rescan(): void {
     let names: string[] = [];
     try {
-      names = readdirSync(opts.feedDir, { withFileTypes: true })
-        .filter((d) => !d.isDirectory() && isFeedFile(d.name))
-        .map((d) => d.name);
+      names = readdirSync(opts.feedDir).filter((n) => !n.startsWith('.'));
     } catch {
       /* feed dir missing: treat as empty */
     }
     const present = new Set(names);
-    for (const name of [...recs.keys(), ...settling.keys()]) if (!present.has(name)) remove(name);
-    for (const name of names) {
-      const rec = recs.get(name);
-      const cur = settling.get(name);
-      let mtime: number;
-      let size: number;
-      try {
-        const st = statSync(join(opts.feedDir, name));
-        mtime = st.mtimeMs;
-        size = st.size;
-      } catch {
-        remove(name);
-        continue;
-      }
-      if (cur && cur.mtimeMs === mtime) continue; // still settling, unchanged
-      if (!cur && rec && rec.mtimeMs === mtime && rec.size === size) continue; // unchanged
-      processFile(name);
-    }
+    const known = new Set<string>([...entries.keys()]);
+    for (const k of settling.keys()) known.add(k.slice(0, k.lastIndexOf(':')));
+    for (const k of missingTimers.keys()) known.add(k);
+    for (const k of issueMap.keys()) known.add(k.slice(k.indexOf(':') + 1));
+    for (const id of known) if (!present.has(id)) evaluate(id);
+    for (const id of names) evaluate(id);
   }
 
   return {
     store,
     selfWrites,
-    processFile,
+    processFolder,
     rescan,
+    issues: () => [...issueMap.values()],
     dispose() {
-      for (const name of [...settling.keys()]) clearSettling(name);
+      for (const k of [...settling.keys()]) clearSettling(k);
+      for (const t of missingTimers.values()) timers.clearTimeout(t);
+      missingTimers.clear();
     },
   };
 }

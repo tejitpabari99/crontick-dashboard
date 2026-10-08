@@ -23,7 +23,9 @@ export interface AppContext {
   dataDir: string;
   feedDir: string;
   doneDir: string;
-  /** Re-ingest one feed file synchronously (after server-side moves/writes). */
+  /** Ingest issues (skipped folders, loose files) surfaced as snapshot warnings. */
+  issues?: () => string[];
+  /** Re-ingest one feed path (`<id>/<file>` or `<id>`) synchronously (after server-side moves/writes). */
   refreshFeed: (file: string) => void;
   /** Watcher self-write registry (file -> hash of bytes the server wrote). */
   selfWrites: Map<string, string>;
@@ -44,7 +46,7 @@ export function buildSnapshot(ctx: AppContext): Snapshot {
     ctx.state.get(),
     config,
     ctx.clock.now(),
-    [...ctx.state.warnings, ...ctx.warnings.list(), ...cfgWarnings],
+    [...ctx.state.warnings, ...ctx.warnings.list(), ...cfgWarnings, ...(ctx.issues?.() ?? [])],
   );
 }
 

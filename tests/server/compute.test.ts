@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { computeSnapshot } from '../../src/compute/snapshot.js';
-import type { BrokenEntry, CardEntry, OkEntry } from '../../src/feed/ingest.js';
+import type { BrokenEntry, CardEntry, NoDataEntry, OkEntry } from '../../src/feed/ingest.js';
 import type { StateData } from '../../src/state/store.js';
 import type { DashboardConfig } from '../../src/config.js';
-import type { Card } from '../../src/feed/legacy-envelope.js';
+import type { ValidCard } from '../../src/contract/folder-validate.js';
 import { DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../src/constants/config.js';
 import { POLL_DEFAULT_MS } from '../../src/constants/poll.js';
 
@@ -17,14 +17,19 @@ const state = (p: Partial<StateData> = {}): StateData => ({
 const NOW = new Date('2026-10-05T12:00:00Z');
 
 function ok(id: string, over: Record<string, unknown> = {}): OkEntry {
+  const { size, updatedAt = '2026-10-05T11:00:00Z', error = null, data = { text: id }, ...rest } = over;
   const card = {
-    id, kind: 'panel', type: 'markdown', title: id, updatedAt: '2026-10-05T11:00:00Z',
-    priority: 2, notify: false, size: 'M', error: null, data: { text: id }, ...over,
-  } as unknown as Card;
-  return { status: 'ok', key: id, file: `${id}.json`, hash: 'h', mtimeMs: 0, card };
+    id, type: 'markdown', title: id, priority: 2, notify: false,
+    layout: { column: 'center', order: 0, height: size ?? 'M' },
+    updatedAt, updatedAtSource: 'data', error, data, def: {}, content: {}, ...rest,
+  } as unknown as ValidCard;
+  return {
+    status: 'ok', key: id, file: `${id}/data.json`, dataPath: `/feed/${id}/data.json`,
+    viewHash: 'v', dataHash: 'h', dataVersion: updatedAt as string, viewMtimeMs: 0, dataMtimeMs: 0, card, warnings: [],
+  };
 }
 function broken(key: string, over: Partial<BrokenEntry> = {}): BrokenEntry {
-  return { status: 'broken', key, file: `${key}.json`, hash: 'h', mtimeMs: 1, title: key,
+  return { status: 'broken', key, file: `${key}/data.json`, id: key, viewHash: 'v', mtimeMs: 1, title: key,
     reason: 'malformed-json', message: 'bad json', ...over };
 }
 const snap = (cards: CardEntry[], st = state(), cfg = config, now = NOW, w?: string[]) =>
@@ -39,13 +44,12 @@ describe('computeSnapshot', () => {
     expect(s.cards.a).toMatchObject({ status: 'ok', collapsed: false, data: { text: 'a' } });
   });
 
-  it('window: out excluded, in kept; alerts honor show', () => {
+  it('window: out excluded, in kept', () => {
     const show = { cron: '0 9 * * *', for: '1h' };
-    const s = snap([ok('p', { show }), ok('al', { kind: 'alert', show })]);
+    const s = snap([ok('p', { show })]);
     expect(Object.keys(s.cards)).toEqual([]);
-    const s2 = snap([ok('p', { show: { cron: '0 11 * * *', for: '2h' } }), ok('al', { kind: 'alert', show: { cron: '0 11 * * *', for: '2h' } })]);
-    expect(s2.zones.alerts).toEqual(['al']);
-    expect(Object.keys(s2.cards).sort()).toEqual(['al', 'p']);
+    const s2 = snap([ok('p', { show: { cron: '0 11 * * *', for: '2h' } })]);
+    expect(Object.keys(s2.cards)).toEqual(['p']);
   });
 
   it('window: non-local timezone', () => {
@@ -84,15 +88,15 @@ describe('computeSnapshot', () => {
     expect(s.cards.fresh!.data).toBeDefined();
   });
 
-  it('malformed / schema-invalid / duplicate from ingest -> broken without data', () => {
+  it('malformed / schema-invalid / unknown-type from ingest -> broken without data', () => {
     const s = snap([
       broken('file:a', { reason: 'malformed-json', message: 'oops', title: 'a.json' }),
       broken('b', { id: 'b', reason: 'schema-invalid', message: 'bad' }),
-      broken('file:c', { reason: 'duplicate-id', message: 'dup' }),
+      broken('file:c', { reason: 'unknown-type', message: 'dup' }),
     ]);
     expect(s.cards['file:a']).toMatchObject({ id: 'file:a', status: 'broken', reason: 'malformed-json', title: 'a.json', message: 'oops' });
     expect(s.cards.b).toMatchObject({ reason: 'schema-invalid' });
-    expect(s.cards['file:c']).toMatchObject({ reason: 'duplicate-id' });
+    expect(s.cards['file:c']).toMatchObject({ reason: 'unknown-type' });
     for (const c of Object.values(s.cards)) expect('data' in c).toBe(false);
   });
 
@@ -103,15 +107,13 @@ describe('computeSnapshot', () => {
       ok('lo', { priority: 2, show }),
       ok('noshow', { priority: 5 }),
       ok('brokenhi', { priority: 4, show, error: 'x' }),
-      ok('al', { kind: 'alert', priority: 0 }),
     ]);
     expect(s.zones.now).toEqual(['brokenhi', 'hi']);
     expect(s.zones.grid.sort()).toEqual(['lo', 'noshow']);
-    expect(s.zones.alerts).toEqual(['al']);
     expect(s.cards.hi!.data).toBeDefined();
   });
 
-  it('Done ack -> tray; resets on new updatedAt; compares instants; alerts no Done', () => {
+  it('Done ack -> tray; resets on new updatedAt; compares instants', () => {
     const show = { cron: '0 11 * * *', for: '2h' };
     const p = ok('p', { priority: 4, show });
     let s = snap([p], state({ acks: { p: '2026-10-05T11:00:00Z' } }));
@@ -121,15 +123,25 @@ describe('computeSnapshot', () => {
     expect(s.zones.tray).toEqual(['p']);
     s = snap([ok('p', { priority: 4, show, updatedAt: '2026-10-05T11:30:00Z' })], state({ acks: { p: '2026-10-05T11:00:00Z' } }));
     expect(s.zones).toMatchObject({ tray: [], now: ['p'] });
-    const al = snap([ok('al', { kind: 'alert' })], state({ acks: { al: '2026-10-05T11:00:00Z' } }));
-    expect(al.zones).toMatchObject({ alerts: ['al'], tray: [] });
   });
 
+    it('no-data entry is shown muted; goes stale from the card.json mtime', () => {
+    const nd = (staleAfter?: string): NoDataEntry => ({
+    status: 'no-data', key: 'n', file: 'n/data.json', dataPath: '/feed/n/data.json', viewHash: 'v',
+    viewMtimeMs: Date.parse('2026-10-05T11:00:00Z'), warnings: [],
+    card: { id: 'n', type: 'markdown', title: 'n', layout: { column: 'center', order: 0, height: 'auto' }, priority: 2, notify: false,
+      ...(staleAfter ? { staleAfter } : {}), def: {} } as NoDataEntry['card'],
+  });
+  const fresh = snap([nd('2h')]);
+  expect(fresh.cards.n).toMatchObject({ status: 'broken', reason: 'no-data' });
+  expect('data' in fresh.cards.n!).toBe(false);
+  expect(snap([nd('30m')]).cards.n).toMatchObject({ status: 'broken', reason: 'stale' });
+});
+
   it('collapsed for panels priority <= 1 only', () => {
-    const s = snap([ok('a', { priority: 1 }), ok('b', { priority: 2 }), ok('c', { kind: 'alert', priority: 0 })]);
+    const s = snap([ok('a', { priority: 1 }), ok('b', { priority: 2 })]);
     expect(s.cards.a!.collapsed).toBe(true);
     expect(s.cards.b!.collapsed).toBe(false);
-    expect(s.cards.c!.collapsed).toBe(false);
   });
 
   it('hidden -> hidden zone only, with data', () => {

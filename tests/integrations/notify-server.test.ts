@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { putCard } from '../helpers/feed-folder.js';
 import { fakeClock } from '../../src/clock.js';
 import { startServer, type RunningServer } from '../../src/http/server.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
@@ -14,7 +15,7 @@ let data: string;
 let ui: string;
 let running: RunningServer | undefined;
 const clock = fakeClock('2026-06-01T12:00:00Z');
-const feed = (n: string): string => join(data, 'feed', n);
+const put = (id: string, text: string): void => void putCard(join(data, 'feed'), id, text);
 const T1 = '2026-06-01T10:00:00Z';
 const T2 = '2026-06-01T11:00:00Z';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -55,7 +56,7 @@ const snap = async (s: RunningServer): Promise<Snapshot> =>
 
 describe('notifications wired into server', () => {
   it('notify:true new fires once with deep link; restart unchanged fires nothing', async () => {
-    writeFileSync(feed('a.json'), card('a'));
+    put('a', card('a'));
     const a1 = new FakeNotifyAdapter();
     const s = await boot(a1);
     expect(a1.calls).toHaveLength(1);
@@ -67,25 +68,25 @@ describe('notifications wired into server', () => {
   });
 
   it('changed-while-down fires on restart; live change fires once', async () => {
-    writeFileSync(feed('a.json'), card('a'));
+    put('a', card('a'));
     await boot(new FakeNotifyAdapter());
     await running!.stop();
     running = undefined;
-    writeFileSync(feed('a.json'), card('a', { updatedAt: T2 }));
+    put('a', card('a', { updatedAt: T2 }));
     const a2 = new FakeNotifyAdapter();
     const s = await boot(a2);
     expect(a2.calls).toHaveLength(1);
-    writeFileSync(feed('a.json'), card('a', { updatedAt: '2026-06-01T11:30:00Z' }));
+    put('a', card('a', { updatedAt: '2026-06-01T11:30:00Z' }));
     for (let i = 0; i < 200 && a2.calls.length < 2; i++) await sleep(50);
     expect(a2.calls).toHaveLength(2);
     expect(s.notifier.status().enabled).toBe(true);
   }, 20_000);
 
   it('notify:false, Broken and out-of-window fire nothing', async () => {
-    writeFileSync(feed('f.json'), card('f', { notify: false }));
-    writeFileSync(feed('broken.json'), '{ not json');
-    writeFileSync(feed('bad.json'), card('bad', { updatedAt: 'nope' }));
-    writeFileSync(feed('old.json'), card('old', { show: { cron: '0 0 1 1 *', for: '1h' } }));
+    put('f', card('f', { notify: false }));
+    put('broken', '{ not json');
+    put('bad', card('bad', { updatedAt: 'nope' }));
+    put('old', card('old', { show: { cron: '0 0 1 1 *', for: '1h' } }));
     const a = new FakeNotifyAdapter();
     await boot(a);
     await sleep(300);
@@ -93,8 +94,8 @@ describe('notifications wired into server', () => {
   });
 
   it('server write-back of a complete item fires nothing', async () => {
-    writeFileSync(
-      feed('l1.json'),
+    put(
+      'l1',
       card('l1', { type: 'list', data: { items: [{ id: 'c', text: 'C', action: 'complete' }] } }),
     );
     const a = new FakeNotifyAdapter();
@@ -111,7 +112,7 @@ describe('notifications wired into server', () => {
   });
 
   it('headless (gate off): no adapter call, no error, snapshot warning has reason', async () => {
-    writeFileSync(feed('a.json'), card('a'));
+    put('a', card('a'));
     const a = new FakeNotifyAdapter();
     const s = await boot(a, { notifyPlatform: 'linux', env: { [ENV_HOME]: data, PATH: '' } });
     await sleep(200);
@@ -122,7 +123,7 @@ describe('notifications wired into server', () => {
 
   it('config notifications.os=off disables; stop disposes subscription', async () => {
     writeFileSync(join(data, 'config.json'), JSON.stringify({ notifications: { os: 'off' } }));
-    writeFileSync(feed('a.json'), card('a'));
+    put('a', card('a'));
     const a = new FakeNotifyAdapter();
     const s = await boot(a);
     await sleep(100);

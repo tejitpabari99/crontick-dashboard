@@ -32,7 +32,7 @@ export function mountActions(app: Hono, ctx: AppContext): void {
     const body = BodySchema.safeParse(raw);
     if (!body.success) return apiError(c, 400, ERROR_CODES.INVALID_BODY, 'body must be { itemId, updatedAt, checked? }');
     const { itemId, updatedAt } = body.data;
-    const env = envelope(entry.card);
+    const env = envelope(entry);
     if (!sameInstant(updatedAt, env.updatedAt)) return apiError(c, 409, ERROR_CODES.CARD_CHANGED, CARD_CHANGED_MESSAGE);
     const item = findItemAction(env.data, itemId);
     if (!item) return apiError(c, 404, ERROR_CODES.ITEM_NOT_FOUND, 'no such item on this card; reload the page');

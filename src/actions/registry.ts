@@ -3,7 +3,6 @@ import { ERROR_CODES, type ErrorCode } from '../constants/error-codes.js';
 import type { OkEntry } from '../feed/ingest.js';
 import type { StateStore } from '../state/store.js';
 import type { Clock } from '../clock.js';
-import { envelope } from '../feed/ingest.js';
 import { sameInstant } from '../instant.js';
 import { completeWriteBack } from './writeback.js';
 
@@ -40,7 +39,7 @@ const dismiss: ActionHandler = async ({ entry, itemId, checked, updatedAt }, { s
   const cur = Object.hasOwn(state.get().checks, entry.key) ? state.get().checks[entry.key] : undefined;
   const same = cur !== undefined && sameInstant(cur.updatedAt, updatedAt);
   const items = same ? cur.items : [];
-  if (!items.includes(itemId)) await state.setChecks(entry.key, envelope(entry.card).updatedAt, [...items, itemId]);
+  if (!items.includes(itemId)) await state.setChecks(entry.key, entry.dataVersion, [...items, itemId]);
   return { ok: true };
 };
 

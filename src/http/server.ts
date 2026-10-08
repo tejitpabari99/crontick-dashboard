@@ -13,7 +13,6 @@ import { dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from
 import { claimPidFile, releasePidFile } from '../pid.js';
 import { errorMessage } from '../utils/errors.js';
 import { loopbackUrl } from '../utils/loopback.js';
-import { envelope } from '../feed/ingest.js';
 import { realTimers, type IntervalTimers } from '../utils/timers.js';
 import { createStateStore } from '../state/store.js';
 import { createWarnings, type Warnings } from '../state/warnings.js';
@@ -115,11 +114,8 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     const present = new Set<string>();
     const current = new Map<string, string>();
     for (const e of watcher.store.list()) {
-      if (e.status === 'ok') {
-        present.add(e.key);
-        current.set(e.key, envelope(e.card).updatedAt);
-      }
-      else if (e.id !== undefined) present.add(e.id); // a temporarily broken card keeps its owner state
+      present.add(e.key); // a no-data or temporarily broken card keeps its owner state
+      if (e.status === 'ok') current.set(e.key, e.dataVersion);
     }
     if (stopped) return;
     const p: Promise<void> = state
@@ -160,7 +156,8 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     dataDir,
     feedDir: feedDir(env),
     doneDir: doneDir(env),
-    refreshFeed: (f) => watcher.processFile(f),
+    issues: () => watcher.issues(),
+    refreshFeed: (f) => watcher.processFolder(f.split('/')[0] ?? f),
     selfWrites: watcher.selfWrites,
     ...(opts.actionTestDeps ? { actionTestDeps: opts.actionTestDeps } : {}),
     uiDir: opts.uiDir,

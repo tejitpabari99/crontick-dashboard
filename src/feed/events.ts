@@ -13,18 +13,17 @@
  * A card turning into a Broken file emits nothing.
  */
 import type { Clock } from '../clock.js';
-import type { Card } from './legacy-envelope.js';
 import { brokenReason, inWindow } from '../compute/snapshot.js';
 import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';
 import { sameInstant } from '../instant.js';
-import { envelope, type CardChange, type CardEntry } from './ingest.js';
+import { envelope, type CardChange, type CardEntry, type CardEnvelope } from './ingest.js';
 import { errorMessage } from '../utils/errors.js';
 
 export type CardEventType = 'card:new' | 'card:changed' | 'card:removed';
 export interface CardEventPayload {
-  card: Card;
-  prev?: Card;
+  card: CardEnvelope;
+  prev?: CardEnvelope;
   file: string;
 }
 export type CardEventListener = (payload: CardEventPayload) => void;
@@ -75,8 +74,7 @@ export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
     }
   }
 
-  function notifiable(card: Card): boolean {
-    const e = envelope(card);
+  function notifiable(e: CardEnvelope): boolean {
     const now = opts.clock.now();
     return brokenReason(e, now) === null && inWindow(e.show, now, opts.getTimezone());
   }
@@ -90,7 +88,7 @@ export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
     pending.add(p);
   }
 
-  const okCard = (e: CardEntry | undefined): Card | undefined => (e?.status === 'ok' ? e.card : undefined);
+  const okCard = (e: CardEntry | undefined): CardEnvelope | undefined => (e?.status === 'ok' ? envelope(e) : undefined);
 
   return {
     events,
@@ -98,12 +96,13 @@ export function createCardEvents(opts: CardEventsOptions): CardEventsHandle {
       if (change.selfWrite) return; // server write-backs never fire events
       if (change.type === 'removed') {
         const card = okCard(change.prev);
-        if (card && brokenReason(envelope(card), opts.clock.now()) === null) emit('card:removed', { card, file: change.file });
+        if (card && brokenReason(card, opts.clock.now()) === null) emit('card:removed', { card, file: change.file });
         return;
       }
+      if (!change.contentChanged) return; // card.json-only edits re-render but never notify
       const card = okCard(change.entry);
       if (!card) return;
-      const updatedAt = envelope(card).updatedAt;
+      const updatedAt = card.updatedAt;
       const st = opts.state.get();
       const last = Object.hasOwn(st.notified, change.key) ? st.notified[change.key] : undefined;
       if (last !== undefined && sameInstant(last, updatedAt)) return;

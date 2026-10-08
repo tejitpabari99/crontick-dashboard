@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeClock } from '../../src/clock.js';
+import { putCard } from '../helpers/feed-folder.js';
 import { ERROR_CODES } from '../../src/constants/error-codes.js';
 import { ENV_HOME } from '../../src/constants/env.js';
 import { MUTATION_HEADER, MUTATION_HEADER_VALUE } from '../../src/constants/http.js';
@@ -20,11 +21,12 @@ beforeEach(() => {
   ui = mkdtempSync(join(tmpdir(), 'ec-ui-'));
   writeFileSync(join(ui, 'index.html'), '<html></html>');
   mkdirSync(join(data, 'feed'), { recursive: true });
-  writeFileSync(
-    join(data, 'feed', 'p1.json'),
+  putCard(
+    join(data, 'feed'),
+    'p1',
     JSON.stringify({ id: 'p1', kind: 'panel', type: 'list', title: 'p1', updatedAt: T, data: { items: [{ id: 'n', text: 'x' }] } }),
   );
-  writeFileSync(join(data, 'feed', 'bad.json'), '{ not json');
+  putCard(join(data, 'feed'), 'bad', '{ not json');
 });
 afterEach(async () => {
   await running?.stop();

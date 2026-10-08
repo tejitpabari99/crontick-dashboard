@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { putCard } from '../helpers/feed-folder.js';
 import { fakeClock } from '../../src/clock.js';
 import { computeSnapshot } from '../../src/compute/snapshot.js';
 import { createCardEvents, type CardEventPayload } from '../../src/feed/events.js';
@@ -28,7 +29,8 @@ afterEach(() => {
 
 const card = (id: string, updatedAt = '2026-06-01T10:00:00Z', extra: object = {}) =>
   JSON.stringify({ id, kind: 'panel', type: 'markdown', title: id, updatedAt, data: { text: 'hi' }, ...extra });
-const put = (name: string, text: string) => writeFileSync(join(feed, name), text);
+const put = (name: string, text: string) => putCard(feed, name.replace(/\.json$/, ''), text);
+const drop = (name: string) => rmSync(join(feed, name.replace(/\.json$/, '')), { recursive: true, force: true });
 
 function boot() {
   const state = createStateStore({ env: env(), clock });
@@ -47,14 +49,14 @@ describe('card events', () => {
     ing.rescan();
     await ev.flush();
     expect(got.map((g) => g.type)).toEqual(['card:new']);
-    expect(got[0]!.p.file).toBe('a.json');
+    expect(got[0]!.p.file).toBe('a/data.json');
     expect(state.get().notified['a']).toBe('2026-06-01T10:00:00Z');
     put('a.json', card('a', '2026-06-01T11:00:00Z'));
-    ing.processFile('a.json');
+    ing.processFolder('a');
     await ev.flush();
     expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed']);
     expect(got[1]!.p.prev?.['updatedAt']).toBe('2026-06-01T10:00:00Z');
-    unlinkSync(join(feed, 'a.json'));
+    drop('a.json');
     ing.rescan();
     await ev.flush();
     expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed', 'card:removed']);
@@ -80,9 +82,20 @@ describe('card events', () => {
     ing.rescan();
     await ev.flush();
     put('a.json', card('a', '2026-06-01T10:00:00Z', { data: { text: 'edited' } }));
-    ing.processFile('a.json');
+    ing.processFolder('a');
     await ev.flush();
     expect(got).toHaveLength(1);
+  });
+
+  it('card.json-only edit (contentChanged:false) never fires or re-stamps', async () => {
+    const { ev, got, ing } = boot();
+    put('a.json', card('a'));
+    ing.rescan();
+    await ev.flush();
+    put('a.json', card('a', undefined, { title: 'Renamed', priority: 4 })); // view fields only; data identical
+    ing.processFolder('a');
+    await ev.flush();
+    expect(got.map((g) => g.type)).toEqual(['card:new']);
   });
 
   it('never fires for broken, errored, stale, or out-of-window cards', async () => {
@@ -102,7 +115,7 @@ describe('card events', () => {
     const { ev, got, ing } = boot();
     put('err.json', card('err', undefined, { error: 'boom' }));
     ing.rescan();
-    unlinkSync(join(feed, 'err.json'));
+    drop('err.json');
     ing.rescan();
     await ev.flush();
     expect(got).toEqual([]);

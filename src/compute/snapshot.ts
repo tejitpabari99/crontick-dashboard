@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import type { DashboardConfig } from '../config.js';
 import { parseDuration, windowActive } from '../contract/formats.js';
-import { envelope, type CardEnvelope, type CardEntry, type OkEntry } from '../feed/ingest.js';
+import { envelope, type CardEnvelope, type CardEntry, type NoDataEntry, type OkEntry } from '../feed/ingest.js';
 import { sameInstant } from '../instant.js';
 import type { Snapshot, ViewCard, ViewReason, Zones } from '../shared/api-types.js';
 import type { StateData } from '../state/store.js';
@@ -26,7 +26,7 @@ export function inWindow(show: Show | undefined, now: Date, timezone: string): b
   }
 }
 
-export function brokenReason(card: CardEnvelope, now: Date): { reason: ViewReason; message: string } | null {
+export function brokenReason(card: Pick<CardEnvelope, 'updatedAt' | 'error' | 'staleAfter'>, now: Date): { reason: ViewReason; message: string } | null {
   if (card.error !== null && card.error !== undefined && card.error !== '') return { reason: 'error', message: card.error };
   if (card.staleAfter !== undefined) {
     try {
@@ -42,7 +42,7 @@ export function brokenReason(card: CardEnvelope, now: Date): { reason: ViewReaso
 }
 
 function okItem(e: OkEntry, st: Readonly<StateData>, now: Date, tz: string): Item | null {
-  const c = envelope(e.card);
+  const c = envelope(e);
   const show = c.show;
   if (!inWindow(show, now, tz)) return null;
   const view: ViewCard = {
@@ -70,7 +70,31 @@ function okItem(e: OkEntry, st: Readonly<StateData>, now: Date, tz: string): Ite
   return { view, hasCron: show?.cron !== undefined, windowOn: true };
 }
 
-function brokenItem(e: Exclude<CardEntry, OkEntry>): Item {
+/** Interim (full DTO in a later task): a no-data card renders as a muted broken-style tile; stale from card.json mtime. */
+function noDataItem(e: NoDataEntry, now: Date, tz: string): Item | null {
+  const c = e.card;
+  if (!inWindow(c.show, now, tz)) return null;
+  const stale = brokenReason({ updatedAt: new Date(e.viewMtimeMs).toISOString(), ...(c.staleAfter !== undefined ? { staleAfter: c.staleAfter } : {}) }, now);
+  return {
+    view: {
+      id: c.id,
+      kind: 'panel',
+      type: c.type,
+      title: c.title,
+      priority: c.priority,
+      notify: c.notify,
+      updatedAt: new Date(e.viewMtimeMs).toISOString(),
+      collapsed: false,
+      status: 'broken',
+      reason: stale?.reason ?? 'no-data',
+      message: stale?.message ?? 'waiting for data.json',
+    },
+    hasCron: false,
+    windowOn: true,
+  };
+}
+
+function brokenItem(e: Exclude<CardEntry, OkEntry | NoDataEntry>): Item {
   const id = e.key;
   return {
     view: {
@@ -110,7 +134,8 @@ export function computeSnapshot(
 ): Snapshot {
   const items = new Map<string, Item>();
   for (const e of cards) {
-    const it = e.status === 'ok' ? okItem(e, state, now, config.timezone) : brokenItem(e);
+    const it =
+      e.status === 'ok' ? okItem(e, state, now, config.timezone) : e.status === 'no-data' ? noDataItem(e, now, config.timezone) : brokenItem(e);
     if (it) items.set(it.view.id, it);
   }
 

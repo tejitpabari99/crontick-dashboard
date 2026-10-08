@@ -5,7 +5,7 @@ import { resolveNotifyMode } from '../../src/integrations/notify/gate.js';
 import { createWarnings } from '../../src/state/warnings.js';
 import { computeSnapshot } from '../../src/compute/snapshot.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
-import type { Card } from '../../src/feed/legacy-envelope.js';
+import type { CardEnvelope } from '../../src/feed/ingest.js';
 
 function bus() {
   const ls: Record<string, Set<CardEventListener>> = {};
@@ -17,7 +17,7 @@ function bus() {
       },
     },
     emit(type: CardEventType, card: Record<string, unknown>) {
-      for (const fn of [...(ls[type] ?? [])]) fn({ card: card as unknown as Card, file: 'x.json' });
+      for (const fn of [...(ls[type] ?? [])]) fn({ card: card as unknown as CardEnvelope, file: 'x.json' });
     },
   };
 }

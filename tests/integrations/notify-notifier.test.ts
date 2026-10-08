@@ -5,7 +5,7 @@ import { stripMarkdown } from '../../src/utils/markdown.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { fakeClock } from '../../src/clock.js';
 import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
-import type { Card } from '../../src/feed/legacy-envelope.js';
+import type { CardEnvelope } from '../../src/feed/ingest.js';
 import { NOTIFY_BURST_WINDOW_MS, NOTIFY_MAX_BODY } from '../../src/constants/notify.js';
 
 function bus() {
@@ -21,7 +21,7 @@ function bus() {
       },
     },
     emit(type: CardEventType, card: Record<string, unknown>) {
-      for (const fn of [...(ls[type] ?? [])]) fn({ card: card as unknown as Card, file: 'x.json' });
+      for (const fn of [...(ls[type] ?? [])]) fn({ card: card as unknown as CardEnvelope, file: 'x.json' });
     },
     count: (type: string) => ls[type]?.size ?? 0,
   };

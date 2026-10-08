@@ -1,8 +1,8 @@
-/** fs.watch wiring for the feed ingest: flat watch, 200 ms per-file debounce, periodic rescan. */
+/** fs.watch wiring for the feed ingest: recursive watch on feed/, 200 ms per-folder debounce, periodic rescan. */
 import { watch, mkdirSync, type FSWatcher } from 'node:fs';
 import { FEED_DEBOUNCE_MS, FEED_RESCAN_MS } from '../constants/feed.js';
 import { realTimers, type TimeoutTimers } from '../utils/timers.js';
-import { createFeedIngest, isFeedFile, type FeedIngest, type FeedIngestOptions } from './ingest.js';
+import { createFeedIngest, type FeedIngest, type FeedIngestOptions } from './ingest.js';
 
 export interface FeedWatcherOptions extends FeedIngestOptions {
   debounceMs?: number;
@@ -31,7 +31,7 @@ export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
       name,
       timers.setTimeout(() => {
         pending.delete(name);
-        ingest.processFile(name);
+        ingest.processFolder(name);
       }, debounce),
     );
   }
@@ -51,10 +51,14 @@ export function createFeedWatcher(opts: FeedWatcherOptions): FeedWatcher {
       mkdirSync(opts.feedDir, { recursive: true });
       ingest.rescan();
       try {
-        watcher = watch(opts.feedDir, { persistent: false }, (_ev, filename) => {
+        watcher = watch(opts.feedDir, { persistent: false, recursive: true }, (_ev, filename) => {
           if (filename === null || filename === undefined) return void ingest.rescan();
-          const name = String(filename);
-          if (isFeedFile(name)) schedule(name);
+          const parts = String(filename).split(/[\\/]/);
+          const id = parts[0] ?? '';
+          if (id === '' || id === 'alerts') return; // alerts are ingested separately
+          const leaf = parts[parts.length - 1] ?? '';
+          if (parts.length > 1 && (leaf.startsWith('.') || /\.tmp$/i.test(leaf))) return;
+          schedule(id); // one debounce slot per folder
         });
         watcher.on('error', () => {
           /* rescan is the safety net */

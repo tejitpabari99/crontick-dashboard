@@ -2,9 +2,9 @@
  * Shared API DTOs. TYPE-ONLY: nothing here may exist at runtime, so UI/CLI code
  * can `import type` from this file without pulling in server code.
  */
-import type { BrokenReason } from '../feed/legacy-envelope.js';
+import type { BrokenReason } from '../constants/error-codes.js';
 
-export type ViewReason = BrokenReason | 'error' | 'stale' | 'duplicate-id';
+export type ViewReason = BrokenReason | 'error' | 'stale' | 'duplicate-id' | 'no-data';
 
 export interface ViewCard {
   id: string;

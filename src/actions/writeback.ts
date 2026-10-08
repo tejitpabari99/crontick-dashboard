@@ -1,7 +1,7 @@
 /** `complete` write-back: edits checked/checkedAt in the raw card JSON, compare-and-rename, self-write registered. */
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { CARD_CHANGED_MESSAGE, ERROR_CODES } from '../constants/error-codes.js';
 import { RENAME_TRIES, WRITEBACK_RENAME_BACKOFF_MS } from '../constants/state.js';
 import { sameInstant } from '../instant.js';
@@ -41,10 +41,10 @@ function findItem(obj: Obj, itemId: string): Obj | undefined {
 
 export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): Promise<ActionResult> {
   const { entry, itemId, checked } = req;
-  const { feedDir, refreshFeed, selfWrites } = deps;
+  const { refreshFeed, selfWrites } = deps;
   const rename = deps.rename ?? renameSync;
   const sleep = deps.sleep ?? realSleep;
-  const path = join(feedDir, entry.file);
+  const path = entry.dataPath;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw: Buffer;
@@ -57,7 +57,7 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
       return CHANGED;
     }
     const hash = sha256(raw);
-    if (attempt === 0 && hash !== entry.hash) {
+    if (attempt === 0 && hash !== entry.dataHash) {
       refreshFeed(entry.file);
       return CHANGED;
     }
@@ -85,7 +85,7 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
     else delete item['checkedAt'];
     const bytes = Buffer.from(JSON.stringify(obj, null, 2) + '\n', 'utf8');
     const newHash = sha256(bytes);
-    const tmp = join(feedDir, `.${entry.file}.${randomBytes(6).toString('hex')}.tmp`);
+    const tmp = join(dirname(path), `.${basename(path)}.${randomBytes(6).toString('hex')}.tmp`);
     let renamed = false;
     try {
       writeFileSync(tmp, bytes, { flag: 'wx' });

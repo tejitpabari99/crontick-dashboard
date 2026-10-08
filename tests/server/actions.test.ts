@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -14,14 +14,16 @@ let ui: string;
 let running: RunningServer | undefined;
 const clock = fakeClock('2026-06-01T12:00:00Z');
 const feed = (n: string): string => join(data, 'feed', n);
+/** Write feed/<id>/data.json (raw text) and, if missing, a list card.json for the folder. */
+const writeData = (id: string, text: string): void => {
+  mkdirSync(feed(id), { recursive: true });
+  if (!existsSync(feed(`${id}/card.json`))) writeFileSync(feed(`${id}/card.json`), JSON.stringify({ type: 'list', title: id }));
+  writeFileSync(feed(`${id}/data.json`), text);
+};
 const T1 = '2026-06-01T10:00:00Z';
 
 const listCard = (id: string, updatedAt: string) =>
   JSON.stringify({
-    id,
-    kind: 'panel',
-    type: 'list',
-    title: id,
     updatedAt,
     data: {
       items: [
@@ -60,7 +62,7 @@ const checkedOf = async (s: RunningServer, id: string) =>
 
 describe('card actions', () => {
   it('dismiss persists, returns rev, is idempotent, resets on rewrite', async () => {
-    writeFileSync(feed('l1.json'), listCard('l1', T1));
+    writeData('l1', listCard('l1', T1));
     const s = await boot();
     const r = await act(s, 'l1', { itemId: 'd', updatedAt: T1 });
     expect(r.status).toBe(200);
@@ -72,29 +74,31 @@ describe('card actions', () => {
     // equivalent instant in another offset is accepted
     expect((await act(s, 'l1', { itemId: 'd', updatedAt: '2026-06-01T12:00:00+02:00' })).status).toBe(200);
     // rewrite with new updatedAt resets
-    writeFileSync(feed('l1.json'), listCard('l1', '2026-06-01T11:00:00Z'));
+    writeData('l1', listCard('l1', '2026-06-01T11:00:00Z'));
     for (let i = 0; i < 100 && (await snap(s)).cards['l1']?.updatedAt !== '2026-06-01T11:00:00Z'; i++)
       await new Promise((r2) => setTimeout(r2, 50));
     expect(await checkedOf(s, 'l1')).toBeUndefined();
   });
 
   it('untick of dismiss -> 400', async () => {
-    writeFileSync(feed('l1.json'), listCard('l1', T1));
+    writeData('l1', listCard('l1', T1));
     const s = await boot();
     expect((await act(s, 'l1', { itemId: 'd', updatedAt: T1, checked: false })).status).toBe(400);
     expect(await checkedOf(s, 'l1')).toBeUndefined();
   });
 
   it('stale updatedAt -> 409', async () => {
-    writeFileSync(feed('l1.json'), listCard('l1', T1));
+    writeData('l1', listCard('l1', T1));
     const s = await boot();
     expect((await act(s, 'l1', { itemId: 'd', updatedAt: '2026-06-01T09:00:00Z' })).status).toBe(409);
     expect(await checkedOf(s, 'l1')).toBeUndefined();
   });
 
   it('404 unknown card; 4xx missing item, no action, bad body, broken card', async () => {
-    writeFileSync(feed('l1.json'), listCard('l1', T1));
-    writeFileSync(feed('bad.json'), JSON.stringify({ id: 'bad', kind: 'panel', type: 'nope', title: 'x', updatedAt: T1 }));
+    writeData('l1', listCard('l1', T1));
+    mkdirSync(feed('bad'));
+    writeFileSync(feed('bad/card.json'), JSON.stringify({ type: 'nope', title: 'x' }));
+    writeFileSync(feed('bad/data.json'), JSON.stringify({ updatedAt: T1, data: {} }));
     const s = await boot();
     expect((await act(s, 'zzz', { itemId: 'd', updatedAt: T1 })).status).toBe(404);
     expect((await act(s, 'l1', { itemId: 'missing', updatedAt: T1 })).status).toBe(404);
@@ -109,10 +113,6 @@ describe('complete write-back', () => {
   const rawCard = (updatedAt = T1, extra: Record<string, unknown> = {}): string =>
     JSON.stringify(
       {
-        id: 'l1',
-        kind: 'panel',
-        type: 'list',
-        title: 'l1',
         updatedAt,
         'x-owner': { keep: [1, 2] },
         data: {
@@ -127,12 +127,12 @@ describe('complete write-back', () => {
       null,
       2,
     ) + '\n';
-  const temps = (): string[] => readdirSync(join(data, 'feed')).filter((f) => f.endsWith('.tmp'));
+  const temps = (): string[] => readdirSync(feed('l1')).filter((f) => f.endsWith('.tmp'));
   const raw = (): { data: { items: Record<string, unknown>[] } } & Record<string, unknown> =>
-    JSON.parse(readFileSync(feed('l1.json'), 'utf8'));
+    JSON.parse(readFileSync(feed('l1/data.json'), 'utf8'));
 
   it('ticks only that item, preserves extras/order, no temp, no event, Done ack valid', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     const before = JSON.parse(rawCard());
     const s = await boot();
     const changed: unknown[] = [];
@@ -150,7 +150,7 @@ describe('complete write-back', () => {
     expect(Object.keys(after)).toEqual(Object.keys(before));
     expect(after.data.items[0]).toEqual(before.data.items[0]);
     expect(after.data.items[2]).toEqual(before.data.items[2]);
-    expect(readFileSync(feed('l1.json'), 'utf8').endsWith('}\n')).toBe(true);
+    expect(readFileSync(feed('l1/data.json'), 'utf8').endsWith('}\n')).toBe(true);
     expect(temps()).toEqual([]);
     expect((await snap(s)).rev).toBe(((await r.json()) as { rev: string }).rev);
     await new Promise((res) => setTimeout(res, 400)); // watcher sees the write
@@ -158,7 +158,7 @@ describe('complete write-back', () => {
   });
 
   it('untick deletes checkedAt; shorthand and object action both work', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     const s = await boot();
     expect((await act(s, 'l1', { itemId: 'o', updatedAt: T1 })).status).toBe(200);
     expect(raw().data.items[2]).toMatchObject({ checked: true });
@@ -169,19 +169,19 @@ describe('complete write-back', () => {
   });
 
   it('on-disk change since ingest -> 409 and re-ingest, file untouched', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     const s = await boot();
     const other = rawCard('2026-06-01T11:00:00Z');
-    writeFileSync(feed('l1.json'), other);
+    writeData('l1', other);
     const r = await act(s, 'l1', { itemId: 'c', updatedAt: T1 });
     expect(r.status).toBe(409);
-    expect(readFileSync(feed('l1.json'), 'utf8')).toBe(other);
+    expect(readFileSync(feed('l1/data.json'), 'utf8')).toBe(other);
     expect(temps()).toEqual([]);
     expect((await snap(s)).cards['l1']).toBeDefined();
   });
 
   it('agent rewrite mid-flight with same updatedAt: retried, both changes survive', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     let fired = 0;
     running = await startServer({
       env: { [ENV_HOME]: data },
@@ -191,7 +191,7 @@ describe('complete write-back', () => {
       actionTestDeps: {
         hooks: {
           beforeCompare: () => {
-            if (fired++ === 0) writeFileSync(feed('l1.json'), rawCard(T1, { note: 'agent' }));
+            if (fired++ === 0) writeData('l1', rawCard(T1, { note: 'agent' }));
           },
         },
       },
@@ -205,24 +205,24 @@ describe('complete write-back', () => {
   });
 
   it('agent rewrite mid-flight with new updatedAt: 409, agent file wins', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     const agent = rawCard('2026-06-01T11:00:00Z');
     running = await startServer({
       env: { [ENV_HOME]: data },
       clock,
       uiDir: ui,
       port: 0,
-      actionTestDeps: { hooks: { beforeCompare: () => writeFileSync(feed('l1.json'), agent) } },
+      actionTestDeps: { hooks: { beforeCompare: () => writeData('l1', agent) } },
     });
     const r = await act(running, 'l1', { itemId: 'c', updatedAt: T1 });
     expect(r.status).toBe(409);
     expect(await r.json()).toMatchObject({ code: 'CARD_CHANGED' });
-    expect(readFileSync(feed('l1.json'), 'utf8')).toBe(agent);
+    expect(readFileSync(feed('l1/data.json'), 'utf8')).toBe(agent);
     expect(temps()).toEqual([]);
   });
 
   it('rename EPERM is retried with backoff; persistent EPERM cleans up and 500s', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     let calls = 0;
     const sleeps: number[] = [];
     running = await startServer({
@@ -244,7 +244,7 @@ describe('complete write-back', () => {
     await running.stop();
     running = undefined;
 
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     calls = -100;
     running = await startServer({
       env: { [ENV_HOME]: data },
@@ -262,11 +262,11 @@ describe('complete write-back', () => {
     expect((await act(running, 'l1', { itemId: 'c', updatedAt: T1 })).status).toBe(500);
     expect(calls).toBe(-100 + 5);
     expect(temps()).toEqual([]);
-    expect(readFileSync(feed('l1.json'), 'utf8')).toBe(rawCard());
+    expect(readFileSync(feed('l1/data.json'), 'utf8')).toBe(rawCard());
   });
 
   it('restart before ingest: write is an ordinary change, no event', async () => {
-    writeFileSync(feed('l1.json'), rawCard());
+    writeData('l1', rawCard());
     let s = await boot();
     const evs: unknown[] = [];
     s.events.on('card:changed', (e) => evs.push(e));

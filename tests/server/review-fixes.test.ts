@@ -12,6 +12,7 @@ import { startServer, type RunningServer } from '../../src/http/server.js';
 import { daemonStatus } from '../../src/lifecycle.js';
 import { pidFilePath, portFilePath } from '../../src/paths.js';
 import { createStateStore } from '../../src/state/store.js';
+import { putCard } from '../helpers/feed-folder.js';
 import { ENV_HOME } from '../../src/constants/env.js';
 
 let data: string;
@@ -78,7 +79,7 @@ describe('state store rollback', () => {
 describe('state reconcile wiring', () => {
   it('fresh start creates no state.json', async () => {
     // out of its show window => not notified/stamped, so nothing else mutates state
-    writeFileSync(join(data, 'feed', 'a.json'), card('a', { show: { cron: '0 3 * * *', for: '1h' } }));
+    putCard(join(data, 'feed'), 'a', card('a', { show: { cron: '0 3 * * *', for: '1h' } }));
     running = await startServer({ env: env(), clock: fakeClock('2026-06-02T12:00:00Z'), uiDir: ui, port: 0 });
     await new Promise((r) => setTimeout(r, 150));
     expect(existsSync(join(data, 'state.json'))).toBe(false);
@@ -87,7 +88,7 @@ describe('state reconcile wiring', () => {
   it('records lastSeen for present ids after the startup scan when state exists', async () => {
     const s = createStateStore({ env: env() });
     await s.ack('a', '2026-06-01T10:00:00Z');
-    writeFileSync(join(data, 'feed', 'a.json'), card('a'));
+    putCard(join(data, 'feed'), 'a', card('a'));
     running = await startServer({ env: env(), uiDir: ui, port: 0 });
     const disk = (): { lastSeen: Record<string, string> } => JSON.parse(readFileSync(join(data, 'state.json'), 'utf8'));
     await waitFor(() => disk().lastSeen['a'] !== undefined);
@@ -104,15 +105,15 @@ describe('self-write events', () => {
     const got: CardEventPayload[] = [];
     for (const t of ['card:new', 'card:changed', 'card:removed'] as const) ev.events.on(t, (p) => got.push(p));
     const ing = createFeedIngest({ feedDir: feed, onChange: ev.onChange });
-    writeFileSync(join(feed, 'a.json'), card('a', { show: { cron: '0 3 * * *', for: '1h' } }));
+    putCard(feed, 'a', card('a', { show: { cron: '0 3 * * *', for: '1h' } }));
     ing.rescan();
     await ev.flush();
     expect(got).toHaveLength(0); // out of window, not stamped
     clock.set('2026-06-03T03:30:00Z'); // window now open
     const bytes = card('a', { show: { cron: '0 3 * * *', for: '1h' }, note: 'written back' });
-    writeFileSync(join(feed, 'a.json'), bytes);
-    ing.selfWrites.set('a.json', createHash('sha256').update(bytes).digest('hex'));
-    ing.processFile('a.json');
+    const dataPath = putCard(feed, 'a', bytes);
+    ing.selfWrites.set('a/data.json', createHash('sha256').update(readFileSync(dataPath)).digest('hex'));
+    ing.processFolder('a');
     await ev.flush();
     expect(got).toHaveLength(0);
     expect(state.get().notified['a']).toBeUndefined();
