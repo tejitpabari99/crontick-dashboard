@@ -10,3 +10,19 @@ export type { KpiData, KpiMetric } from './types/kpi.js';
 export type { MarkdownData } from './types/markdown.js';
 export type { MediaData, MediaItem } from './types/media.js';
 export type { Show, Envelope, EnvelopeInput } from './envelope.js';
+export { parseCardDef, validateCardFolder, validateAlertFile, isCardFolderName } from './folder-validate.js';
+export type {
+  DefResult,
+  FolderResult,
+  AlertResult,
+  ValidCard,
+  NoDataCard,
+  ValidAlert,
+  BrokenResult,
+  SkippedResult,
+  FolderIssue,
+  UpdatedAtSource,
+  DataInput,
+  ValidateCardFolderInput,
+  ValidateAlertFileInput,
+} from './folder-validate.js';
