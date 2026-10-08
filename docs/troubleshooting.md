@@ -16,27 +16,40 @@ The server prefers port 47616 (override: `--port`, `CRONTICK_DASHBOARD_PORT`, co
 
 ## A card shows Broken
 
-The card shows the reason. Check it locally: `crontick-dashboard validate <feed>/<id>.json` (file arguments also check id against file name). Common causes: `id-mismatch` (id differs from file name), `schema-invalid` (see the printed JSON pointers), `malformed-json` (half-written or truncated file; write to a temp name and rename), `stale` (older than `staleAfter`; rewrite with a new `updatedAt`), `error` (the card declares an error), `duplicate-id`. See [Broken reasons](reference/errors.md#broken-reasons).
+The card shows the reason. Check it locally: `crontick-dashboard validate <feed>/<id>` (the folder; it uses the same reader and validators as the server). Common causes: `schema-invalid` (see the printed JSON pointers; usually `data.json`), `malformed-json` (half-written or truncated file; write to `data.json.tmp` and rename), `unknown-type`, `stale` (no update for longer than `staleAfter`; rewrite `data.json` with real new content), `error` (`data.json` declares an `error`), `too-large`. See [Broken reasons](reference/errors.md#broken-reasons).
+
+## A card is missing and a warning appears
+
+A folder that cannot be a card is skipped with a snapshot warning: `card-def-missing` (no `card.json`), `card-def-invalid`, `data-path-invalid` (`data` must be a plain file name inside the folder), `invalid-id` (use lowercase letters, digits, `.`, `_`, `-`), `reserved-id` (`alerts`). Loose files directly in `feed/` are ignored with a warning (cards are folders). `validate <folder>` prints the same `SKIPPED <reason>`. Scaffold correctly with `crontick-dashboard new <id> --type <type>`. See [Skipped folders](reference/errors.md#skipped-folders).
+
+## A card says "No data yet"
+
+Normal after `new`: the folder has a valid `card.json` and no `data.json`. Write `data.json` (shape: `crontick-dashboard templates <type> --file data`). If it never goes away, check the file name matches `data` in `card.json` (default `data.json`) and that it sits inside the card folder.
 
 ## "Unsupported type" / `unknown-type`
 
-`type` is not one of `markdown`, `table`, `list`, `kpi`, `media`. Check spelling and case; list types with `crontick-dashboard templates`. Also `type` must be allowed for the `kind` (`table` and `media` are panel-only).
+`type` in `card.json` is not one of `markdown`, `table`, `list`, `kpi`, `media`. Check spelling and case; list types with `crontick-dashboard templates`.
 
-## `validate <file>` fails on a template with `id-mismatch`
+## Validating an example or a document before writing it
 
-Templates have ids like `todo-today` but file names like `list.example.json`. Pipe them: `crontick-dashboard templates list | crontick-dashboard validate -` (stdin has no file name, so no id check). When writing a real card, name the file `<id>.json`.
+Pipe a document with `--as`, since stdin has no folder: `crontick-dashboard templates list --file data | crontick-dashboard validate - --as data --type list`. `--as card` checks `card.json` text; `--as alert` checks an alert file. Stdin takes one document per call and does not check folder-name rules; `new` covers those.
 
 ## Card does not appear or update
 
-- Card files must be in the feed dir from `info` (`feedDir`), named `<id>.json`.
+- Cards are folders `<id>/` with `card.json` (and `data.json`) in the feed dir from `info` (`feedDir`); alerts are `alerts/<id>.json` files.
+- A card shows new content only when `data.json` changes; editing `card.json` only re-renders it. A rewrite without an explicit `updatedAt` takes the file time.
 - The UI polls (config `pollIntervalMs`, 15-60 s), so allow a short delay.
 - A card outside its `show` window is hidden; windows use config `timezone` (default: system zone).
-- An id you hid in the UI stays hidden; unhide it from the hidden list.
+- A card you hid in the UI stays hidden; unhide it from the hidden list. A card you marked Done sits in the Completed section until its data changes (or you Reopen it); the header filter **Alerts** hides every card, including Completed card rows (a `#card=` link to a Done card switches the filter to All in that case).
 - Server down: the UI shows only a server-down state, never old cards. Run `daemon status`.
+
+## An alert stays or disappears
+
+Alerts persist until ticked and cannot be hidden. Ticking moves the file to `feed/alerts/.done/`; Completed lists ticked alerts for 7 days and at most the newest 50, but older files stay on disk. There is no un-tick: to show it again, write a new alert file.
 
 ## Notifications do not appear
 
-Check `info`: `Notifications on|off (reason)`. A card must have `notify: true` and a new `updatedAt`, be valid, and be inside its `show` window.
+Check `info`: `Notifications on|off (reason)`. A card or alert must have `notify: true` and be new content (a changed `data.json` `updatedAt`, or a new or changed alert file), be valid, and be inside its `show` window. Editing `card.json` never notifies.
 
 - **Linux**: needs `DISPLAY` or `WAYLAND_DISPLAY` set in the server's environment (a daemon started from SSH or cron has neither) and `notify-send` on `PATH` (install libnotify). Otherwise `auto` is off; set `notifications.os` to `on` to force.
 - **macOS**: allow notifications for your terminal or Node in System Settings > Notifications; check Focus modes.
@@ -56,4 +69,4 @@ Invalid fields fall back to defaults with a warning in the UI; check ranges in [
 
 ## Ticking a list item does not update my task app
 
-The dashboard only edits the card (`complete`) or its own state (`dismiss`). Syncing to another system is the agent's job on its next run.
+The dashboard only edits the card's `data.json` (`complete`) or its own state (`dismiss`). Syncing to another system is the agent's job on its next run.

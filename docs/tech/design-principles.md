@@ -31,7 +31,7 @@ Shared helpers live in `src/utils/` (server/CLI/contract) and `ui/src/lib/` (UI)
 
 ## 3. Constants in one place
 
-Constants that are shared (used in more than one file, including tests), tunable (default config values), or wire/format values (header names, storage keys, env var names, codes) live in `src/constants/` (server/CLI/contract), grouped by domain (e.g. `src/constants/feed.ts`, `src/constants/http.ts`, `src/constants/notify.ts`), and `ui/src/constants/` for the UI (polling, grid, storage keys). Constants files are dependency-free leaf modules; the UI may import cross-boundary values from `src/constants/`. File-private implementation details (regexes, MIME map, file modes, per-renderer caps) may stay un-exported in their file or type folder (`ui/src/types/<type>/logic.ts`).
+Constants that are shared (used in more than one file, including tests), tunable (default config values), or wire/format values (header names, storage keys, env var names, codes) live in `src/constants/` (server/CLI/contract), grouped by domain (e.g. `src/constants/feed.ts`, `src/constants/http.ts`, `src/constants/notify.ts`), and `ui/src/constants/` for the UI (polling, storage keys). Constants files are dependency-free leaf modules; the UI may import cross-boundary values from `src/constants/`. File-private implementation details (regexes, MIME map, file modes, per-renderer caps) may stay un-exported in their file or type folder (`ui/src/types/<type>/logic.ts`).
 
 **Rationale:** a magic number duplicated between source and test can drift silently; a test that imports the same constant as the source it tests can't drift from it.
 
@@ -55,7 +55,7 @@ Filesystem, timing (clock/timers), process spawning, and OS notifications are ac
 
 - **Do** accept a `clock`/`timers`/`fs`/`spawn`/`notifier`-like dependency with a real default, so tests can substitute a fake (`fakeClock`, notify `fake`).
 - **Don't** call `child_process.spawn`, `Date.now()`, `new Date()`, or `setInterval` directly from deep inside logic a test would otherwise need to run for real.
-- **Clock, timers, process spawn, and the notifier** must be injectable wherever logic depends on them. Direct `node:fs` is acceptable in dedicated I/O-boundary modules (store, archive, ingest/watcher, pid, config, paths, static, skill install, write-back) whose tests use temp dirs; flag `fs` only inside decision logic that is hard to test.
+- **Clock, timers, process spawn, and the notifier** must be injectable wherever logic depends on them. Direct `node:fs` is acceptable in dedicated I/O-boundary modules (store, ingest/watcher, card-folder reader, pid, config, paths, static, skill install, write-back) whose tests use temp dirs; flag `fs` only inside decision logic that is hard to test.
 - **Allowed:** `process.kill`/`process.pid` in the pid/lifecycle boundary; `new Date(x)` conversions (not clock reads); process entry points (`src/server/index.ts`, `src/cli/index.ts`).
 - **UI:** components may use bare `Date.now`/`setTimeout` (tests use vitest fake timers); non-React lib logic with module state should accept `now`/timers (as `api/store.ts` does).
 
@@ -76,7 +76,7 @@ Every error surfaced to a consumer is a typed error with a machine-readable `cod
 
 ## 8. Platform APIs over dependencies
 
-Prefer `node:*` built-ins and browser APIs over third-party packages. Current runtime dependencies are `hono`, `@hono/node-server`, `commander`, `croner`, `env-paths`, `node-notifier`, `zod`; UI libraries (`react`, `react-grid-layout`, `react-markdown`, `remark-gfm`) are bundled at build time. A new runtime dependency needs explicit justification and review.
+Prefer `node:*` built-ins and browser APIs over third-party packages. Current runtime dependencies are `hono`, `@hono/node-server`, `commander`, `croner`, `env-paths`, `node-notifier`, `zod`; UI libraries (`react`, `react-markdown`, `remark-gfm`) are bundled at build time. A new runtime dependency needs explicit justification and review.
 
 - **Do** check for a built-in (`node:fs`, `node:crypto`, `node:util`, `fetch`, `structuredClone`) before reaching for a package.
 - **Don't** add a dependency to save a few lines of code that a platform API already covers.

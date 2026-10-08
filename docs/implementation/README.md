@@ -14,29 +14,30 @@ Non-duplication: this folder explains how the code works. Mental models live in 
 
 | Doc | Covers |
 |-----|--------|
-| [contract.md](contract.md) | zod schemas, type registry, `validateCardFile`, schema generation |
-| [feed-and-ingest.md](feed-and-ingest.md) | watcher, ingest settle, duplicate ids, events, archive, `feed/done/` |
+| [contract.md](contract.md) | zod schemas, type registry, folder and alert validators, schema generation |
+| [feed-and-ingest.md](feed-and-ingest.md) | folder reader, watcher, ingest settle, events, alert tick (`feed/alerts/.done/`) |
 | [state.md](state.md) | `state.json` store, atomic writes, reconcile and pruning, config reader |
 | [http-server.md](http-server.md) | Hono app, guards, routes, snapshot ETag, static, errors, write-back |
 | [lifecycle.md](lifecycle.md) | `startServer` wiring, pid/port/lock files, daemon start and stop |
 | [notifications.md](notifications.md) | gate, notifier, burst limiting, node-notifier adapter |
-| [cli-and-skill.md](cli-and-skill.md) | commander wiring, Node guard, skill install |
-| [ui.md](ui.md) | polling store, mutations, renderer registry, grid, theme |
+| [cli-and-skill.md](cli-and-skill.md) | commander wiring, Node guard, `new`, `validate` stdin modes, schema sync, skill install |
+| [ui.md](ui.md) | polling store, mutations, renderer registry, columns, Completed, search, theme |
 | [build-and-package.md](build-and-package.md) | tsup, vite, dist checks, tarball verification, release |
 
 ## Source layout
 
 | Path | Role |
 |------|------|
-| `src/contract/` | Envelope and per-type zod schemas, `registry.ts`, `validate.ts`, `formats.ts`. Exported via `src/index.ts`. |
-| `src/feed/` | `ingest.ts` (card store), `watcher.ts` (fs.watch), `events.ts`, `archive.ts`, `done.ts`. |
+| `src/contract/` | `card-def.ts`, `data-file.ts`, `alert.ts`, per-type schemas, `registry.ts`, `folder-validate.ts`, `formats.ts`. Exported via `src/index.ts`. |
+| `src/feed/` | `read-card-folder.ts` (shared fs reader), `ingest.ts` (card, alert and completed-alert stores), `watcher.ts` (recursive fs.watch), `events.ts`, `done.ts` (alert tick). |
 | `src/state/` | `store.ts` (`state.json`), `warnings.ts` (keyed warning registry). |
-| `src/compute/` | `snapshot.ts`: pure cards + state + config + clock to snapshot. |
+| `src/compute/` | `snapshot.ts`: pure cards + alerts + state + config + clock to snapshot (columns, Now, alerts, Completed). |
 | `src/actions/` | `registry.ts` (`dismiss`, `complete`), `writeback.ts`, `lookup.ts`. |
 | `src/http/` | `app.ts`, `guards.ts`, `mutations.ts`, `actions.ts`, `static.ts`, `errors.ts`, `bind-port.ts`, `server.ts` (`startServer`). |
 | `src/server/` | `index.ts`: detached server process entry. |
 | `src/integrations/notify/` | `gate.ts`, `notifier.ts`, `adapter.ts`, `node-notifier-adapter.ts`, `fake.ts`. |
 | `src/cli/` | `index.ts` (bin), `guard.ts`, `main.ts`, `io.ts`, `assets.ts`, `commands/*`. |
+| `src/schemas-sync.ts` | `syncSchemas`: copies packaged schemas to `<data>/schemas/` (called by `new` and server start). |
 | `src/skill/` | `SKILL.md` and `install.ts`. |
 | `src/shared/` | `api-types.ts`: snapshot types shared by server and UI. |
 | `src/constants/` | Every tunable and wire constant, one file per concern (P2). |
@@ -45,9 +46,9 @@ Non-duplication: this folder explains how the code works. Mental models live in 
 | `ui/src/api/` | Snapshot store, client, mutations, toasts. |
 | `ui/src/registry/` | `registerCardType`, `getCardType`, unknown-type fallback. |
 | `ui/src/types/<type>/` | One folder per visual type; `types/index.ts` is the import hub. |
-| `ui/src/zones/` | Header, alert strip, Now zone, Grid, Done tray, hidden popover, server-down page. |
+| `ui/src/zones/` | Header, alert strip, Columns and Now zone, Completed section, search box, hidden popover, server-down page. |
 | `ui/src/frame/` | Uniform card chrome, error boundary, fullscreen. |
-| `ui/src/lib/`, `theme/`, `constants/`, `types` | Pure helpers (placement, theme, search, relative time), CSS tokens, UI constants. |
+| `ui/src/lib/`, `theme/`, `constants/`, `types` | Pure helpers (filter, search, hash, theme, relative time), CSS tokens, UI constants. |
 
 ## Cross-cutting patterns
 

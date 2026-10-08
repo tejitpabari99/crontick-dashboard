@@ -62,9 +62,9 @@ observable behavior without updating relevant docs is incomplete.
 
 | File | Description |
 |------|-------------|
-| [cards-and-feed.md](concepts/cards-and-feed.md) | Card files, ids, validation and Broken, lifecycle, archive and retention |
+| [cards-and-feed.md](concepts/cards-and-feed.md) | Card folders, `card.json` vs `data.json`, ids, skipped vs Broken, No data yet, alerts, lifecycle |
 | [card-types.md](concepts/card-types.md) | Generic visual types, the registry model, schemas and templates |
-| [zones-and-layout.md](concepts/zones-and-layout.md) | Alert strip, Now zone, grid, Done tray, anti-crowding, polling |
+| [zones-and-layout.md](concepts/zones-and-layout.md) | Three columns, alert strip, Now zone, chips and heights, Completed section, header filter, polling |
 | [actions-and-state.md](concepts/actions-and-state.md) | Tick, Done, hide, item actions, write-back, `state.json`, safety |
 | [notifications.md](concepts/notifications.md) | When and how OS notifications fire, gating, bursts |
 | [server-lifecycle.md](concepts/server-lifecycle.md) | Foreground and daemon modes, process files, port, shutdown |
@@ -74,14 +74,14 @@ observable behavior without updating relevant docs is incomplete.
 | File | Description |
 |------|-------------|
 | [README.md](implementation/README.md) | Reading order and source layout |
-| [contract.md](implementation/contract.md) | zod schemas, type registry, `validateCardFile`, schema generation |
-| [feed-and-ingest.md](implementation/feed-and-ingest.md) | watcher, ingest settle, duplicate ids, events, archive, `feed/done/` |
+| [contract.md](implementation/contract.md) | zod schemas, type registry, folder and alert validators, schema generation |
+| [feed-and-ingest.md](implementation/feed-and-ingest.md) | folder reader, watcher, ingest settle, events, alert tick (`feed/alerts/.done/`) |
 | [state.md](implementation/state.md) | `state.json` store, atomic writes, reconcile and pruning, config reader |
 | [http-server.md](implementation/http-server.md) | Hono app, guards, routes, snapshot ETag, static, errors, write-back |
 | [lifecycle.md](implementation/lifecycle.md) | `startServer` wiring, pid/port/lock files, daemon start and stop |
 | [notifications.md](implementation/notifications.md) | gate, notifier, burst limiting, node-notifier adapter |
-| [cli-and-skill.md](implementation/cli-and-skill.md) | commander wiring, Node guard, skill install |
-| [ui.md](implementation/ui.md) | polling store, mutations, renderer registry, grid, theme |
+| [cli-and-skill.md](implementation/cli-and-skill.md) | commander wiring, Node guard, `new`, `validate` stdin modes, schema sync, skill install |
+| [ui.md](implementation/ui.md) | polling store, mutations, renderer registry, columns, Completed, search, theme |
 | [build-and-package.md](implementation/build-and-package.md) | tsup, vite, dist checks, tarball verification, release |
 
 ### docs/reference/

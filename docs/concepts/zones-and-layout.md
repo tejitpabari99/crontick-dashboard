@@ -44,7 +44,7 @@ Cards the owner marked Done and alerts the owner ticked leave the page proper an
 
 ## Header filter
 
-The header's All / Alerts / Cards control chooses what the page shows. **All** shows everything. **Alerts** shows the alert strip and completed alerts only. **Cards** shows Now, the columns and completed cards only. The choice is remembered per browser. Search follows the filter; the hidden-cards list is not affected by it.
+The header's All / Alerts / Cards control chooses what the page shows. **All** shows everything. **Alerts** shows the alert strip and completed alerts only. **Cards** shows Now, the columns and completed cards only. The choice is remembered per browser. Search follows the filter: under Alerts it does not list hidden cards or card rows, and under Cards it does not search alerts. A `#card=<id>` link (used by notification clicks) to a Done card opens Completed at that row, and switches the filter to All only when it is Alerts (under Cards the Completed card rows are already visible).
 
 ## Visibility
 

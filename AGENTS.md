@@ -52,10 +52,11 @@ npm run format               # Prettier (write)
 - `src/http/` -- Hono app, guards (Host allowlist, mutation guard), routes, port binding, static UI serving.
 - `src/server/` -- server process entry.
 - `src/integrations/notify/` -- desktop notification adapter and gate.
-- `src/cli/` -- CLI (`main.ts`, `commands/*`, `guard.ts`, `io.ts`); `src/lifecycle.ts`, `src/pid.ts`, `src/paths.ts`, `src/config.ts` back `start`/`daemon`/`info`.
+- `src/schemas-sync.ts` -- `syncSchemas`: copies packaged schemas to `<data>/schemas/` (called by `new` and server start).
+- `src/cli/` -- CLI (`main.ts`, `commands/*` including `new`, `guard.ts`, `io.ts`); `src/lifecycle.ts`, `src/pid.ts`, `src/paths.ts`, `src/config.ts` back `start`/`daemon`/`info`.
 - `src/shared/api-types.ts` -- API types shared by server and UI.
 - `src/skill/SKILL.md` -- Claude skill shipped in the package.
-- `ui/src/` -- React UI: `api/` (client, store), `frame/` (card chrome), `zones/` (header, grid, now zone, tray), `registry/` (type to renderer), `types/<type>/` (visual types: kpi, list, markdown, media, table), `theme/`, `lib/`.
+- `ui/src/` -- React UI: `api/` (client, store), `frame/` (card chrome, chip), `zones/` (header, alert strip, columns and now zone, completed, search), `registry/` (type to renderer), `types/<type>/` (visual types: kpi, list, markdown, media, table), `theme/`, `lib/`.
 - `templates/`, `schemas/` -- shipped templates and generated JSON schemas.
 - `scripts/` -- build/verify scripts.
 - `tests/` -- vitest (cli, contract, integrations, server, skill) and Playwright (`tests/smoke`); UI tests in `ui/tests/`.

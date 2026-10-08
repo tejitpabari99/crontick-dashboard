@@ -15,7 +15,7 @@ Non-duplication: the toolchain decision is [ADR 0003](../decisions/0003-toolchai
    - `index` (the library) with `.d.ts` output.
 4. `scripts/check-dist-built.mjs`: required files exist (`dist/cli/index.js`, `dist/server/index.js`, `dist/index.js`, `dist/index.d.ts`, `dist/ui/index.html`) and the bin keeps its dynamic import.
 
-Runtime dependencies (hono, commander, zod, croner, env-paths, node-notifier) stay external except that the contract is inlined where imported; `node-notifier` is also listed in `external` explicitly. React, react-grid-layout, and the markdown libraries are devDependencies because Vite bundles them into `dist/ui`.
+Runtime dependencies (hono, commander, zod, croner, env-paths, node-notifier) stay external except that the contract is inlined where imported; `node-notifier` is also listed in `external` explicitly. React and the markdown libraries are devDependencies because Vite bundles them into `dist/ui`.
 
 TypeScript runs as `tsc --noEmit` twice (`typecheck`): the root project (NodeNext, includes `src`, `tests`, `scripts`) and `ui/tsconfig.json` (Bundler resolution, DOM libs). Neither emits; tsup and Vite produce output.
 
@@ -38,8 +38,8 @@ dist/ui/            static UI served by the server
 | Script | Proves |
 |--------|--------|
 | `scripts/check-dist-built.mjs` | Build output complete, Node guard not bundled away |
-| `scripts/verify-tarball.mjs` | `npm pack --dry-run --json` contains the required files, `schemas/*.json`, `templates/*.json`, and no stray `src/` (except `SKILL.md`), tests, docs, scripts, or `.worktrees/` |
-| `scripts/verify-package-install.mjs` | Behavior of the **real** tarball: pack, install into a scratch project, run the installed bin by path with isolated `CRONTICK_DASHBOARD_HOME` and a non-default port. Checks `--version`, all templates validate, a broken fixture exits 1, `info --json` paths exist, `daemon start`, `/api/health`, `GET /` returns HTML, a card appears in `/api/snapshot`, then stops the daemon and cleans up (including a kill by pid file) |
+| `scripts/verify-tarball.mjs` | `npm pack --dry-run --json` contains the required files, `schemas/*.json`, `templates/**/*.json`, and no stray `src/` (except `SKILL.md`), tests, docs, scripts, or `.worktrees/` |
+| `scripts/verify-package-install.mjs` | Behavior of the **real** tarball: pack, install into a scratch project, run the installed bin by path with isolated `CRONTICK_DASHBOARD_HOME` and a non-default port. Checks `--version`, all templates validate, a broken fixture exits 1, `info --json` paths exist, `daemon start`, `/api/health`, `GET /` returns HTML, `new` then `validate` exits 0 with no warnings, the scaffolded card appears in `/api/snapshot`, then stops the daemon and cleans up (including a kill by pid file) |
 | `scripts/verify-no-lockfile-tampering.mjs` | Every `package.json` dependency is present in `package-lock.json` |
 | `scripts/check-changeset-bumps.mjs` | No pending `major` changeset (ceiling `minor`; `ALLOW_MAJOR=true` or `MAX_BUMP` overrides) |
 

@@ -27,12 +27,25 @@ Core `AppError`s (codes in `src/constants/error-codes.ts`) are converted to `Cli
 
 | Command | Core it calls |
 |---------|---------------|
-| `validate <file...>` | `validateCardFile` with the file's basename, so `id-mismatch` is caught pre-write; `-` reads stdin; exit 1 if any file is Broken |
+| `new <id> --type <t>` | `isCardFolderName`, `getExample`, `parseCardDef` (self-check), `ensureDirs`, `syncSchemas` |
+| `validate <path...>` | `readAndValidateCardFolder` (shared with ingest), `validateCardFolder`, `validateAlertFile`, `parseCardDef` |
 | `templates [type]` | `listTypes`, `registry`, packaged `templates/` and `schemas/` paths |
 | `info [--json]` | `daemonStatus`, `loadConfig`, `resolveNotifyGate`; works with no server running |
 | `start [--port]` | `runForeground`; refuses with the owner's URL if one is healthy; Ctrl+C or `POST /api/shutdown` stops it |
 | `daemon start/stop/status` | `daemonStart`, `daemonStop`, `daemonStatus` |
 | `skill install [--dir] [--force]` | `installSkill` |
+
+### `new`
+
+Builds `card.json` text from the registry example's `type`, then overrides title, layout and priority from flags, and runs it through `parseCardDef`; a failure there is an internal error, not user error. A new folder is built in a dot-prefixed temp dir (`feed/.new-<id>-<rand>/`, ignored by ingest) and renamed into place, so the watcher never sees an empty folder. With `--force` on an existing folder only `card.json` is rewritten (tmp plus rename). `ensureDirs` creates only `feed/` and `feed/alerts/`; `syncSchemas` runs last and its failures are warnings on stderr.
+
+### `validate` path and stdin modes
+
+A directory is a card folder; `card.json` or `data.json` validates their containing folder; any other `.json` file is an alert (id is the file stem). Stdin (`-`) takes one document and needs `--as card|data|alert`: `card` goes through `parseCardDef`, `alert` through `validateAlertFile`, and `data` (with `--type`) through `validateCardFolder` with a synthetic `card.json`, so an agent can check `data.json` before writing it. Folder-name rules are not checked for stdin; `new` covers them. Exit code is 1 if any result is Broken or Skipped.
+
+### `syncSchemas`
+
+`src/schemas-sync.ts` copies the packaged `schemas/*.json` into `<data>/schemas/` (overwrite only when content differs, delete nothing, never throw). `card.json` files scaffolded by `new` reference `../../schemas/card-def.json`, which resolves to that directory. It is called by `new` and once by `startServer` (injectable as `syncSchemas`), so CLI-first use, hand-written cards and upgrades all end with current schemas.
 
 `info --json` field names are a frozen contract because the shipped skill reads them; `InfoJson` in `info.ts` is its type.
 
@@ -42,7 +55,7 @@ Core `AppError`s (codes in `src/constants/error-codes.ts`) are converted to `Cli
 
 ## Skill install
 
-`src/skill/install.ts`: copy `src/skill/SKILL.md` to `<skillsDir>/crontick-dashboard/SKILL.md`, default skills dir `~/.claude/skills`. Identical content returns `up-to-date`; differing content throws `SKILL_DIFFERS` unless `--force`. The write is a tmp file in the destination dir plus rename, always a regular file (never a symlink), so an interrupted install cannot leave a truncated skill. The tarball ships `SKILL.md` from `src/skill/` (the only `src/` file allowed by `verify-tarball`). `tests/skill/skill-md.test.ts` guards the skill's content against the CLI it describes; update it together with CLI changes.
+`src/skill/install.ts`: copy `src/skill/SKILL.md` to `<skillsDir>/crontick-dashboard/SKILL.md`, default skills dir `~/.claude/skills`. Identical content returns `up-to-date`; differing content throws `SKILL_DIFFERS` unless `--force`. The write is a tmp file in the destination dir plus rename, always a regular file (never a symlink), so an interrupted install cannot leave a truncated skill. The tarball ships `SKILL.md` from `src/skill/` (the only `src/` file allowed by `verify-tarball`). `tests/skill/skill-md.test.ts` guards the skill against the CLI it describes (commands exist in `--help`, `templates <x>` names are types, marked JSON blocks validate through the contract validators, removed concepts are absent). Update it together with CLI changes.
 
 ## Adding a command
 

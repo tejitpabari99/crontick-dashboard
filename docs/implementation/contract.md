@@ -1,47 +1,45 @@
 # Contract implementation
 
 Audience: maintainers adding or changing card types or validation.
-Non-duplication: the card format is specified in `docs/reference/card-schema.md`; the model is in [card-types](../concepts/card-types.md); rationale in [ADR 0002](../decisions/0002-generic-visual-types-and-card-contract.md). This page covers only how the code is organized.
+Non-duplication: the card format and reason tables are specified in `docs/reference/card-schema.md` and `errors.md`; the model is in [card-types](../concepts/card-types.md); rationale in [ADR 0002](../decisions/0002-generic-visual-types-and-card-contract.md). This page covers only how the code is organized.
 
 ## Layout
 
 | File | Role |
 |------|------|
-| `src/contract/envelope.ts` | `envelopeSchema` (zod `looseObject`), `idSchema`, `showSchema` |
+| `src/contract/card-def.ts` | `cardDefSchema` (card.json), `layoutSchema`, `showSchema`, `dataPathSchema` |
+| `src/contract/data-file.ts` | `dataFileSchema` (data.json envelope: `updatedAt?`, `priority?`, `error?`, `data`) |
+| `src/contract/alert.ts` | `alertSchema` (alert files) |
 | `src/contract/formats.ts` | `timestampSchema`, `cronSchema`, `durationSchema`, `parseDuration`, `windowActive` |
 | `src/contract/types/<type>.ts` | `<type>DataSchema` plus `<type>Summary` (notification one-liner) |
 | `src/contract/registry.ts` | The single type registry |
-| `src/contract/validate.ts` | `validateCardFile`, the only validation entry point |
+| `src/contract/folder-validate.ts` | `parseCardDef`, `validateCardFolder`, `validateAlertFile`, `isCardFolderName`: the validation entry points |
 | `src/contract/index.ts` | Public surface re-exported by `src/index.ts` |
-| `src/constants/contract.ts` | `ID_PATTERN`, `MAX_CARD_BYTES` (1 MB), `CLOCK_SKEW_MS` (5 min), `LINK_SCHEMES` |
+| `src/constants/contract.ts` | `ID_PATTERN`, size caps (`MAX_CARD_BYTES` data file, `MAX_CARD_DEF_BYTES`, `MAX_ALERT_BYTES`), `CLOCK_SKEW_MS`, `LINK_SCHEMES` |
 
 ## Registry
 
-`registry` maps a type name to `{ schema, example, exampleCard, summary, allowedKinds }`. `RegisteredType`, `listTypes()`, `isRegisteredType()`, `getExample()` all derive from it, so adding a type to this one object makes the validator, the CLI `templates` command, the notifier summary, and the schema generator pick it up. Templates in `templates/*.example.json` are imported as JSON modules, so they are embedded at build time and need no filesystem access at runtime.
+`registry` maps a type name to `{ schema, summary, template }`, where `template` is the embedded example `{ card, data }`. `RegisteredType`, `listTypes()`, `isRegisteredType()`, `getExample()` all derive from it, so adding a type to this one object makes the validator, the CLI `templates` and `new` commands, the notifier summary, and the schema generator pick it up. Templates in `templates/<type>/{card,data}.json` are imported as JSON modules, so they are embedded at build time and need no filesystem access at runtime.
 
-Adding a type: write `src/contract/types/<t>.ts`, add `templates/<t>.example.json`, register it, run `npm run gen:schemas`, then add the UI folder (see [ui](ui.md)). `tests/contract/templates-schemas.test.ts` fails if a template file and a registered type do not pair up.
+Adding a type: write `src/contract/types/<t>.ts`, add `templates/<t>/card.json` and `data.json`, register it, run `npm run gen:schemas`, then add the UI folder (see [ui](ui.md)). `tests/contract/templates-schemas.test.ts` fails if a template and a registered type do not pair up.
 
-## validateCardFile
+## Validation steps
 
-`validateCardFile(text, { filename?, now? })` never throws and returns either `{ ok, card, warnings }` or `{ broken, reason, message, issues, id? }`. Order of checks, each short-circuiting:
+All validators are pure, take text or already-read inputs, and never throw. The fs reading is in `src/feed/read-card-folder.ts` ([feed-and-ingest](feed-and-ingest.md)).
 
-1. Text sanity: U+FFFD or lone surrogate gives `unreadable`; over 1 MB gives `too-large`; strip a BOM; empty or invalid JSON gives `malformed-json`; a non-object top level gives `not-object`.
-2. Envelope parse (`schema-invalid`). A well-formed `id` is carried on the failure so the Broken entry can claim the right key.
-3. `unknown-type` if the type is not registered.
-4. `id-mismatch` if `filename` is given and its stem differs from `id`.
-5. Kind check against `allowedKinds` (`schema-invalid`).
-6. Per-type `data` parse, skipped when the card declares `error` (agent-declared error cards keep their raw `data`). The parsed value replaces `card.data`, which applies normalizations such as the KPI flat form and the `"complete"` action shorthand.
-7. Future `updatedAt` beyond the skew window adds a warning, not a failure.
+1. `parseCardDef(folderId, cardText)`: id check (`isCardFolderName`; `reserved-id`, `invalid-id`), missing text (`card-def-missing`), size and JSON sanity, `cardDefSchema` parse. Failures are *skipped* results (`card-def-invalid`, or `data-path-invalid` when the issue is on `data`). Success carries the data file name.
+2. `validateCardFolder({ folderId, cardText, data })`: runs step 1, then `unknown-type` (Broken), then branches on the data input: absent gives `no-data` (valid), unreadable gives Broken `unreadable`. Otherwise text sanity (`malformed-json`, `not-object`, `too-large`), `dataFileSchema` (`schema-invalid`), and the per-type payload parse unless the data file declares `error`. The effective `updatedAt` is the file's value or the data file mtime (`updatedAtSource`); a future instant beyond the skew window adds a warning, not a failure.
+3. `validateAlertFile({ name, text, mtimeMs })`: file name `<id>.json` with a valid id, size cap, `alertSchema`.
 
-Issue paths are JSON pointers (`/data/rows/0`); `summarize` builds the one-line message from the first issue.
+Issue paths are JSON pointers (`/data/rows/0`); `summarize` builds the one-line message from the first issue. `staleAfter` and `error` Broken states are added later by the snapshot, not here.
 
-Unknown keys survive everywhere (loose objects): the write-back path re-serializes the raw JSON, so agent-owned extra fields are never lost. Keys starting `x-` are reserved for agents.
+Unknown keys survive everywhere (loose objects): the write-back path re-serializes the raw data file, so agent-owned extra fields are never lost. Keys starting `x-` are reserved for agents.
 
 ## Schema generation
 
-`scripts/gen-schemas.ts` calls `buildSchemas()` in `scripts/schemas-build.ts`, which converts each zod schema with `z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })` and writes `schemas/{envelope,<type>,card}.json`. Refinements and transforms cannot be expressed in JSON Schema, so each file's `description` carries a hand-written `LOSSY_NOTES` entry naming the rules only the validator enforces. `card.json` composes the envelope with `allOf` if/then blocks keyed on `type`, pointing at `$defs`. The bare-string `action` shorthand is patched back in by `allowActionShorthand`.
+`scripts/gen-schemas.ts` calls `buildSchemas()` in `scripts/schemas-build.ts`, which converts each zod schema with `z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })` and writes `schemas/` files: `card-def.json`, `alert.json`, `data.json` (generic envelope), `<type>.json` (bare payload) and `data.<type>.json` (envelope with `data` bound to the payload). Refinements and transforms cannot be expressed in JSON Schema, so each file's `description` carries a hand-written `LOSSY_NOTES` entry naming the rules only the validator enforces. The bare-string `action` shorthand is patched back in by `allowActionShorthand`.
 
-The output is committed. CI reruns `npm run gen:schemas` and fails on `git diff --exit-code schemas/`; `tests/contract/templates-schemas.test.ts` validates the templates against the generated files with ajv. Stale files in `schemas/` are deleted by the generator.
+The output is committed. CI reruns `npm run gen:schemas` and fails on `git diff --exit-code schemas/`; `tests/contract/templates-schemas.test.ts` validates the templates against the generated files with ajv. At runtime the files are copied to `<data>/schemas/` by `syncSchemas` (see [cli-and-skill](cli-and-skill.md)). Stale files in `schemas/` are deleted by the generator.
 
 ## Gotchas
 

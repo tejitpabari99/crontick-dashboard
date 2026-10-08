@@ -5,7 +5,7 @@ Non-duplication: this page is a components-and-links map. Mental models live in 
 
 ## Purpose
 
-crontick-dashboard is a local, single-user dashboard for what your agents produced. Agents write one JSON "card" file per card into a feed folder. A small local server validates the cards and computes what is visible, a browser UI renders them with generic visual types, and the server raises OS notifications for cards that ask for it. See [mission](tech/mission.md) for tenets and non-goals.
+crontick-dashboard is a local, single-user dashboard for what your agents produced. Agents write a small folder per card (a `card.json` view and a `data.json` content file) and one-line alert files into a feed directory. A small local server validates the cards and computes what is visible, a browser UI renders them with generic visual types, and the server raises OS notifications for cards that ask for it. See [mission](tech/mission.md) for tenets and non-goals.
 
 It ships as one npm package (`crontick-dashboard`): a CLI, the server, the built UI, JSON Schemas, card templates, and a Claude skill.
 
@@ -17,46 +17,45 @@ Single machine, single user, loopback only, no auth. Not a job runner, not a per
 
 ```
  agent / crontick job / CLI-free anything that writes a file
-        |  writes <data>/feed/<id>.json
+        |  writes <data>/feed/<id>/{card.json,data.json}, feed/alerts/<id>.json
         v
- feed watcher + ingest ----> contract validation ----> card store
- (fs.watch + slow rescan)    (envelope + per-type)          |
-        |                                                    v
-        +--> archive (previous versions)      state (state.json) + config
-        +--> events (new/changed) --> notifier --> OS notification
+ feed watcher + ingest ----> contract validation ----> card / alert stores
+ (fs.watch + slow rescan)    (card.json + data.json + per-type)   |
+        |                                                          v
+        +--> events (new/changed) --> notifier      state (state.json) + config
+                                 --> OS notification
                                                      |
- compute (pure): cards + state + config + clock ---> snapshot
+ compute (pure): cards + alerts + state + config + clock ---> snapshot
                                                      |
  HTTP API (Hono, 127.0.0.1) <---- UI polls snapshot, posts mutations
         |
-        +--> mutations / actions --> state.json, feed/done/, card write-back
+        +--> mutations / actions --> state.json, feed/alerts/.done/, data.json write-back
 ```
 
 | Component | Role | Narrative owner |
 |---|---|---|
-| Feed directory | The only input. One file per card; agents own these files. | [cards-and-feed](concepts/cards-and-feed.md) |
-| Watcher and ingest | Notices new, changed, and removed files; tolerates half-written files; never crashes on bad input. | [cards-and-feed](concepts/cards-and-feed.md) |
-| Card contract | zod schemas for the envelope and each type; JSON Schemas are generated from them. One validator shared by server and CLI. | [card-types](concepts/card-types.md), [ADR 0002](decisions/0002-generic-visual-types-and-card-contract.md) |
-| Archive | Keeps previous versions of overwritten cards for a retention period. | [cards-and-feed](concepts/cards-and-feed.md) |
-| State | Owner decisions that are not card content: layout, hidden, Done acknowledgements, checked items. | [actions-and-state](concepts/actions-and-state.md) |
-| Compute | Pure function from cards, state, config, and time to a snapshot: which cards are visible, Broken, in Now, in the grid, in the Done tray. | [zones-and-layout](concepts/zones-and-layout.md) |
+| Feed directory | The only input. One folder per card, one file per alert; agents own these files. | [cards-and-feed](concepts/cards-and-feed.md) |
+| Watcher and ingest | Notices new, changed, and removed folders and alert files; tolerates half-written files; never crashes on bad input. | [cards-and-feed](concepts/cards-and-feed.md) |
+| Card contract | zod schemas for `card.json`, `data.json`, alerts and each type's payload; JSON Schemas are generated from them. One validator shared by server and CLI. | [card-types](concepts/card-types.md), [ADR 0002](decisions/0002-generic-visual-types-and-card-contract.md) |
+| State | Owner decisions that are not card content: hidden, Done acknowledgements, checked items. | [actions-and-state](concepts/actions-and-state.md) |
+| Compute | Pure function from cards, state, config, and time to a snapshot: which cards are visible, Broken, in Now, in which column, and what is in Completed. | [zones-and-layout](concepts/zones-and-layout.md) |
 | HTTP API | Thin adapter: serves the snapshot, applies a fixed set of mutations, serves the static UI. | [server-lifecycle](concepts/server-lifecycle.md) |
-| Actions and write-back | A fixed action set (`dismiss`, `complete`); `complete` edits the card file itself. | [actions-and-state](concepts/actions-and-state.md) |
-| Notifier | Turns new or changed cards with `notify: true` into OS notifications behind an adapter interface. | [notifications](concepts/notifications.md), [ADR 0004](decisions/0004-os-notifications-via-node-notifier.md) |
-| UI | React single-page app. Polls the snapshot; renders zones, a uniform card frame, and per-type bodies from a client registry. | [zones-and-layout](concepts/zones-and-layout.md), [card-types](concepts/card-types.md) |
-| CLI | `start`, `daemon`, `info`, `validate`, `templates`, `skill install`. Adapters over core modules. | [server-lifecycle](concepts/server-lifecycle.md), `docs/reference/cli.md` |
-| Claude skill | `SKILL.md` teaching agents the card format; installed by `skill install`. | [ADR 0003](decisions/0003-toolchain-and-distribution.md) |
+| Actions and write-back | A fixed action set (`dismiss`, `complete`); `complete` edits the card's `data.json`. | [actions-and-state](concepts/actions-and-state.md) |
+| Notifier | Turns new or changed cards and alerts with `notify: true` into OS notifications behind an adapter interface. | [notifications](concepts/notifications.md), [ADR 0004](decisions/0004-os-notifications-via-node-notifier.md) |
+| UI | React single-page app. Polls the snapshot; renders the alert strip, columns, Completed section, a uniform card frame, and per-type bodies from a client registry. | [zones-and-layout](concepts/zones-and-layout.md), [card-types](concepts/card-types.md) |
+| CLI | `start`, `daemon`, `info`, `new`, `validate`, `templates`, `skill install`. Adapters over core modules. | [server-lifecycle](concepts/server-lifecycle.md), `docs/reference/cli.md` |
+| Claude skill | `SKILL.md` teaching agents to scaffold with `new` and rewrite `data.json`; installed by `skill install`. | [ADR 0003](decisions/0003-toolchain-and-distribution.md) |
 
 ## Data flow
 
-1. An agent writes (or rewrites) `feed/<id>.json`.
-2. The watcher debounces the change, reads the file, and validates it. Invalid files become Broken entries with a reason; they are never dropped silently.
-3. The previous version of an overwritten card is archived. New or changed cards emit events.
+1. An agent scaffolds a card once (`new`, which writes `feed/<id>/card.json`) and then rewrites `feed/<id>/data.json` on each run; alerts are single files in `feed/alerts/`.
+2. The watcher debounces the change, reads the folder, and validates it. A folder with a bad `data.json` becomes a Broken card with a reason; one that cannot be a card at all is skipped with a warning. Nothing is dropped silently.
+3. New or changed `data.json` versions and alert files emit events.
 4. The notifier reacts to events for cards with `notify: true`.
 5. The UI polls `GET /api/snapshot` (conditional on a revision tag), so unchanged state costs almost nothing. The snapshot is recomputed from the stores, never cached state.
-6. User interactions (tick an alert, mark Done, hide, move a card, tick a list item) are small mutations that update `state.json`, move a file to `feed/done/`, or write back into the card file.
+6. User interactions (tick an alert, mark Done or Reopen, hide, tick a list item) are small mutations that update `state.json`, move an alert file to `feed/alerts/.done/`, or write back into `data.json`.
 
-Ownership: agents own card files; the server owns `state.json`, `feed/done/`, and `archive/`; the server edits a card file only for the `complete` write-back.
+Ownership: agents own card files; the server owns `state.json` and `feed/alerts/.done/`; it edits a card's `data.json` only for the `complete` write-back.
 
 ## Design rules that shape the structure
 
@@ -71,10 +70,11 @@ Prefer `node:*` and browser APIs. Runtime dependencies are deliberately few: a s
 The data directory is resolved with `env-paths` per platform, overridable with `CRONTICK_DASHBOARD_HOME`.
 
 ```
-<data>/feed/*.json      cards (agent-written)
-<data>/feed/done/       ticked alerts (never deleted)
-<data>/archive/<id>/    previous versions
-<data>/state.json       layout, hidden, acks, checks, notified
+<data>/feed/<id>/       one card: card.json (view) + data.json (content)
+<data>/feed/alerts/     alert files (agent-written, one line each)
+<data>/feed/alerts/.done/   ticked alerts (never deleted)
+<data>/schemas/         JSON Schemas for editors (copied from the package)
+<data>/state.json       hidden, Done acks, checks, notified
 <data>/config.json      owner config (see reference)
 <data>/daemon.{pid,port,log,lock}   server process files
 ```

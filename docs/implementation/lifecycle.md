@@ -7,16 +7,16 @@ Non-duplication: user-facing modes, files, and port rules are in [server-lifecyc
 
 `startServer(opts)` in `src/http/server.ts` is the single composition root; the foreground command, the daemon entry, tests, and the smoke harness all call it. Order:
 
-1. `assertUiBuilt`, `ensureDirs`, then `claimPidFile` (may throw `ALREADY_RUNNING`).
+1. `assertUiBuilt`, `ensureDirs`, `syncSchemas` (copies packaged schemas to `<data>/schemas/`; failures are logged, never fatal), then `claimPidFile` (may throw `ALREADY_RUNNING`).
 2. Create config reader, state store, warnings registry, card events.
 3. Create the notifier **before** the watcher starts, so startup-scan events reach it.
-4. Create archive and watcher (they reference each other through closures: the archive asks the watcher's store which ids are current).
+4. Create the feed watcher (ingest plus `fs.watch`), wired to the card events.
 5. Build the Hono app and attach it to a Node `http.Server`.
-6. `bindPort`, write `daemon.port`, then `watcher.start()`, `archive.start()`, an immediate state reconcile, and an hourly reconcile interval.
+6. `bindPort`, write `daemon.port`, then `watcher.start()`, an immediate state reconcile, and an hourly reconcile interval.
 
-Failure after claiming the pid calls `stop()` so no stale pid file is left. `stop()` is idempotent (memoized promise) and tears down in order: reconcile timer, notifier (flushes pending summary), watcher, archive, pending `notified` stamps, in-flight reconciles, the HTTP server (`closeAllConnections`), then removes `daemon.port` and releases the pid file (only if it still names this process). The returned `RunningServer` exposes `url`, `port`, `stop`, `events`, `warnings`, `config`, `notifier`.
+Failure after claiming the pid calls `stop()` so no stale pid file is left. `stop()` is idempotent (memoized promise) and tears down in order: reconcile timer, notifier (flushes pending summary), watcher, pending `notified` stamps, in-flight reconciles, the HTTP server (`closeAllConnections`), then removes `daemon.port` and releases the pid file (only if it still names this process). The returned `RunningServer` exposes `url`, `port`, `stop`, `events`, `warnings`, `config`, `notifier`.
 
-Test seams on `StartServerOptions`: `clock`, `port` (0 for ephemeral), `notifyAdapter`, `notifyPlatform`, `timers`, `actionTestDeps`, `logger`.
+Test seams on `StartServerOptions`: `clock`, `port` (0 for ephemeral), `notifyAdapter`, `notifyPlatform`, `syncSchemas`, `timers`, `actionTestDeps`, `logger`.
 
 ## Port binding
 

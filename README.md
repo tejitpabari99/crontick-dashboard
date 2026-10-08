@@ -1,6 +1,6 @@
 # crontick-dashboard
 
-Local dashboard for agent-written cards: scheduled jobs (e.g. crontick runs) or any script drop JSON files into a feed directory, and a local web UI renders them as tables, lists, KPIs, markdown, and media, with alerts and optional OS notifications.
+Local dashboard for agent-written cards: scheduled jobs (e.g. crontick runs) or any script write small JSON files into a feed directory, and a local web UI lays them out in three columns as tables, lists, KPIs, markdown, and media, with one-line alerts and optional OS notifications.
 
 One npm package (Node >= 22.5): a loopback-only server, a React UI, and the `crontick-dashboard` CLI. Version 0.1.0.
 
@@ -16,21 +16,20 @@ npm i -g .                       # from a clone (run `npm ci && npm run build` f
 ```sh
 crontick-dashboard daemon start            # or: crontick-dashboard start  (foreground)
 crontick-dashboard info                    # URL and feed dir
-crontick-dashboard templates markdown      # print an example card
+crontick-dashboard new hello --type markdown --title Hello   # scaffolds <feedDir>/hello/card.json
 ```
 
-Write a card to `<feedDir>/hello.json` (the file name must equal the `id`):
+A card is a folder: `card.json` says how it looks (type, title, column) and is written once; `data.json` holds the content and is rewritten on every run. Write `<feedDir>/hello/data.json`:
 
 ```json
-{ "id": "hello", "kind": "panel", "type": "markdown", "title": "Hello",
-  "updatedAt": "2026-01-01T00:00:00Z", "data": { "text": "It works." } }
+{ "data": { "text": "It works." } }
 ```
 
-Check it with `crontick-dashboard validate <feedDir>/hello.json`, then open the URL from `info` in a browser. Stop with `crontick-dashboard daemon stop`.
+Check the whole folder with `crontick-dashboard validate <feedDir>/hello`, then open the URL from `info` in a browser. Until `data.json` exists the card shows "No data yet". An alert is a single line in `<feedDir>/alerts/<id>.json`, for example `{ "title": "Disk almost full", "text": "92% used" }`. Stop with `crontick-dashboard daemon stop`.
 
 Default port: 47616 (falls back to a free port if taken; `info` prints the real URL).
 
-To teach Claude agents to write cards: `crontick-dashboard skill install`.
+To teach Claude agents to write cards: `crontick-dashboard skill install`. `crontick-dashboard templates <type>` prints a ready-made `card.json` and `data.json` for each type.
 
 ## Documentation
 

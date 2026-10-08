@@ -8,12 +8,12 @@ Non-duplication: the commands list is in `AGENTS.md`; the release procedure in `
 | Layer | Location | Tooling | Guarantees |
 |-------|----------|---------|------------|
 | Contract | `tests/contract/` | vitest (node) | Schemas, validator reasons, templates validate and match generated JSON Schemas (ajv), window and duration helpers |
-| Server | `tests/server/` | vitest (node) | Ingest, watcher, events, archive, state, compute, HTTP routes and guards, actions and write-back, lifecycle (including injected clock, sleep, spawn), error codes, an end-to-end flow |
-| CLI | `tests/cli/` | vitest (node) | Commands through `run(argv, fakeIo)`, assets, built-bin guard, README default port |
+| Server | `tests/server/` | vitest (node) | Folder and alert ingest, watcher, events, state, compute (columns, Now, Completed), HTTP routes and guards, actions and write-back, lifecycle (including injected clock, sleep, spawn), error codes, an end-to-end flow |
+| CLI | `tests/cli/` | vitest (node) | Commands (`new`, `validate` incl. stdin modes, `templates`, `info`, start/daemon) through `run(argv, fakeIo)`, schema sync, assets, built-bin guard, README default port |
 | Integrations | `tests/integrations/` | vitest (node) | Gate, notifier, adapter (fake notifier and spawn), failure isolation, server wiring |
-| Skill | `tests/skill/` | vitest (node) | Install behavior; `SKILL.md` matches the real CLI (`--help` command list, version, types) |
+| Skill | `tests/skill/` | vitest (node) | Install behavior; `SKILL.md` matches the real CLI (`--help` command list, version, types) and its marked example JSON validates |
 | Utils | `tests/utils/` | vitest (node) | Retry, timers, ports, errors, guards |
-| UI | `ui/tests/` | vitest (jsdom) + Testing Library | Store, mutations, placement, registry, per-type bodies, zones, theme (including contrast of derived palettes) |
+| UI | `ui/tests/` | vitest (jsdom) + Testing Library | Store, mutations, registry, per-type bodies, zones (columns, chips, alert strip, Completed, filter, search), theme (including contrast of derived palettes) |
 | Browser smoke | `tests/smoke/smoke.spec.ts` | Playwright (chromium) | Real server from source plus built `ui/dist`: every type renders its real body (never "Unsupported type"), no console errors |
 | Packaging | `scripts/verify-*.mjs` | node | Tarball shape and a real packed install (see [build-and-package](../implementation/build-and-package.md)) |
 
@@ -38,7 +38,7 @@ The built-CLI guard test skips itself without `dist/`; run `npm run build` first
 
 Production code takes its side effects as parameters (P5), and tests pass fakes; avoid real sleeps and real OS calls.
 
-- **Clock.** `fakeClock(start)` from `src/clock.ts` has `set` and `advance`. Pass it to `startServer({ clock })`, `createStateStore`, `daemonStart`, `createArchive`, and `moveToDone`.
+- **Clock.** `fakeClock(start)` from `src/clock.ts` has `set` and `advance`. Pass it to `startServer({ clock })`, `createStateStore`, `daemonStart`, and `moveToDone`.
 - **Timers.** Components accept `TimeoutTimers` or `IntervalTimers` (`src/utils/timers.ts`). Feed tests use vitest fake timers (`vi.useFakeTimers()`), so debounce and settle schedules (200 ms; 250 ms, 1 s, 3 s) run instantly. The UI store takes `setTimeout`, `clearTimeout`, `now`, and a visibility `doc`.
 - **Notify adapter.** `FakeNotifyAdapter` (`src/integrations/notify/fake.ts`) records `calls` and can be set to `throw` or `reject` through `failWith`. `startServer({ notifyAdapter, notifyPlatform })` plus a `fakeClock` exercises the whole path from file write to toast, including bursts.
 - **Lifecycle.** `daemonStart` takes `clock`, `sleep`, `spawn`; a fake child with `exitWith` simulates failed startup without a process. Tests that need a real daemon use an isolated `CRONTICK_DASHBOARD_HOME` temp dir and `port: 0`.
