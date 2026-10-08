@@ -51,6 +51,8 @@ A card folder whose `card.json` parsed but whose content cannot be shown renders
 | `too-large` | Over the size cap (1 MiB for a data file) |
 | `schema-invalid` | Data file envelope or `data` violates the contract, or the payload does not fit the type; issues list JSON pointers |
 | `unknown-type` | `type` in `card.json` is not registered ("Unsupported type" in the UI) |
+| `error` | Added by the snapshot, not `validate`: the data file declares a non-empty `error` |
+| `stale` | Added by the snapshot, not `validate`: no update for longer than `staleAfter` (for no-data cards, counted from the `card.json` mtime) |
 
 `duplicate-id` is unreachable for card folders: folder names are unique within `feed/`, and the folder name is the id. Kept as a note pending SP02 confirmation.
 
