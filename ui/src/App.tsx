@@ -4,6 +4,7 @@ import { getToastStore, type ToastStore } from './api/toasts.ts';
 import type { Column, ViewAlert, ViewCard } from './api/types.ts';
 import { Fullscreen } from './frame/Fullscreen.tsx';
 import { buildCardHash, parseCardHash, replaceHash, useHash } from './lib/hash.ts';
+import { useFilter } from './lib/filter.ts';
 import { attentionCount } from './lib/attention.ts';
 import { getSeenVersion, subscribeSeen } from './lib/seen.ts';
 import { matchCards, toSearchCard } from './lib/search.ts';
@@ -25,6 +26,7 @@ export function App(props: AppProps = {}) {
   const toasts = props.toasts ?? getToastStore();
   const { state } = useMutationView(m);
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useFilter();
   const snap = state.snapshot;
   const down = state.serverDown;
   const pick = (ids: readonly string[] | undefined): ViewCard[] =>
@@ -99,11 +101,15 @@ export function App(props: AppProps = {}) {
       (z) => z.length === 0,
     );
 
+  const noCards = columns.left.length + columns.center.length + columns.right.length + now.length === 0;
+
   return (
     <>
       <Header
         alertCount={alerts.length}
         hidden={hidden}
+        filter={filter}
+        onFilter={setFilter}
         connectionOk={state.consecutiveFailures === 0}
         minimal={down}
         onUnhide={(id) => void m.unhide(id)}
@@ -129,7 +135,16 @@ export function App(props: AppProps = {}) {
           </section>
         ) : snap ? (
           <>
-            <AlertStrip alerts={alerts} nowPriorityThreshold={threshold} onTick={(id) => void m.tick(id)} />
+            {filter !== 'cards' ? (
+              <AlertStrip alerts={alerts} nowPriorityThreshold={threshold} onTick={(id) => void m.tick(id)} />
+            ) : null}
+            {filter === 'alerts' && alerts.length === 0 ? (
+              <p className="filter-empty" data-testid="empty-alerts">No alerts</p>
+            ) : null}
+            {filter === 'cards' && noCards ? (
+              <p className="filter-empty" data-testid="empty-cards">No cards</p>
+            ) : null}
+            {filter !== 'alerts' ? (
             <Columns
               columns={columns}
               now={now}
@@ -143,6 +158,7 @@ export function App(props: AppProps = {}) {
               onHide={(id) => void m.hide(id)}
               onFullscreen={openFullscreen}
             />
+            ) : null}
             {/* Completed section (done cards + ticked alerts) is built in a later task (T7). */}
           </>
         ) : null}
