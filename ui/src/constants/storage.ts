@@ -2,3 +2,4 @@
 export const THEME_KEY = 'crontick-dashboard.theme';
 export const SEEN_KEY = 'crontick-dashboard.seen';
 export const FILTER_KEY = 'crontick-dashboard.filter';
+export const COMPLETED_OPEN_KEY = 'crontick-dashboard.completed-open';

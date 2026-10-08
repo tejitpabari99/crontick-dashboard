@@ -5,11 +5,13 @@ import type { Column, ViewAlert, ViewCard } from './api/types.ts';
 import { Fullscreen } from './frame/Fullscreen.tsx';
 import { buildCardHash, parseCardHash, replaceHash, useHash } from './lib/hash.ts';
 import { useFilter } from './lib/filter.ts';
+import { useCompletedOpen } from './lib/completed-open.ts';
 import { attentionCount } from './lib/attention.ts';
 import { getSeenVersion, subscribeSeen } from './lib/seen.ts';
 import { matchCards, toSearchCard } from './lib/search.ts';
 import { AlertStrip } from './zones/AlertStrip.tsx';
 import { Columns } from './zones/Columns.tsx';
+import { Completed, resolveCompleted } from './zones/Completed.tsx';
 import { Header } from './zones/Header.tsx';
 import { ServerDown } from './zones/ServerDown.tsx';
 import { ToastHost } from './zones/ToastHost.tsx';
@@ -27,6 +29,7 @@ export function App(props: AppProps = {}) {
   const { state } = useMutationView(m);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useFilter();
+  const [completedOpen, setCompletedOpen] = useCompletedOpen();
   const snap = state.snapshot;
   const down = state.serverDown;
   const pick = (ids: readonly string[] | undefined): ViewCard[] =>
@@ -40,6 +43,7 @@ export function App(props: AppProps = {}) {
     () => ({ left: pick(snap?.columns.left), center: pick(snap?.columns.center), right: pick(snap?.columns.right) }),
     [snap],
   );
+  const completedRows = useMemo(() => (snap ? resolveCompleted(snap, filter) : []), [snap, filter]);
   const hidden = useMemo(() => pick(snap?.hidden), [snap]);
   const threshold = snap?.config.nowPriorityThreshold ?? 5;
   const onItemAction = (cardId: string, itemId: string, checked?: boolean): Promise<void> =>
@@ -159,7 +163,12 @@ export function App(props: AppProps = {}) {
               onFullscreen={openFullscreen}
             />
             ) : null}
-            {/* Completed section (done cards + ticked alerts) is built in a later task (T7). */}
+            <Completed
+              rows={completedRows}
+              open={completedOpen}
+              onToggle={setCompletedOpen}
+              onReopen={(id) => void m.reopen(id)}
+            />
           </>
         ) : null}
       </main>
