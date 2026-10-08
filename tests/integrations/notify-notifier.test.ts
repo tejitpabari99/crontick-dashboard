@@ -4,8 +4,7 @@ import { isRegisteredType, registry } from '../../src/contract/registry.js';
 import { stripMarkdown } from '../../src/utils/markdown.js';
 import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { fakeClock } from '../../src/clock.js';
-import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
-import type { CardEnvelope } from '../../src/feed/ingest.js';
+import type { CardEventListener, CardEventPayload, CardEventType } from '../../src/feed/events.js';
 import { NOTIFY_BURST_WINDOW_MS, NOTIFY_MAX_BODY } from '../../src/constants/notify.js';
 
 function bus() {
@@ -21,14 +20,14 @@ function bus() {
       },
     },
     emit(type: CardEventType, card: Record<string, unknown>) {
-      for (const fn of [...(ls[type] ?? [])]) fn({ card: card as unknown as CardEnvelope, file: 'x.json' });
+      for (const fn of [...(ls[type] ?? [])]) fn({ ...(card as unknown as CardEventPayload), file: 'x.json' });
     },
     count: (type: string) => ls[type]?.size ?? 0,
   };
 }
 
 const card = (over: Record<string, unknown> = {}) => ({
-  id: 'my-card', kind: 'alert', type: 'markdown', title: 'Build failed', updatedAt: '2026-01-01T00:00:00Z',
+  id: 'my-card', kind: 'panel', type: 'markdown', title: 'Build failed', updatedAt: '2026-01-01T00:00:00Z',
   priority: 1, notify: true, data: { text: 'hello' }, ...over,
 });
 
@@ -47,6 +46,20 @@ describe('notifier', () => {
     b.emit('card:changed', card());
     expect(adapter.calls).toHaveLength(2);
     expect(adapter.calls[0]).toEqual({ title: 'Build failed', body: 'hello', openUrl: 'http://127.0.0.1:4321/#card=my-card' });
+  });
+  it('AC7: alert body is text else title; alerts open /', () => {
+    const { b, adapter } = setup();
+    b.emit('card:new', { kind: 'alert', id: 'a1', title: 'Disk full', text: 'sda1 at 99%', priority: 1, notify: true });
+    b.emit('card:new', { kind: 'alert', id: 'a2', title: 'Only title', priority: 1, notify: true });
+    expect(adapter.calls).toEqual([
+      { title: 'Disk full', body: 'sda1 at 99%', openUrl: 'http://127.0.0.1:4321/' },
+      { title: 'Only title', body: 'Only title', openUrl: 'http://127.0.0.1:4321/' },
+    ]);
+  });
+  it('alert text is truncated to the body cap', () => {
+    const { b, adapter } = setup();
+    b.emit('card:new', { kind: 'alert', id: 'a', title: 't', text: 'x'.repeat(NOTIFY_MAX_BODY + 50), priority: 1, notify: true });
+    expect(adapter.calls[0]!.body).toHaveLength(NOTIFY_MAX_BODY);
   });
   it('ignores removed, notify:false, missing notify', () => {
     const { b, adapter } = setup();
@@ -170,9 +183,9 @@ describe('burst control', () => {
   it('high-priority overflow is named in summary', () => {
     const { adapter, advance, emit } = burst(3);
     for (let i = 0; i < 3; i++) emit(i);
-    emit(3, { priority: 4 });
+    emit(3, { priority: 4, kind: 'alert' });
     emit(4, { priority: 1 });
-    emit(5, { priority: 5 });
+    emit(5, { priority: 5, kind: 'alert' });
     emit(6, { priority: 5, kind: 'panel' });
     advance(NOTIFY_BURST_WINDOW_MS);
     expect(adapter.calls).toHaveLength(4);

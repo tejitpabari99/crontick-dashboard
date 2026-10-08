@@ -4,8 +4,7 @@ import { FakeNotifyAdapter } from '../../src/integrations/notify/fake.js';
 import { resolveNotifyMode } from '../../src/integrations/notify/gate.js';
 import { createWarnings } from '../../src/state/warnings.js';
 import { computeSnapshot } from '../../src/compute/snapshot.js';
-import type { CardEventListener, CardEventType } from '../../src/feed/events.js';
-import type { CardEnvelope } from '../../src/feed/ingest.js';
+import type { CardEventListener, CardEventPayload, CardEventType } from '../../src/feed/events.js';
 
 function bus() {
   const ls: Record<string, Set<CardEventListener>> = {};
@@ -17,12 +16,12 @@ function bus() {
       },
     },
     emit(type: CardEventType, card: Record<string, unknown>) {
-      for (const fn of [...(ls[type] ?? [])]) fn({ card: card as unknown as CardEnvelope, file: 'x.json' });
+      for (const fn of [...(ls[type] ?? [])]) fn({ ...(card as unknown as CardEventPayload), file: 'x.json' });
     },
   };
 }
 const card = (id = 'c1') => ({
-  id, kind: 'alert', type: 'markdown', title: 'T', updatedAt: '2026-01-01T00:00:00Z', priority: 1, notify: true,
+  id, kind: 'panel', type: 'markdown', title: 'T', updatedAt: '2026-01-01T00:00:00Z', priority: 1, notify: true,
   data: { text: 'hi' },
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));

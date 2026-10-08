@@ -113,7 +113,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     }),
   });
 
-  const watcher = createFeedWatcher({ feedDir: feedDir(env), clock, onChange: events.onChange });
+  const watcher = createFeedWatcher({ feedDir: feedDir(env), clock, onChange: events.onChange, onAlertChange: events.onAlertChange });
 
   const timers = opts.timers ?? realTimers;
   let reconcileTimer: unknown;

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -38,7 +38,7 @@ function boot() {
   const ev = createCardEvents({ state, clock, getTimezone: () => 'UTC', warnings });
   const got: { type: string; p: CardEventPayload }[] = [];
   for (const t of ['card:new', 'card:changed', 'card:removed'] as const) ev.events.on(t, (p) => got.push({ type: t, p }));
-  const ing = createFeedIngest({ feedDir: feed, onChange: ev.onChange });
+  const ing = createFeedIngest({ feedDir: feed, onChange: ev.onChange, onAlertChange: ev.onAlertChange });
   return { state, warnings, ev, got, ing };
 }
 
@@ -55,12 +55,11 @@ describe('card events', () => {
     ing.processFolder('a');
     await ev.flush();
     expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed']);
-    expect(got[1]!.p.prev?.['updatedAt']).toBe('2026-06-01T10:00:00Z');
-    drop('a.json');
+        drop('a.json');
     ing.rescan();
     await ev.flush();
     expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed', 'card:removed']);
-    expect(got[2]!.p.card['id']).toBe('a');
+    expect(got[2]!.p.id).toBe('a');
   });
 
   it('restart emits nothing for unchanged, emits for changed-while-down', async () => {
@@ -73,7 +72,7 @@ describe('card events', () => {
     const second = boot();
     second.ing.rescan();
     await second.ev.flush();
-    expect(second.got.map((g) => `${g.type}:${g.p.card['id']}`)).toEqual(['card:new:b']);
+    expect(second.got.map((g) => `${g.type}:${g.p.id}`)).toEqual(['card:new:b']);
   });
 
   it('same updatedAt rewrite (server write-back) never fires', async () => {
@@ -144,6 +143,116 @@ describe('card events', () => {
     ing.rescan();
     await ev.flush();
     expect(n).toBe(0);
+  });
+});
+
+const putAlert = (name: string, body: object, mtimeSec?: number, sub = 'alerts') => {
+  const dir = join(feed, sub);
+  mkdirSync(dir, { recursive: true });
+  const f = join(dir, `${name}.json`);
+  writeFileSync(f, JSON.stringify(body));
+  if (mtimeSec !== undefined) utimesSync(f, mtimeSec, mtimeSec);
+};
+
+describe('AC1: one card:new for card.json + data.json in either order', () => {
+  const view = JSON.stringify({ type: 'markdown', title: 'T', notify: true });
+  const dat = JSON.stringify({ updatedAt: '2026-06-01T10:00:00Z', data: { text: 'hi' } });
+  for (const order of ['card-first', 'data-first'] as const) {
+    it(order, async () => {
+      const { ev, got, ing } = boot();
+      const dir = join(feed, 'k');
+      mkdirSync(dir, { recursive: true });
+      const writes: [string, string][] = [['card.json', view], ['data.json', dat]];
+      if (order === 'data-first') writes.reverse();
+      for (const [f, t] of writes) {
+        writeFileSync(join(dir, f), t);
+        ing.processFolder('k');
+      }
+      await ev.flush();
+      expect(got.map((g) => g.type)).toEqual(['card:new']);
+      expect(got[0]!.p).toMatchObject({ kind: 'panel', id: 'k', title: 'T', type: 'markdown', notify: true, file: 'k/data.json' });
+    });
+  }
+});
+
+describe('AC2: updatedAt / mtime dedupe', () => {
+  it('new explicit updatedAt notifies once; same bytes or same updatedAt does not', async () => {
+    const { ev, got, ing } = boot();
+    put('a.json', card('a'));
+    ing.rescan();
+    await ev.flush();
+    put('a.json', card('a')); // identical rewrite
+    ing.processFolder('a');
+    put('a.json', card('a', '2026-06-01T10:00:00Z', { data: { text: 'edited' } })); // same updatedAt, new content
+    ing.processFolder('a');
+    await ev.flush();
+    expect(got.map((g) => g.type)).toEqual(['card:new']);
+    put('a.json', card('a', '2026-06-01T11:00:00Z', { data: { text: 'edited' } }));
+    ing.processFolder('a');
+    await ev.flush();
+    expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed']);
+  });
+
+  it('mtime-derived updatedAt: new mtime + new content notifies', async () => {
+    const { ev, got, ing } = boot();
+    const p = putCard(feed, 'm', JSON.stringify({ type: 'markdown', title: 'm', data: { text: 'one' } }));
+    writeFileSync(p, JSON.stringify({ data: { text: 'one' } }));
+    utimesSync(p, Date.parse('2026-06-01T09:00:00Z') / 1000, Date.parse('2026-06-01T09:00:00Z') / 1000);
+    ing.processFolder('m');
+    await ev.flush();
+    writeFileSync(p, JSON.stringify({ data: { text: 'two' } }));
+    utimesSync(p, Date.parse('2026-06-01T09:30:00Z') / 1000, Date.parse('2026-06-01T09:30:00Z') / 1000);
+    ing.processFolder('m');
+    await ev.flush();
+    expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed']);
+  });
+});
+
+describe('alert events', () => {
+  it('new alert fires with view payload, stamps alert:<id>; rewrite with new updatedAt fires changed', async () => {
+    const { state, ev, got, ing } = boot();
+    putAlert('a', { title: 'Disk', text: 'full', notify: true, priority: 3, updatedAt: '2026-06-01T10:00:00Z' });
+    ing.processAlert('a.json');
+    await ev.flush();
+    expect(got.map((g) => g.type)).toEqual(['card:new']);
+    expect(got[0]!.p).toEqual({ kind: 'alert', id: 'a', title: 'Disk', priority: 3, notify: true, text: 'full', file: 'alerts/a.json' });
+    expect(state.get().notified['alert:a']).toBe('2026-06-01T10:00:00Z');
+    putAlert('a', { title: 'Disk', text: 'still full', notify: true, priority: 3, updatedAt: '2026-06-01T10:00:00Z' });
+    ing.processAlert('a.json'); // content changed, same explicit updatedAt: deduped
+    putAlert('a', { title: 'Disk', text: 'worse', notify: true, priority: 3, updatedAt: '2026-06-01T11:00:00Z' });
+    ing.processAlert('a.json');
+    await ev.flush();
+    expect(got.map((g) => g.type)).toEqual(['card:new', 'card:changed']);
+  });
+
+  it('broken alerts and removals do not fire', async () => {
+    const { ev, got, ing } = boot();
+    putAlert('bad', { title: 'x', priority: 'high' });
+    ing.processAlert('bad.json');
+    putAlert('ok', { title: 'x', notify: true });
+    ing.processAlert('ok.json');
+    got.length = 0;
+    rmSync(join(feed, 'alerts', 'ok.json'));
+    ing.processAlert('ok.json');
+    await ev.flush();
+    expect(got).toEqual([]);
+  });
+
+  it('AC10: .done/ files never notify', async () => {
+    const { ev, got, ing } = boot();
+    putAlert('a', { title: 'Disk', notify: true });
+    ing.processAlert('a.json');
+    await ev.flush();
+    got.length = 0;
+    mkdirSync(join(feed, 'alerts', '.done'), { recursive: true });
+    renameSync(join(feed, 'alerts', 'a.json'), join(feed, 'alerts', '.done', 'a.json'));
+    ing.processAlert('a.json');
+    ing.processCompletedAlert('a.json');
+    putAlert('b', { title: 'Old', notify: true }, undefined, 'alerts/.done');
+    ing.processCompletedAlert('b.json');
+    ing.rescan();
+    await ev.flush();
+    expect(got).toEqual([]);
   });
 });
 

@@ -6,6 +6,7 @@
  * so there is no dedupe here. All deliveries go through the single `dispatch()` seam.
  * Burst control wraps `dispatch()`; `deliver()` isolates failures and records warnings.
  *
+ * Alerts: body = `text` else `title`; open URL `/`. Panels: registry `summary`; open URL `/#card=<id>`.
  * Body = one plain-text line (<=140 chars), never the card `data` beyond that line:
  *  markdown: first non-empty line, markdown syntax stripped
  *  list:     first item text, plus "(+N more)"
@@ -15,7 +16,6 @@
  */
 import type { CardEvents, CardEventPayload } from '../../feed/events.js';
 import { isRegisteredType, registry } from '../../contract/registry.js';
-import type { CardEnvelope } from '../../feed/ingest.js';
 import type { NotifyAdapter, NotifyPayload } from './adapter.js';
 import { realClock, type Clock } from '../../clock.js';
 import { DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../constants/config.js';
@@ -64,8 +64,9 @@ function truncate(s: string): string {
 }
 
 /** Plain-text one-line summary of a card's data (type-specific via the registry, capped at NOTIFY_MAX_BODY). */
-function summarize(e: CardEnvelope): string {
-  return isRegisteredType(e.type) ? truncate(registry[e.type].summary(e.data)) : '';
+function summarize(e: CardEventPayload): string {
+  if (e.kind === 'alert') return truncate(e.text !== undefined && e.text !== '' ? e.text : e.title);
+  return e.type !== undefined && isRegisteredType(e.type) ? truncate(registry[e.type].summary(e.data)) : '';
 }
 
 export function createNotifier(opts: NotifierOptions): Notifier {
@@ -165,22 +166,22 @@ export function createNotifier(opts: NotifierOptions): Notifier {
     timer ??= timers.setTimeout(flushSummary, Math.max(0, windowEnd - now));
   }
 
-  function handle({ card }: CardEventPayload): void {
+  function handle(e: CardEventPayload): void {
     try {
-      handleInner(card);
+      handleInner(e);
     } catch (err) {
       logWarn(`notify failed: ${String(err)}`);
     }
   }
 
-  function handleInner(e: CardEnvelope): void {
+  function handleInner(e: CardEventPayload): void {
     syncGateWarning();
     if (e.notify !== true || !gateOn()) return;
     dispatch(
       {
         title: e.title,
         body: summarize(e),
-        openUrl: loopbackUrl(opts.getPort(), `/#card=${encodeURIComponent(e.id)}`),
+        openUrl: loopbackUrl(opts.getPort(), e.kind === 'alert' ? '/' : `/#card=${encodeURIComponent(e.id)}`),
       },
       { high: e.kind === 'alert' && e.priority >= threshold() },
     );

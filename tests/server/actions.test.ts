@@ -313,6 +313,6 @@ describe('complete write-back', () => {
     s.events.on('card:new', (e) => evs.push(e));
     await new Promise((res) => setTimeout(res, 300));
     expect(evs.length).toBeLessThanOrEqual(1); // only the initial notify for the first boot's new card, if any
-    expect(evs.filter((e) => (e as { card?: { updatedAt?: string } }).card?.updatedAt !== T1)).toEqual([]);
+    expect(evs.filter((e) => (e as { id?: string }).id !== 'l1')).toEqual([]);
   });
 });
