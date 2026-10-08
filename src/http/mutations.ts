@@ -1,16 +1,11 @@
-/** Owner-click mutation routes: alert tick, Done ack, hide, layout. Ids are resolved via the CardStore only. */
+/** Owner-click mutation routes: alert tick, Done ack, hide. Ids are resolved via the CardStore only. */
 import type { Context, Hono } from 'hono';
-import { z } from 'zod';
 import { moveToDone } from '../feed/done.js';
 import { envelope } from '../feed/ingest.js';
 import { ERROR_CODES } from '../constants/error-codes.js';
 import { apiError, internalError } from './errors.js';
 import type { AppContext } from './app.js';
 import { buildSnapshot } from './app.js';
-
-const LayoutSchema = z
-  .array(z.object({ i: z.string(), x: z.number().finite(), y: z.number().finite(), w: z.number().finite(), h: z.number().finite() }))
-  .max(10_000);
 
 export function mountMutations(app: Hono, ctx: AppContext): void {
   const ok = (c: Context) => c.json({ rev: buildSnapshot(ctx).rev });
@@ -70,21 +65,4 @@ export function mountMutations(app: Hono, ctx: AppContext): void {
       return ok(c);
     });
   }
-
-  app.put('/api/layout', async (c) => {
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return apiError(c, 400, ERROR_CODES.INVALID_JSON, 'request body must be valid JSON');
-    }
-    const parsed = LayoutSchema.safeParse(body);
-    if (!parsed.success) return apiError(c, 400, ERROR_CODES.INVALID_LAYOUT, 'body must be an array of { i, x, y, w, h }');
-    try {
-      await ctx.state.setLayout(parsed.data);
-    } catch (err) {
-      return fail(c, err);
-    }
-    return ok(c);
-  });
 }

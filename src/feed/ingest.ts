@@ -48,7 +48,6 @@ export interface CardEnvelope {
   notify: boolean;
   show?: { cron: string; for?: string };
   staleAfter?: string;
-  retention?: string;
   size?: 'S' | 'M' | 'L';
   error?: string | null;
   data?: Record<string, unknown>;
@@ -65,23 +64,11 @@ export interface CardChange {
   selfWrite?: boolean;
 }
 
-/** Fired for every accepted (valid) ingest, before the store is rebuilt. Seam for archive. */
-export interface IngestInfo {
-  file: string;
-  text: string;
-  hash: string;
-  mtimeMs: number;
-  card: Card;
-  /** True when hash equals (and consumes) a registered `selfWrites[file]` entry. */
-  selfWrite: boolean;
-}
-
 export interface FeedIngestOptions {
   feedDir: string;
   timers?: TimeoutTimers;
   /** Time source for card validation (default real clock). */
   clock?: Clock;
-  onIngest?: (info: IngestInfo) => void;
   onChange?: (change: CardChange) => void;
 }
 
@@ -356,7 +343,7 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
       return 'done';
     }
     if (r.kind === 'error') return 'settling';
-    const { text, hash, parsed } = parseRead(name, r);
+    const { hash, parsed } = parseRead(name, r);
     if (!parsed.ok && (parsed.reason === 'malformed-json' || parsed.reason === 'unreadable')) return 'settling';
     clearSettling(name);
     const rec: FileRec = { name, hash, mtimeMs: r.mtimeMs, size: r.size, parsed };
@@ -366,11 +353,6 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
     if (parsed.ok && !(prevRec?.hash === hash && prevRec.mtimeMs === r.mtimeMs)) {
       selfWrite = selfWrites.get(name) === hash;
       if (selfWrite) selfWrites.delete(name);
-      try {
-        opts.onIngest?.({ file: name, text, hash, mtimeMs: r.mtimeMs, card: parsed.card, selfWrite });
-      } catch {
-        /* hook errors must not break ingest */
-      }
     }
     setRec(name, rec, selfWrite);
     return 'done';

@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFeedIngest, type CardChange, type IngestInfo } from '../../src/feed/ingest.js';
+import { createFeedIngest, type CardChange } from '../../src/feed/ingest.js';
 import { createFeedWatcher } from '../../src/feed/watcher.js';
 import { MAX_CARD_BYTES } from '../../src/constants/contract.js';
 import { FEED_SETTLE_DELAYS_MS } from '../../src/constants/feed.js';
@@ -39,9 +40,8 @@ const itCaseSensitive = isCaseInsensitiveFs() ? it.skip : it;
 
 function setup() {
   const changes: CardChange[] = [];
-  const ingests: IngestInfo[] = [];
-  const ing = createFeedIngest({ feedDir: dir, onChange: (c) => changes.push(c), onIngest: (i) => ingests.push(i) });
-  return { ing, changes, ingests };
+  const ing = createFeedIngest({ feedDir: dir, onChange: (c) => changes.push(c) });
+  return { ing, changes };
 }
 
 describe('feed ingest', () => {
@@ -164,32 +164,26 @@ describe('feed ingest', () => {
     expect(ing.store.get('a')).toMatchObject({ file: 'a.JSON' });
   });
 
-  it('onIngest fires for valid ingests with hash; selfWrite flag consumes selfWrites', () => {
-    const { ing, ingests } = setup();
+  it('selfWrite flag on changes consumes selfWrites', () => {
+    const { ing, changes } = setup();
     put('a.json', card('a'));
     ing.processFile('a.json');
-    expect(ingests[0]).toMatchObject({ file: 'a.json', selfWrite: false });
+    expect(changes.at(-1)?.selfWrite).toBeFalsy();
     const text = card('a', '2026-03-01T00:00:00Z');
     put('a.json', text);
-    ing.selfWrites.set('a.json', ingests[0]!.hash); // wrong hash -> not self write
+    ing.selfWrites.set('a.json', 'wrong-hash'); // wrong hash -> not self write
     ing.processFile('a.json');
-    expect(ingests[1]?.selfWrite).toBe(false);
+    expect(changes.at(-1)?.selfWrite).toBeFalsy();
     const t2 = card('a', '2026-04-01T00:00:00Z');
     put('a.json', t2);
     ing.selfWrites.set('a.json', ing.store.get('a')!.hash);
     ing.processFile('a.json');
-    expect(ingests[2]?.selfWrite).toBe(false);
-    put('a.json', card('a', '2026-05-01T00:00:00Z'));
+    expect(changes.at(-1)?.selfWrite).toBeFalsy();
+    const own = card('a', '2026-05-01T00:00:00Z', { priority: 4 });
+    ing.selfWrites.set('a.json', createHash('sha256').update(Buffer.from(own)).digest('hex'));
+    put('a.json', own, 5000);
     ing.processFile('a.json');
-    const h = ing.store.get('a')!.hash;
-    put('a.json', card('a', '2026-05-01T00:00:00Z', { priority: 4 }));
-    ing.processFile('a.json');
-    const h2 = ing.store.get('a')!.hash;
-    expect(h2).not.toBe(h);
-    ing.selfWrites.set('a.json', h2);
-    put('a.json', card('a', '2026-05-01T00:00:00Z', { priority: 4 }), 5000);
-    ing.processFile('a.json');
-    expect(ingests.at(-1)?.selfWrite).toBe(true);
+    expect(changes.at(-1)?.selfWrite).toBe(true);
     expect(ing.selfWrites.has('a.json')).toBe(false);
   });
 });

@@ -98,22 +98,15 @@ describe('mutations', () => {
     expect((await call(s, 'DELETE', '/api/cards/nope/done')).status).toBe(404);
   });
 
-  it('hide/unhide/layout persist across restart; validation', async () => {
+  it('hide/unhide persist across restart; validation', async () => {
     writeFileSync(feed('p1.json'), card('p1', 'panel', '2026-06-01T10:00:00Z'));
     let s = await boot();
     expect((await call(s, 'PUT', '/api/cards/p1/hidden')).status).toBe(200);
     expect((await call(s, 'PUT', '/api/cards/nope/hidden')).status).toBe(404);
-    const layout = [{ i: 'p1', x: 1, y: 2, w: 3, h: 4 }];
-    const lr = await call(s, 'PUT', '/api/layout', layout);
-    expect(lr.status).toBe(200);
-    expect(typeof ((await lr.json()) as { rev: string }).rev).toBe('string');
-    expect((await call(s, 'PUT', '/api/layout', [{ i: 'p1' }])).status).toBe(400);
-    expect((await call(s, 'PUT', '/api/layout', { nope: 1 })).status).toBe(400);
     await running!.stop();
     s = await boot();
     const a = await snap(s);
     expect(a.zones.hidden).toEqual(['p1']);
-    expect(a.layout).toEqual(layout);
     expect((await call(s, 'DELETE', '/api/cards/p1/hidden')).status).toBe(200);
     await running!.stop();
     s = await boot();

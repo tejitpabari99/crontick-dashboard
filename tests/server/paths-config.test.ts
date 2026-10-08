@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  archiveDir, configPath, dataDir, doneDir, ensureDirs, feedDir, lockFilePath, logFilePath,
+  configPath, dataDir, doneDir, ensureDirs, feedDir, lockFilePath, logFilePath,
   pidFilePath, portFilePath, statePath,
 } from '../../src/paths.js';
 import { createConfigReader, loadConfig, resolvePort } from '../../src/config.js';
 import { fakeClock, realClock } from '../../src/clock.js';
 import { ENV_HOME, ENV_PORT } from '../../src/constants/env.js';
-import { DEFAULT_NOTIFY_OS, DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION } from '../../src/constants/config.js';
+import { DEFAULT_NOTIFY_OS, DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../src/constants/config.js';
 import { DEFAULT_PORT } from '../../src/constants/http.js';
 import { POLL_DEFAULT_MS, POLL_MAX_MS, POLL_MIN_MS } from '../../src/constants/poll.js';
 
@@ -26,7 +26,6 @@ describe('paths', () => {
     expect(dataDir(env)).toBe(home);
     expect(feedDir(env)).toBe(join(home, 'feed'));
     expect(doneDir(env)).toBe(join(home, 'feed', 'done'));
-    expect(archiveDir(env)).toBe(join(home, 'archive'));
     expect(statePath(env)).toBe(join(home, 'state.json'));
     expect(configPath(env)).toBe(join(home, 'config.json'));
     expect(pidFilePath(env)).toBe(join(home, 'daemon.pid'));
@@ -39,7 +38,7 @@ describe('paths', () => {
   });
   it('first run creates layout, default config, no state.json', () => {
     ensureDirs(env);
-    for (const d of [home, feedDir(env), doneDir(env), archiveDir(env)]) expect(statSync(d).isDirectory()).toBe(true);
+    for (const d of [home, feedDir(env), doneDir(env)]) expect(statSync(d).isDirectory()).toBe(true);
     if (process.platform !== 'win32') {
       expect(statSync(home).mode & 0o777).toBe(0o700);
       expect(statSync(feedDir(env)).mode & 0o777).toBe(0o700);
@@ -66,22 +65,34 @@ describe('config', () => {
     const r = loadConfig(env);
     expect(r.warnings).toEqual([]);
     expect(r.config).toEqual({
-      port: DEFAULT_PORT, retentionDefault: DEFAULT_RETENTION, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS,
+      port: DEFAULT_PORT, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS,
       timezone: sysTz, notifications: { os: DEFAULT_NOTIFY_OS },
     });
     write({});
     expect(loadConfig(env).warnings).toEqual([]);
   });
-  it('accepts valid values', () => {
-    write({ port: 5000, retentionDefault: '2w', nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
+  it('old config with retentionDefault loads silently, key ignored', () => {
+    write({ port: 5000, retentionDefault: '2w' });
     const r = loadConfig(env);
     expect(r.warnings).toEqual([]);
-    expect(r.config).toMatchObject({ port: 5000, retentionDefault: '2w', nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
+    expect(r.config.port).toBe(5000);
+    expect('retentionDefault' in r.config).toBe(false);
+    write({ retentionDefault: 'forever' });
+    expect(loadConfig(env).warnings).toEqual([]);
+  });
+  it('ensureDirs does not create archive/', () => {
+    ensureDirs(env);
+    expect(existsSync(join(home, 'archive'))).toBe(false);
+  });
+  it('accepts valid values', () => {
+    write({ port: 5000, nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
+    const r = loadConfig(env);
+    expect(r.warnings).toEqual([]);
+    expect(r.config).toMatchObject({ port: 5000, nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });
   });
   it.each([
     ['port', 'abc', 'port'],
     ['port', 70000, 'port'],
-    ['retentionDefault', 'forever', 'retentionDefault'],
     ['nowPriorityThreshold', 9, 'nowPriorityThreshold'],
     ['pollIntervalMs', -5, 'pollIntervalMs'],
     ['pollIntervalMs', POLL_MIN_MS - 1, 'pollIntervalMs'],
@@ -93,7 +104,7 @@ describe('config', () => {
     const r = loadConfig(env);
     expect(r.warnings).toHaveLength(1);
     expect(r.warnings[0]).toContain(name);
-    expect(r.config).toMatchObject({ port: DEFAULT_PORT, retentionDefault: DEFAULT_RETENTION, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS, timezone: sysTz, notifications: { os: DEFAULT_NOTIFY_OS } });
+    expect(r.config).toMatchObject({ port: DEFAULT_PORT, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS, timezone: sysTz, notifications: { os: DEFAULT_NOTIFY_OS } });
   });
   it('one bad field does not affect others', () => {
     write({ port: 'x', nowPriorityThreshold: 5 });

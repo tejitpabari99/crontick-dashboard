@@ -1,4 +1,4 @@
-/** startServer: wires data dir, state, feed, archive, events and the HTTP listener. */
+/** startServer: wires data dir, state, feed, events and the HTTP listener. */
 import { getRequestListener } from '@hono/node-server';
 import { rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -7,11 +7,9 @@ import { type Clock, realClock } from '../clock.js';
 import { type ConfigReader, createConfigReader, resolvePort } from '../config.js';
 import { LOOPBACK_HOST } from '../constants/http.js';
 import { RECONCILE_INTERVAL_MS } from '../constants/state.js';
-import { createArchive } from '../feed/archive.js';
 import { createCardEvents, type CardEvents } from '../feed/events.js';
-import { envelope } from '../feed/ingest.js';
 import { createFeedWatcher } from '../feed/watcher.js';
-import { archiveDir, dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
+import { dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
 import { claimPidFile, releasePidFile } from '../pid.js';
 import { errorMessage } from '../utils/errors.js';
 import { loopbackUrl } from '../utils/loopback.js';
@@ -106,21 +104,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     }),
   });
 
-  // eslint-disable-next-line prefer-const -- archive/watcher reference each other through closures
-  let watcher: ReturnType<typeof createFeedWatcher>;
-  const archive = createArchive({
-    archiveDir: archiveDir(env),
-    clock,
-    retentionDefault: () => config.get().config.retentionDefault,
-    cards: () => {
-      const m = new Map<string, string | undefined>();
-      for (const e of watcher.store.list()) {
-        if (e.status === 'ok') m.set(e.key, envelope(e.card).retention);
-      }
-      return m;
-    },
-  });
-  watcher = createFeedWatcher({ feedDir: feedDir(env), clock, onIngest: archive.onIngest, onChange: events.onChange });
+  const watcher = createFeedWatcher({ feedDir: feedDir(env), clock, onChange: events.onChange });
 
   const timers = opts.timers ?? realTimers;
   let reconcileTimer: unknown;
@@ -148,7 +132,6 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
       if (reconcileTimer !== undefined) timers.clearInterval(reconcileTimer);
       notifier.dispose();
       watcher.stop();
-      archive.stop();
       await events.flush().catch(() => {});
       await Promise.allSettled([...reconciles]);
       if (server.listening) {
@@ -201,7 +184,6 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     boundPort = result.port;
     writeFileSync(portFilePath(env), `${boundPort}\n`);
     watcher.start();
-    archive.start();
     reconcileState();
     reconcileTimer = timers.setInterval(reconcileState, RECONCILE_INTERVAL_MS);
   } catch (err) {

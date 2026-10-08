@@ -54,8 +54,6 @@ describe('HTTP error codes', () => {
     ['missing item', 'POST', '/api/cards/p1/actions', { itemId: 'zz', updatedAt: T }, 404, ERROR_CODES.ITEM_NOT_FOUND],
     ['item without action', 'POST', '/api/cards/p1/actions', { itemId: 'n', updatedAt: T }, 400, ERROR_CODES.ITEM_NO_ACTION],
     ['tick non-alert', 'POST', '/api/alerts/p1/tick', undefined, 400, ERROR_CODES.NOT_AN_ALERT],
-    ['bad layout', 'PUT', '/api/layout', { nope: 1 }, 400, ERROR_CODES.INVALID_LAYOUT],
-    ['layout JSON', 'PUT', '/api/layout', '{ nope', 400, ERROR_CODES.INVALID_JSON],
   ];
   it.each(cases)('%s', async (_n, method, path, body, status, code) => {
     const r = await req(method, path, body);

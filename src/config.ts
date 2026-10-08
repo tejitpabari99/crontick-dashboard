@@ -1,16 +1,14 @@
 /** config.json loading: per-field fallback to defaults with warnings; mtime-based reload. */
 import { statSync, readFileSync } from 'node:fs';
-import { DEFAULT_NOTIFY_OS, DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION, MAX_NOW_PRIORITY_THRESHOLD, MIN_NOW_PRIORITY_THRESHOLD } from './constants/config.js';
+import { DEFAULT_NOTIFY_OS, DEFAULT_NOW_PRIORITY_THRESHOLD, MAX_NOW_PRIORITY_THRESHOLD, MIN_NOW_PRIORITY_THRESHOLD } from './constants/config.js';
 import { ENV_PORT } from './constants/env.js';
 import { DEFAULT_PORT } from './constants/http.js';
 import { POLL_DEFAULT_MS, POLL_MAX_MS, POLL_MIN_MS } from './constants/poll.js';
-import { parseDuration } from './contract/formats.js';
 import { configPath } from './paths.js';
 import { parsePort } from './utils/port.js';
 
 export interface DashboardConfig {
   port: number;
-  retentionDefault: string;
   nowPriorityThreshold: number;
   pollIntervalMs: number;
   timezone: string;
@@ -27,7 +25,6 @@ const systemTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().tim
 export function defaultConfig(): DashboardConfig {
   return {
     port: DEFAULT_PORT,
-    retentionDefault: DEFAULT_RETENTION,
     nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD,
     pollIntervalMs: POLL_DEFAULT_MS,
     timezone: systemTimezone(),
@@ -39,15 +36,6 @@ function validTimezone(v: unknown): v is string {
   if (typeof v !== 'string' || v === '') return false;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: v });
-    return true;
-  } catch {
-    return false;
-  }
-}
-function validDuration(v: unknown): v is string {
-  if (typeof v !== 'string') return false;
-  try {
-    parseDuration(v);
     return true;
   } catch {
     return false;
@@ -70,10 +58,6 @@ export function parseConfig(raw: unknown): LoadedConfig {
     const port = typeof r['port'] === 'number' ? parsePort(r['port']) : undefined;
     if (port !== undefined) config.port = port;
     else bad('port', config.port);
-  }
-  if (r['retentionDefault'] !== undefined) {
-    if (validDuration(r['retentionDefault'])) config.retentionDefault = r['retentionDefault'];
-    else bad('retentionDefault', config.retentionDefault);
   }
   if (r['nowPriorityThreshold'] !== undefined) {
     if (isInt(r['nowPriorityThreshold'], MIN_NOW_PRIORITY_THRESHOLD, MAX_NOW_PRIORITY_THRESHOLD)) config.nowPriorityThreshold = r['nowPriorityThreshold'];

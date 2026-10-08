@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -155,8 +155,6 @@ describe('complete write-back', () => {
     expect((await snap(s)).rev).toBe(((await r.json()) as { rev: string }).rev);
     await new Promise((res) => setTimeout(res, 400)); // watcher sees the write
     expect(changed).toEqual([]);
-    const adir = join(data, 'archive', 'l1');
-    expect(existsSync(adir) ? readdirSync(adir).length : 0).toBeLessThanOrEqual(1);
   });
 
   it('untick deletes checkedAt; shorthand and object action both work', async () => {

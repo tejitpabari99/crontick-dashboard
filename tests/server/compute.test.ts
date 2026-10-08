@@ -4,11 +4,11 @@ import type { BrokenEntry, CardEntry, OkEntry } from '../../src/feed/ingest.js';
 import type { StateData } from '../../src/state/store.js';
 import type { DashboardConfig } from '../../src/config.js';
 import type { Card } from '../../src/feed/legacy-envelope.js';
-import { DEFAULT_NOW_PRIORITY_THRESHOLD, DEFAULT_RETENTION } from '../../src/constants/config.js';
+import { DEFAULT_NOW_PRIORITY_THRESHOLD } from '../../src/constants/config.js';
 import { POLL_DEFAULT_MS } from '../../src/constants/poll.js';
 
 const config: DashboardConfig = {
-  port: 1, retentionDefault: DEFAULT_RETENTION, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS,
+  port: 1, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS,
   timezone: 'UTC', notifications: { os: 'auto' },
 };
 const state = (p: Partial<StateData> = {}): StateData => ({
