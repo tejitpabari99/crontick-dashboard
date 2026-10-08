@@ -8,14 +8,14 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/01-card-fo
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Contract constants and reason lists | — | todo |
-| 2 | Card-def, data-file and alert zod schemas | 1 | todo |
-| 3 | Registry rework and folder templates | 2 | todo |
-| 4 | Pure folder-level validator | 1, 2, 3 | todo |
-| 5 | Public API cleanup, envelope removal | 4 | todo |
-| 6 | Schema generation and drift check | 2, 3, 5 | todo |
-| 7 | errors.md reason tables | 1, 4 | todo |
-| 8 | Acceptance tests: templates, purity, removals | 4, 5, 6 | todo |
+| 1 | Contract constants and reason lists | — | done |
+| 2 | Card-def, data-file and alert zod schemas | 1 | done |
+| 3 | Registry rework and folder templates | 2 | done |
+| 4 | Pure folder-level validator | 1, 2, 3 | done |
+| 5 | Public API cleanup, envelope removal | 4 | done |
+| 6 | Schema generation and drift check | 2, 3, 5 | done |
+| 7 | errors.md reason tables | 1, 4 | done |
+| 8 | Acceptance tests: templates, purity, removals | 4, 5, 6 | done |
 
 ## Task 1 — Contract constants and reason lists
 What it is / what it means: shared typed constants the schemas and validator use (Decisions 2, 6; Validator API size caps; skew rule).

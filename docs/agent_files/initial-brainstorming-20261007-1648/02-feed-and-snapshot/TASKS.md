@@ -8,15 +8,15 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/02-feed-an
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Remove archive, retention and layout surface | - | todo |
-| 2 | State: doneAt, no layout, alert key prefix | 1 | todo |
-| 3 | Shared `readCardFolder` reader | SP01 | todo |
-| 4 | Card-folder ingest core | 2, 3, SP01 | todo |
-| 5 | Alert and completed-alert ingest | 4 | todo |
-| 6 | Recursive watcher and rescan | 4, 5 | todo |
-| 7 | Column snapshot and DTO | 2, 4, 5 | todo |
-| 8 | Mutations, actions, startup wiring | 5, 7 | todo |
-| 9 | `complete` write-back pins updatedAt | 4 | todo |
+| 1 | Remove archive, retention and layout surface | - | done |
+| 2 | State: doneAt, no layout, alert key prefix | 1 | done |
+| 3 | Shared `readCardFolder` reader | SP01 | done |
+| 4 | Card-folder ingest core | 2, 3, SP01 | done |
+| 5 | Alert and completed-alert ingest | 4 | done |
+| 6 | Recursive watcher and rescan | 4, 5 | done |
+| 7 | Column snapshot and DTO | 2, 4, 5 | done |
+| 8 | Mutations, actions, startup wiring | 5, 7 | in-progress |
+| 9 | `complete` write-back pins updatedAt | 4 | done |
 | 10 | Events and notifier view payload | 4, 5 | todo |
 | 11 | Test sweep and acceptance check | 1-10 | todo |
 

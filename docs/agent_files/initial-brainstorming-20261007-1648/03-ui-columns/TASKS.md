@@ -8,8 +8,8 @@ Source of truth: docs/agent_files/initial-brainstorming-20261007-1648/03-ui-colu
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| 1 | Layout tokens and breakpoint test | — | todo |
-| 2 | API client and optimistic state over new DTO | SP02 | todo |
+| 1 | Layout tokens and breakpoint test | — | done |
+| 2 | API client and optimistic state over new DTO | SP02 | in-progress |
 | 3 | CardFrame heights, no-data state, collapsed Chip, type mode cleanup | SP01, SP02 | todo |
 | 4 | Columns shell, Now zone, grid removal | 1, 2, 3 | todo |
 | 5 | One-line AlertStrip | 2, 4 | todo |
