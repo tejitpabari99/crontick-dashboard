@@ -9,7 +9,7 @@ allowed-tools: shell
 
 ## 1. Purpose / when to use
 
-crontick-dashboard is a local dashboard that renders **cards**: JSON files that agents drop into a feed directory. You write files; the dashboard watches the dir and shows them. No daemon call is needed to write.
+crontick-dashboard is a local dashboard that renders **cards**: folders of JSON files that agents drop into a feed directory. You write files; the dashboard watches the dir and shows them. No daemon call is needed to write.
 
 **Never guess the feed path.** Run `crontick-dashboard info --json` and use its `feedDir`:
 
@@ -17,98 +17,153 @@ crontick-dashboard is a local dashboard that renders **cards**: JSON files that 
 crontick-dashboard info --json   # -> { "feedDir": "...", "url": ..., "skillPath": ..., ... }
 ```
 
-## 2. Card envelope
+## 2. Folder model
 
-One file per card: `<feedDir>/<id>.json`.
-
-| field | notes |
-|---|---|
-| `id` | lowercase slug `[a-z0-9._-]`, max 64, **must equal the filename stem**, no Windows-reserved names (con, nul, ...) |
-| `kind` | `panel` (lives in the grid) or `alert` (persists until ticked) |
-| `type` | `markdown`, `table`, `list`, `kpi`, `media` |
-| `title` | 1-200 chars |
-| `updatedAt` | ISO timestamp; bump on every rewrite (resets Done) |
-| `priority` | 0-5, default 2 |
-| `size` | `S`/`M`/`L` |
-| `show`, `staleAfter`, `retention`, `notify` | see sections 6-7 |
-| `error` | reason string when you failed (section 8) |
-| `data` | type-specific body |
-
-Schema: `crontick-dashboard templates <type> --schema`. Minimal card:
-
-```json
-{ "id": "daily-briefing", "kind": "panel", "type": "markdown", "title": "Daily briefing",
-  "updatedAt": "2026-10-05T07:30:00Z", "data": { "text": "## Today\n- Standup at 10:00" } }
+```
+<feedDir>/<id>/card.json     # the view: type, title, layout, priority (you edit once)
+<feedDir>/<id>/data.json     # the content (you rewrite every run)
+<feedDir>/alerts/<id>.json   # one-line alerts (section 9)
 ```
 
-## 3. Types
+- The card id is the folder name: lowercase slug `[a-z0-9][a-z0-9._-]{0,63}`, no leading `.`. `alerts` is reserved.
+- `card.json` says how the card looks; `data.json` holds what it shows. A card without `data.json` shows "No data yet".
+- `data` (in card.json) is a plain file name inside the card folder (default `data.json`): no subfolders, no symlinks leading outside.
+- Ingest ignores dot-files and `*.tmp`.
 
-Get a valid, runnable example with `crontick-dashboard templates <type>` (list all with `crontick-dashboard templates`). Start from it; **change its `id` to your own** (and make the filename match). Do not copy schemas from memory.
+| file | field | notes |
+|---|---|---|
+| card.json | `type` | `markdown`, `table`, `list`, `kpi`, `media` |
+| card.json | `title` | shown in the card header |
+| card.json | `layout` | `column`, `order`, `height` (section 6) |
+| card.json | `priority`, `show`, `staleAfter`, `notify` | section 7 |
+| data.json | `updatedAt` | ISO timestamp (section 5) |
+| data.json | `data` | type-specific payload |
+| data.json | `error` | reason string when you failed (section 8) |
 
-- `markdown`: prose/briefings (`data.text`).
-- `table`: rows of cells (email, issues, search results).
-- `list`: items/tasks; optional checkbox via `action`.
-- `kpi`: several metrics per card in `data.items` (label, value, state, trend).
-- `media`: images/screenshots in a grid.
+Exact shapes: `crontick-dashboard templates <type>` prints a runnable card.json and data.json (`templates` alone lists all types). Do not copy schemas from memory.
 
-Links: `link` on a table row, list item, kpi item or media item makes it clickable. Allowed schemes only: http|https|mailto|ms-outlook.
-`action` on a list item is `dismiss` (local tick) or `complete` (write-back, see section 4); items with an action need an `id`.
+## 3. First time: create the card
 
-## 4. Workflow
+```sh
+crontick-dashboard new <id> --type <type> --title "<title>" --column center --height M
+crontick-dashboard templates <type> --file data    # the shape to write into data.json
+```
 
-1. **If `<feedDir>/<id>.json` already exists, read the existing card first** and act on every list item with `checked: true` (e.g. complete the matching task in TickTick with your own access, using the item's private extras such as `ticktick: {taskId, projectId}`). The dashboard only sets `checked`/`checkedAt` on ticked items and keeps your extras.
-2. Build the new card JSON (drop or re-mark handled items; bump `updatedAt`).
-3. **Validate before writing**: pipe the JSON to `crontick-dashboard validate -` (exit 0 = OK, 1 = Broken; fix and retry). Stdin validation does not check the filename rule, so make sure `id` equals the filename stem yourself. (`crontick-dashboard validate <file>` also checks the name, but only if the file is already named `<id>.json`; use it on a file outside the feed dir.)
-4. **Write atomically**: write `<feedDir>/<id>.json.tmp`, then rename to `<feedDir>/<id>.json`. The watcher ignores `*.tmp`, so readers never see a half-written card.
-5. Rewrite the same id to update. Never delete other agents' files.
+`new` writes `card.json` only. Layout flags are optional: `--column left|center|right`, `--order <n>`, `--height S|M|L|auto`, `--priority 0-5`. It fails if the card exists (use `--force` to rewrite card.json only; data.json is never touched). Do this once; later runs only rewrite data.json.
 
-## 5. Id rules
+## 4. Each run: write data.json
 
-`id` = lowercase slug, `[a-z0-9][a-z0-9._-]{0,63}`, not ending in `.`, equal to the filename stem. Mismatch makes the card Broken (`id-mismatch`).
+1. Build the new `data.json` content (shape from `crontick-dashboard templates <type> --file data`).
+2. **Pre-validate** before writing: pipe it to `crontick-dashboard validate - --as data --type <type>` (exit 0 = OK; fix and retry).
+3. **Write atomically**: write `<feedDir>/<id>/data.json.tmp`, then rename to `<feedDir>/<id>/data.json`. Ingest ignores `*.tmp`, so readers never see a half-written file.
+4. **Check the result**: `crontick-dashboard validate <feedDir>/<id>` must exit 0 with no warnings.
+5. Never delete other agents' files.
 
-## 6. Alert vs panel
+## 5. updatedAt
 
-- `panel`: sits in the grid; any type.
-- `alert`: unmissable, persists until the user ticks it; only `markdown`, `list`, `kpi`.
-- `priority`: at or above the Now threshold the card surfaces during its `show` window; 1 or lower collapses.
+Set `updatedAt` (ISO timestamp) in data.json only when the content truly changed. If nothing changed, rewrite nothing: without `updatedAt` the file mtime is used, so a no-op rewrite looks like new data and re-notifies the user.
 
-## 7. Timing fields
+## 6. Layout
 
-- `show: { cron: "<5-field cron>", for: "<duration>" }`: visible window. **`for` omitted = the window lasts until the end of that local day. A card with no `show` is always visible.** Alerts honor `show` too: an alert with `show` appears only inside its window.
+In card.json `layout`:
+
+- `column`: `left`, `center` or `right` (narrow screens stack them). Put wide tables in `center`.
+- `order`: integer; lower comes first within the column.
+- `height`: `S`, `M`, `L` or `auto`.
+
+## 7. priority, show, staleAfter, notify
+
+Set once in card.json; edit it only to change behavior.
+
+- `priority`: 0-5, default 2. At or above the Now threshold the card surfaces during its `show` window; 1 or lower collapses.
+- `show: { cron: "<5-field cron>", for: "<duration>" }`: visible window. **`for` omitted = the window lasts until the end of that local day. A card with no `show` is always visible.** Alerts honor `show` too.
 - `staleAfter` (e.g. `26h`): set it for recurring jobs. Past it the card is Broken, never shown as old data.
-- `retention`: how long to keep it after it stops being current.
 - `notify: true`: only for things that must interrupt the user.
 - Durations are single-unit: `30m`, `2h`, `26h`, never `1h30m`.
 
 ## 8. Failure
 
-If your job failed, write `error: "<reason>"` instead of stale data (`data` may then be omitted). Still bump `updatedAt`.
+If your job failed, write `error: "<reason>"` in data.json instead of stale data (`data` may then be omitted), and bump `updatedAt`.
 
-## 9. Extending without a new schema
+## 9. Alerts
 
-Types are generic: add columns, fields, keys freely; extras are preserved. Example, an email table with two links per row (row `link` = open the email, cell link = unsubscribe, both clickable):
+An alert is one file, `<feedDir>/alerts/<id>.json` (id = file name stem, same slug rules). Write it atomically like data.json (tmp, then rename); validate with `crontick-dashboard validate - --as alert`.
 
+- `title`: required.
+- `text`: optional, one line, at most 200 chars.
+- `link`: optional, clickable. Allowed schemes only: http|https|mailto|ms-outlook.
+- Also allowed: `priority`, `notify`, `show`, `updatedAt`.
+
+A ticked alert moves to Completed in the UI. Alert with a title only:
+
+<!-- example:alert backup-failed -->
 ```json
-{ "id": "unread-email", "kind": "panel", "type": "table", "title": "Unread email",
-  "updatedAt": "2026-10-05T07:45:00Z", "staleAfter": "2h",
-  "data": {
-    "columns": ["From", "Subject", "Unsubscribe"],
-    "rows": [
-      { "cells": ["Dana", "Invoice", { "text": "Unsubscribe", "link": "https://example.com/unsub" }],
-        "link": "https://outlook.office.com/mail/deeplink/read/ID" }
-    ] } }
+{
+  "title": "Nightly backup failed",
+  "link": "https://example.com/runbook/backup",
+  "priority": 4,
+  "notify": true,
+  "updatedAt": "2026-10-05T07:00:00Z"
+}
 ```
 
-Cells are string, number, boolean, null or `{text, link?}`. List items can carry `links: [{text, link}]` for secondary links. kpi cards list several metrics in `data.items`.
+## 10. List-item ticks
 
-## 10. Task lists (TickTick etc.)
+`list` items with `action: "complete"` (or `{"type": "complete"}`) get a checkbox; ticking writes `checked: true` and `checkedAt` into data.json. **Read data.json first** on every run: act on every item with `checked: true` (e.g. complete the matching task in TickTick with your own access, using the item's private extras such as `ticktick: {taskId, projectId}`), then rewrite without the handled items. The dashboard only sets `checked`/`checkedAt` and keeps your extras. List only the important or due tasks; the dashboard never queries TickTick. Items with an action need an `id`; `due` is an ISO date or datetime.
 
-`list` items with `action: {"type": "complete"}` get a checkbox; ticking writes `checked: true` and `checkedAt` into the card file. You decide what appears: list only the important or due tasks (the dashboard never queries TickTick). Give each item an `id`, an optional `due` (ISO date or datetime, shown relative/overdue), and put identifiers in an extra field, e.g. `ticktick: {taskId, projectId}`. Next run, follow section 4: read the card, complete ticked tasks, rewrite.
+## 11. Extending and gotchas
 
-## 11. Gotchas
+Worked example, an email-summary `table` card. Create it with:
 
-- Extras are allowed and preserved untouched; `x-` keys are yours.
+```sh
+crontick-dashboard new email-summary --type table --title 'Email summary' --column center --height M
+```
+
+That writes this card.json:
+
+<!-- example:card email-summary -->
+```json
+{
+  "$schema": "../../schemas/card-def.json",
+  "type": "table",
+  "title": "Email summary",
+  "layout": {
+    "column": "center",
+    "height": "M"
+  }
+}
+```
+
+Then write this data.json (a row `link` opens the email; a cell `{text, link}` is its own clickable link):
+
+<!-- example:data email-summary -->
+```json
+{
+  "$schema": "../../schemas/data.table.json",
+  "updatedAt": "2026-10-05T07:45:00Z",
+  "data": {
+    "columns": [
+      { "key": "from", "label": "From", "sort": "text" },
+      { "key": "subject", "label": "Subject", "sort": "text" },
+      { "key": "received", "label": "Received", "sort": "date" }
+    ],
+    "rows": [
+      { "link": "https://mail.example.com/msg/1001", "cells": [{ "text": "Alice Park", "link": "mailto:alice@example.com" }, "Q4 planning notes", "2026-10-05T06:12:00Z"] },
+      { "link": "https://mail.example.com/msg/1002", "cells": ["Billing", "Your invoice is ready", "2026-10-04T18:03:00Z"] },
+      { "link": "https://mail.example.com/msg/1003", "cells": ["Ops alerts", "Disk usage at 85%", "2026-10-04T14:40:00Z"] },
+      { "link": "https://mail.example.com/msg/1004", "cells": ["Bob Chen", "Re: lunch Thursday?", "2026-10-04T11:21:00Z"] },
+      { "link": "https://mail.example.com/msg/1005", "cells": ["GitHub", "New comment on your pull request", "2026-10-03T20:05:00Z"] }
+    ],
+    "defaultSort": { "column": 2, "dir": "desc" },
+    "searchable": true
+  }
+}
+```
+
+Gotchas:
+
+- Types are generic: extra keys are preserved untouched; `x-` keys are yours. Table cells are string, number, boolean, null or `{text, link?}`; list items can carry `links: [{text, link}]`; `kpi` cards list several metrics in `data.items`.
+- Link schemes: http|https|mailto|ms-outlook only.
 - No input widgets in the UI; cards never trigger jobs.
-- Durations are single-unit (`26h`).
 - Never guess the feed dir; always `crontick-dashboard info --json`.
 - After upgrading the package, re-run `crontick-dashboard skill install --force` to refresh this file (the owner does this).
