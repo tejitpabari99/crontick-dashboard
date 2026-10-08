@@ -1,4 +1,4 @@
-import type { ViewCard } from '../api/types.ts';
+import type { ViewAlert, ViewCard } from '../api/types.ts';
 import { getCardType } from '../registry/registry.ts';
 
 export interface SearchCard {
@@ -37,4 +37,24 @@ export function toSearchCard(card: ViewCard): SearchCard {
     }
   }
   return { id: card.id, title: card.title, status: card.status, message: card.message, searchText };
+}
+
+/** Alert rows match by title + text (broken alerts: title + message). */
+export function toSearchAlert(a: ViewAlert): SearchCard {
+  return { id: a.id, title: a.title, status: 'ok', searchText: a.status === 'broken' ? a.message : a.text };
+}
+
+/** Where a search match lives; used to focus/scroll to it (Enter cycling). */
+export interface SearchTarget {
+  zone: 'card' | 'alert' | 'completed';
+  id: string;
+  /** Completed rows only. */
+  completedKind?: 'card' | 'alert';
+}
+
+export function targetSelector(t: SearchTarget): string {
+  const id = CSS.escape(t.id);
+  if (t.zone === 'alert') return `[data-alert-id="${id}"]`;
+  if (t.zone === 'completed') return `[data-completed-kind="${t.completedKind}"][data-completed-id="${id}"]`;
+  return `[data-card-id="${id}"]`;
 }

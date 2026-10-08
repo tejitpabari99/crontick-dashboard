@@ -8,6 +8,8 @@ export interface AlertStripProps {
   alerts: readonly ViewAlert[];
   nowPriorityThreshold: number;
   onTick(id: string): void;
+  /** Matching alert ids while a search is active; null/undefined = no search. */
+  matchIds?: ReadonlySet<string> | null;
 }
 
 const Sep = () => (
@@ -30,7 +32,13 @@ export function AlertStrip(p: AlertStripProps) {
           return (
             <li
               key={a.id}
-              className={broken ? 'alert-strip__row alert-strip__row--broken' : 'alert-strip__row'}
+              className={[
+                'alert-strip__row',
+                broken && 'alert-strip__row--broken',
+                p.matchIds && (p.matchIds.has(a.id) ? 'card-frame--match' : 'card-frame--dim'),
+              ]
+                .filter(Boolean)
+                .join(' ')}
               data-alert-id={a.id}
             >
               <span

@@ -30,6 +30,8 @@ export interface CompletedProps {
   open: boolean;
   onToggle(open: boolean): void;
   onReopen(cardId: string): void;
+  /** Matching row keys (`<kind>:<id>`) while a search is active; null/undefined = no search. */
+  matchKeys?: ReadonlySet<string> | null;
 }
 
 const Sep = () => (
@@ -68,7 +70,12 @@ export function Completed(p: CompletedProps) {
           {p.rows.map((r) => (
             <li
               key={`${r.kind}:${r.id}`}
-              className="completed__row"
+              className={[
+                'completed__row',
+                p.matchKeys && (p.matchKeys.has(`${r.kind}:${r.id}`) ? 'card-frame--match' : 'card-frame--dim'),
+              ]
+                .filter(Boolean)
+                .join(' ')}
               id={`completed-${r.kind}-${r.id}`}
               data-completed-id={r.id}
               data-completed-kind={r.kind}

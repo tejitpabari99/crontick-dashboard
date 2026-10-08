@@ -12,3 +12,6 @@
 .completed__text { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .completed__sep, .completed__age, .completed__link, .completed__check { flex: none; color: var(--text-muted, inherit); }
 .completed__reopen { flex: none; margin-left: auto; }
+
+.completed__row.card-frame--dim { opacity: 0.3; }
+.completed__row.card-frame--match { outline: 2px solid var(--ring); outline-offset: -2px; }

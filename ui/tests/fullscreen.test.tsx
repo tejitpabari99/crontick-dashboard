@@ -154,13 +154,9 @@ describe('Deep link', () => {
     expect(location.hash).toBe('');
   });
 
-  it('Done-tray and hidden targets toast instead', async () => {
+  it('hidden and unknown targets toast', async () => {
     mount();
     await screen.findByText('T-a');
-    act(() => {
-      location.hash = '#card=d';
-    });
-    await screen.findByText('T-d is Done');
     act(() => {
       location.hash = '#card=h';
     });

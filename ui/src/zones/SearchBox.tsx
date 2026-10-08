@@ -1,22 +1,26 @@
 import { useEffect, useRef } from 'react';
-import type { ViewCard } from '../api/types.ts';
+import { targetSelector, type SearchTarget } from '../lib/search.ts';
 
 export interface OtherMatch {
-  card: ViewCard;
-  where: 'tray' | 'hidden';
+  id: string;
+  title: string;
+  where: 'hidden' | 'completed';
+  /** Completed matches only. */
+  completedKind?: 'card' | 'alert';
 }
 
 export interface SearchBoxProps {
   query: string;
   onQuery(q: string): void;
-  /** Matching cards that are on screen (alerts, Now, grid), in reading order. */
-  visibleIds: readonly string[];
-  /** Total matches including tray and hidden. */
+  /** Matches on screen (alerts, Now, center, left, right, open Completed), in DOM order. */
+  visible: readonly SearchTarget[];
+  /** Total matches including hidden and collapsed-Completed. */
   total: number;
-  /** Tray / hidden matches (not on screen). */
+  /** Hidden / collapsed-Completed matches (not on screen). */
   others: readonly OtherMatch[];
-  onReopen(id: string): void;
   onUnhide(id: string): void;
+  /** Open the Completed section, scroll to and highlight the row. */
+  onOpenCompleted(m: OtherMatch): void;
 }
 
 function isEditable(t: EventTarget | null): boolean {
@@ -26,8 +30,8 @@ function isEditable(t: EventTarget | null): boolean {
   return ce !== null && ce.getAttribute('contenteditable') !== 'false';
 }
 
-function focusCard(id: string): void {
-  const el = document.querySelector<HTMLElement>(`[data-card-id="${id.replace(/"/g, '\\"')}"]`);
+function focusTarget(t: SearchTarget): void {
+  const el = document.querySelector<HTMLElement>(targetSelector(t));
   if (!el) return;
   if (!el.hasAttribute('tabindex')) el.tabIndex = -1;
   el.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
@@ -66,12 +70,12 @@ export function SearchBox(p: SearchBoxProps) {
       else ref.current?.blur();
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const n = p.visibleIds.length;
+      const n = p.visible.length;
       if (n === 0) return;
       const next = e.shiftKey ? (cursor.current <= 0 ? n - 1 : cursor.current - 1) : (cursor.current + 1) % n;
       cursor.current = next;
-      const id = p.visibleIds[next];
-      if (id) focusCard(id);
+      const t = p.visible[next];
+      if (t) focusTarget(t);
     }
   };
 
@@ -94,16 +98,16 @@ export function SearchBox(p: SearchBoxProps) {
       ) : null}
       {p.query.trim() && p.others.length > 0 ? (
         <ul className="search-box__dropdown" aria-label="Other matches">
-          {p.others.map(({ card, where }) => (
-            <li key={card.id}>
-              <span className="search-box__title">{card.title}</span>
-              <span className="search-box__badge">{where === 'tray' ? 'Done' : 'Hidden'}</span>
-              {where === 'tray' ? (
-                <button type="button" aria-label={`Open ${card.title}`} onClick={() => p.onReopen(card.id)}>
-                  Open
+          {p.others.map((o) => (
+            <li key={`${o.where}:${o.completedKind ?? ''}:${o.id}`}>
+              <span className="search-box__title">{o.title}</span>
+              <span className="search-box__badge">{o.where === 'completed' ? 'Completed' : 'Hidden'}</span>
+              {o.where === 'completed' ? (
+                <button type="button" aria-label={`Show ${o.title}`} onClick={() => p.onOpenCompleted(o)}>
+                  Show
                 </button>
               ) : (
-                <button type="button" aria-label={`Unhide ${card.title}`} onClick={() => p.onUnhide(card.id)}>
+                <button type="button" aria-label={`Unhide ${o.title}`} onClick={() => p.onUnhide(o.id)}>
                   Unhide
                 </button>
               )}

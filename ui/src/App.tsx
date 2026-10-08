@@ -8,10 +8,11 @@ import { useFilter } from './lib/filter.ts';
 import { useCompletedOpen } from './lib/completed-open.ts';
 import { attentionCount } from './lib/attention.ts';
 import { getSeenVersion, subscribeSeen } from './lib/seen.ts';
-import { matchCards, toSearchCard } from './lib/search.ts';
+import { matchCards, toSearchAlert, toSearchCard, type SearchCard, type SearchTarget } from './lib/search.ts';
+import type { OtherMatch } from './zones/SearchBox.tsx';
 import { AlertStrip } from './zones/AlertStrip.tsx';
 import { Columns } from './zones/Columns.tsx';
-import { Completed, resolveCompleted } from './zones/Completed.tsx';
+import { Completed, resolveCompleted, type CompletedRow } from './zones/Completed.tsx';
 import { Header } from './zones/Header.tsx';
 import { ServerDown } from './zones/ServerDown.tsx';
 import { ToastHost } from './zones/ToastHost.tsx';
@@ -50,17 +51,76 @@ export function App(props: AppProps = {}) {
     m.onItemAction(cardId, itemId, checked);
 
   const searching = query.trim() !== '';
-  const visible = useMemo(
-    () => [...now, ...columns.center, ...columns.left, ...columns.right],
-    [now, columns],
+  const showAlerts = filter !== 'cards';
+  const showCards = filter !== 'alerts';
+  const alertHits = useMemo(
+    () => (showAlerts ? matchCards(alerts.map(toSearchAlert), query) : []),
+    [showAlerts, alerts, query],
   );
-  const visibleIds = useMemo(() => matchCards(visible.map(toSearchCard), query), [visible, query]);
-  const matchIds = useMemo(() => (searching ? new Set(visibleIds) : null), [searching, visibleIds]);
-  // Done-card search matches arrive with the Completed section (T7/T8).
-  const others = useMemo(() => {
-    const h = new Set(matchCards(hidden.map(toSearchCard), query));
-    return hidden.filter((c) => h.has(c.id)).map((card) => ({ card, where: 'hidden' as const }));
-  }, [hidden, query]);
+  // Visible cards in DOM order: Now, then center, left, right.
+  const cardHits = useMemo(
+    () => (showCards ? matchCards([...now, ...columns.center, ...columns.left, ...columns.right].map(toSearchCard), query) : []),
+    [showCards, now, columns, query],
+  );
+  const completedKey = (r: CompletedRow): string => `${r.kind}:${r.id}`;
+  const completedHits = useMemo(() => {
+    const cards: SearchCard[] = completedRows.map((r) => ({
+      id: completedKey(r),
+      title: r.kind === 'card' ? r.title : r.item.title,
+      status: 'ok',
+      searchText: r.kind === 'alert' ? r.item.text : undefined,
+    }));
+    return matchCards(cards, query);
+  }, [completedRows, query]);
+  const matchIds = useMemo(() => (searching ? new Set(cardHits) : null), [searching, cardHits]);
+  const alertMatchIds = useMemo(() => (searching ? new Set(alertHits) : null), [searching, alertHits]);
+  const completedMatchKeys = useMemo(() => (searching ? new Set(completedHits) : null), [searching, completedHits]);
+  const visible = useMemo<SearchTarget[]>(() => {
+    const out: SearchTarget[] = [
+      ...alertHits.map((id): SearchTarget => ({ zone: 'alert', id })),
+      ...cardHits.map((id): SearchTarget => ({ zone: 'card', id })),
+    ];
+    if (completedOpen) {
+      for (const r of completedRows) {
+        if (completedMatchKeys?.has(completedKey(r))) out.push({ zone: 'completed', id: r.id, completedKind: r.kind });
+      }
+    }
+    return out;
+  }, [alertHits, cardHits, completedOpen, completedRows, completedMatchKeys]);
+  const others = useMemo<OtherMatch[]>(() => {
+    const out: OtherMatch[] = [];
+    if (showCards) {
+      const h = new Set(matchCards(hidden.map(toSearchCard), query));
+      for (const c of hidden) if (h.has(c.id)) out.push({ id: c.id, title: c.title, where: 'hidden' });
+    }
+    if (!completedOpen) {
+      for (const r of completedRows) {
+        if (completedMatchKeys?.has(completedKey(r))) {
+          out.push({ id: r.id, title: r.kind === 'card' ? r.title : r.item.title, where: 'completed', completedKind: r.kind });
+        }
+      }
+    }
+    return out;
+  }, [showCards, hidden, query, completedOpen, completedRows, completedMatchKeys]);
+
+  // Open Completed + scroll/highlight a row (search "Other matches" and Done-card deep links).
+  const [reveal, setReveal] = useState<{ kind: 'card' | 'alert'; id: string } | null>(null);
+  const revealRow = (kind: 'card' | 'alert', id: string): void => {
+    setCompletedOpen(true);
+    setReveal({ kind, id });
+  };
+  useEffect(() => {
+    if (!reveal) return;
+    const el = completedOpen ? document.getElementById(`completed-${reveal.kind}-${reveal.id}`) : null;
+    if (!el) {
+      if (!completedRows.some((r) => r.kind === reveal.kind && r.id === reveal.id)) setReveal(null);
+      return;
+    }
+    setReveal(null);
+    if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('card-highlight');
+    window.setTimeout(() => el.classList.remove('card-highlight'), HIGHLIGHT_MS);
+  }, [reveal, completedOpen, completedRows]);
 
   const hash = useHash();
   const target = useMemo(() => parseCardHash(hash), [hash]);
@@ -80,7 +140,8 @@ export function App(props: AppProps = {}) {
     if (target.full) return;
     replaceHash('');
     if (c.done) {
-      toasts.push(`${c.title} is Done`);
+      if (filter === 'alerts') setFilter('all');
+      revealRow('card', c.id);
       return;
     }
     if (snap.hidden.includes(c.id)) {
@@ -120,11 +181,11 @@ export function App(props: AppProps = {}) {
         search={{
           query,
           onQuery: setQuery,
-          visibleIds,
-          total: visibleIds.length + others.length,
+          visible,
+          total: visible.length + others.length,
           others,
-          onReopen: (id) => void m.reopen(id),
           onUnhide: (id) => void m.unhide(id),
+          onOpenCompleted: (o) => revealRow(o.completedKind ?? 'card', o.id),
         }}
       />
       <main className="page">
@@ -140,7 +201,7 @@ export function App(props: AppProps = {}) {
         ) : snap ? (
           <>
             {filter !== 'cards' ? (
-              <AlertStrip alerts={alerts} nowPriorityThreshold={threshold} onTick={(id) => void m.tick(id)} />
+              <AlertStrip alerts={alerts} matchIds={alertMatchIds} nowPriorityThreshold={threshold} onTick={(id) => void m.tick(id)} />
             ) : null}
             {filter === 'alerts' && alerts.length === 0 ? (
               <p className="filter-empty" data-testid="empty-alerts">No alerts</p>
@@ -167,6 +228,7 @@ export function App(props: AppProps = {}) {
               rows={completedRows}
               open={completedOpen}
               onToggle={setCompletedOpen}
+              matchKeys={completedMatchKeys}
               onReopen={(id) => void m.reopen(id)}
             />
           </>
