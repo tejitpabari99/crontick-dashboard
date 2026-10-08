@@ -68,7 +68,10 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
       refreshFeed(entry.file);
       return CHANGED;
     }
-    if (!isObj(obj) || !sameInstant(obj['updatedAt'], req.updatedAt)) {
+    // Effective updatedAt = data.updatedAt, else data file mtime (same rule as ingest).
+    const explicit = isObj(obj) ? obj['updatedAt'] : undefined;
+    const effective = typeof explicit === 'string' ? explicit : new Date(st.mtimeMs).toISOString();
+    if (!isObj(obj) || !sameInstant(effective, req.updatedAt)) {
       refreshFeed(entry.file);
       return CHANGED;
     }
@@ -80,6 +83,8 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
     if ((item['checked'] === true) === checked && (checked ? typeof item['checkedAt'] === 'string' : !('checkedAt' in item))) {
       return { ok: true }; // already in the requested state
     }
+    // No explicit updatedAt: pin the prior effective instant so the rename's new mtime isn't new content.
+    if (typeof explicit !== 'string') obj['updatedAt'] = effective;
     item['checked'] = checked;
     if (checked) item['checkedAt'] = isoLocal(deps.clock.now());
     else delete item['checkedAt'];

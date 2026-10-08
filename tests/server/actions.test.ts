@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -57,6 +57,8 @@ const act = (s: RunningServer, id: string, body: unknown) =>
   });
 const snap = async (s: RunningServer): Promise<Snapshot> =>
   (await (await fetch(`${loopbackUrl(s.port)}/api/snapshot`)).json()) as Snapshot;
+const call = (s: RunningServer, method: string, path: string) =>
+  fetch(`${loopbackUrl(s.port)}${path}`, { method, headers: { 'Content-Type': 'application/json', [MUTATION_HEADER]: MUTATION_HEADER_VALUE } });
 const checkedOf = async (s: RunningServer, id: string) =>
   (await snap(s)).cards[id]?.checked;
 
@@ -155,6 +157,38 @@ describe('complete write-back', () => {
     expect((await snap(s)).rev).toBe(((await r.json()) as { rev: string }).rev);
     await new Promise((res) => setTimeout(res, 400)); // watcher sees the write
     expect(changed).toEqual([]);
+  });
+
+  it('AC6: data.json without updatedAt -> complete pins prior mtime instant, keeps Done/checks, no event, unknown fields kept', async () => {
+    const noTs = JSON.stringify({ 'x-owner': { keep: [1] }, data: { items: [
+      { id: 'd', text: 'D', action: 'dismiss' },
+      { id: 'c', text: 'C', x: 1, action: 'complete' },
+    ] } }, null, 2) + '\n';
+    writeData('l1', noTs);
+    const mtimeSec = Date.parse('2026-05-31T09:00:00Z') / 1000;
+    utimesSync(feed('l1/data.json'), mtimeSec, mtimeSec);
+    const prior = new Date(mtimeSec * 1000).toISOString();
+    const s = await boot();
+    const events: unknown[] = [];
+    s.events.on('card:changed', (e) => events.push(e));
+    s.events.on('card:new', (e) => events.push(e));
+    expect((await snap(s)).cards['l1']?.updatedAt).toBe(prior);
+    expect((await call(s, 'POST', '/api/cards/l1/done')).status).toBe(200);
+    expect((await act(s, 'l1', { itemId: 'd', updatedAt: prior })).status).toBe(200);
+    const r = await act(s, 'l1', { itemId: 'c', updatedAt: prior });
+    expect(r.status).toBe(200);
+    const after = raw();
+    expect(after['updatedAt']).toBe(prior);
+    expect(after['x-owner']).toEqual({ keep: [1] });
+    expect(after.data.items[1]).toMatchObject({ x: 1, checked: true });
+    expect(temps()).toEqual([]);
+    await new Promise((res) => setTimeout(res, 600)); // ingest re-reads the renamed file
+    const a = await snap(s);
+    expect(a.cards['l1']?.updatedAt).toBe(prior);
+    expect(a.zones.tray).toEqual(['l1']);
+    expect(a.cards['l1']?.checked).toEqual(['d']);
+    expect((a.cards['l1'] as unknown as { data: { items: Record<string, unknown>[] } }).data.items[1]?.['checked']).toBe(true);
+    expect(events).toEqual([]);
   });
 
   it('untick deletes checkedAt; shorthand and object action both work', async () => {
