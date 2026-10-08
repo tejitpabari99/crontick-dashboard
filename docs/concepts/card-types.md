@@ -1,7 +1,7 @@
 # Card types
 
 Audience: agent authors choosing a type, and contributors adding one.
-Non-duplication: the exact data fields of each type are owned by `docs/reference/` (card schema) and the generated `schemas/*.json`; the card envelope and file model are in [cards-and-feed](cards-and-feed.md); the decision to use generic types is [ADR 0002](../decisions/0002-generic-visual-types-and-card-contract.md).
+Non-duplication: the exact data fields of each type are owned by `docs/reference/` (card schema) and the generated `schemas/*.json`; the card folder model is in [cards-and-feed](cards-and-feed.md); the decision to use generic types is [ADR 0002](../decisions/0002-generic-visual-types-and-card-contract.md).
 
 ## Generic, not per-source
 
@@ -9,15 +9,19 @@ Types describe how data looks, not where it came from. There is no email widget 
 
 ## The v1 set
 
-| Type | Use it for | Kinds allowed |
-|---|---|---|
-| `markdown` | Notes, summaries, free text | panel, alert |
-| `table` | Searchable, sortable rows, such as a mail rundown | panel |
-| `list` | Items with optional checkboxes, due dates, and links | panel, alert |
-| `kpi` | One or several metrics or states, such as deploy status | panel, alert |
-| `media` | Images and GIFs with captions and links | panel |
+| Type | Use it for |
+|---|---|
+| `markdown` | Notes, summaries, free text |
+| `table` | Searchable, sortable rows, such as a mail rundown |
+| `list` | Items with optional checkboxes, due dates, and links |
+| `kpi` | One or several metrics or states, such as deploy status |
+| `media` | Images and GIFs with captions and links |
 
-(The allowed-kinds column mirrors the contract registry; check it there if in doubt.)
+All five types are card types. Alerts are a separate, simpler thing (one-line files in `feed/alerts/`), not a card type.
+
+## Two files, one type
+
+`card.json` picks the type; `data.json` holds the payload for that type. The per-type shapes below describe the payload only (the `data` key of `data.json`); the view fields are the same for every type. An unknown `type` in `card.json` makes the card Broken (`unknown-type`).
 
 ## Expandable by design
 
@@ -25,16 +29,16 @@ Contracts require only what rendering needs and allow extra fields. Agents can a
 
 ## The registry model
 
-Every type runs through the same lifecycle: file, envelope validation, type data validation, state and visibility, snapshot, render inside a uniform card frame (title, fullscreen, Done, hide, Broken). Only the pieces that differ per type are per-type modules:
+Every type runs through the same lifecycle: folder, `card.json` validation, `data.json` and type payload validation, state and visibility, snapshot, render inside a uniform card frame (title, fullscreen, Done, hide, Broken, no data yet). Only the pieces that differ per type are per-type modules:
 
-- **Server side:** one contract module per type (a zod data schema, an example template, a one-line notification summary, which kinds it allows), all registered in a single contract registry. The registry is the only list of type names.
+- **Server side:** one contract module per type (a zod data schema, an example template, a one-line notification summary, an example card folder), all registered in a single contract registry. The registry is the only list of type names.
 - **UI side:** one folder per type with its renderer, registered in a client registry.
 
-The core never branches on a type name (see [P1](../tech/design-principles.md)). To add a type: add the contract module and template, register it, add the UI renderer, and register that. An unknown type renders as a labeled fallback rather than breaking the page.
+The core never branches on a type name (see [P1](../tech/design-principles.md)). To add a type: add the contract module and its template folder, register it, add the UI renderer, and register that. An unknown type renders as a labeled fallback rather than breaking the page.
 
 ## Schemas and templates
 
-zod is the source of truth. JSON Schemas for the envelope and each type are generated from it and committed, so a drift check in CI catches stale schemas. Each type ships an example card under `templates/`; agents and the Claude skill point at these. `crontick-dashboard templates` and `validate` expose them from the CLI.
+zod is the source of truth. JSON Schemas for `card.json`, `data.json`, alerts and each type are generated from it and committed, so a drift check in CI catches stale schemas. Each type ships an example card folder (both files) under `templates/`; agents and the Claude skill point at these. `crontick-dashboard new`, `templates` and `validate` expose them from the CLI.
 
 ## Scope limits
 

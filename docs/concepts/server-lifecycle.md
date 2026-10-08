@@ -27,7 +27,7 @@ Shutdown is requested over the guarded HTTP API (works on every platform, includ
 
 ## Startup
 
-On start the server ensures the data directories exist (private permissions where the OS supports them), loads config (invalid values fall back to defaults with a warning), scans the feed, and starts the watcher, archive pruning, and notifier. State is created lazily on the first change.
+On start the server ensures the data directories exist (private permissions where the OS supports them), loads config (invalid values fall back to defaults with a warning), copies the packaged JSON Schemas into `<data>/schemas/` (failure is only logged), scans the feed, and starts the watcher and notifier. State is created lazily on the first change.
 
 ## Platforms
 

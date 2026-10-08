@@ -12,11 +12,10 @@ Source of truth: `src/constants/error-codes.ts`. Codes appear in HTTP bodies (`{
 | `BAD_REQUEST` | 400 | Malformed URL encoding | Fix the URL |
 | `INVALID_JSON` | 400 | Request body is not JSON | Send valid JSON |
 | `INVALID_BODY` | 400 | Actions body is not `{ itemId, updatedAt, checked? }` | Fix the body |
-| `INVALID_LAYOUT` | 400 | Layout body is not an array of `{ i, x, y, w, h }` | Fix the body |
 | `CARD_NOT_FOUND` | 404 | No card with that id | Reload; the file may be gone |
 | `CARD_BROKEN` | 400 | Card is Broken, so Done/action refused | Fix the card file |
 | `CARD_CHANGED` | 409 | Card changed since the client loaded it (message: `card was updated; reload and retry`) | Reload and retry |
-| `NOT_AN_ALERT` | 400 | Tick on a card that is not a valid alert | Only alerts can be ticked |
+| `NOT_AN_ALERT` | 400 | Tick on an id that is not an alert file | Only alerts can be ticked |
 | `ITEM_NOT_FOUND` | 404 | No list item with that id on the card | Reload |
 | `ITEM_NO_ACTION` | 400 | Item has no (known) action | Add `action` to the item in the card |
 | `DISMISS_NOT_UNCHECKABLE` | 400 | `checked: false` sent for a `dismiss` item | `dismiss` is one-way |
@@ -36,8 +35,14 @@ Source of truth: `src/constants/error-codes.ts`. Codes appear in HTTP bodies (`{
 | `SKILL_NOT_FOUND` | 1 | Packaged `SKILL.md` missing | Reinstall |
 | `SKILL_DIFFERS` | 1 | Installed skill differs and no `--force` | Rerun `skill install --force` |
 | `INVALID_PORT` | 2 | `start --port` not an integer 0-65535 | Fix the value |
-| `UNKNOWN_TYPE` | 2 | `templates <type>` with an unregistered type | Use a listed type |
-| `FILE_UNREADABLE` | 2 | `validate <file>` cannot read the file | Check path and permissions |
+| `UNKNOWN_TYPE` | 2 | `new --type`, `validate --type` or `templates <type>` with an unregistered type (also an unknown `--schema` / `--file` value) | Use a listed type |
+| `FILE_UNREADABLE` | 2 | `validate <path>` cannot read the path | Check path and permissions |
+| `INVALID_OPTION` | 2 | Bad option value or combination: `new --column/--height/--order/--priority`; `validate` with stdin but no `--as`, `--as data` without `--type`, `--as` without stdin, an invalid `--as`, or several stdin documents | Fix the option; see [cli.md](cli.md) |
+| `CARD_EXISTS` | 1 | `new <id>` where `feed/<id>/` already exists | Pick another id, or `--force` to rewrite `card.json` only |
+
+`new` also exits 2 with `BAD_REQUEST` for a reserved, dot-prefixed or otherwise invalid card id.
+
+The reasons `validate` prints (`BROKEN <reason>` / `SKIPPED <reason>`) are the Broken reasons and Skipped folders tables below, owned by the card contract (`src/constants/error-codes.ts`).
 
 ## Broken reasons
 
@@ -54,7 +59,7 @@ A card folder whose `card.json` parsed but whose content cannot be shown renders
 | `error` | Added by the snapshot, not `validate`: the data file declares a non-empty `error` |
 | `stale` | Added by the snapshot, not `validate`: no update for longer than `staleAfter` (for no-data cards, counted from the `card.json` mtime) |
 
-`duplicate-id` is unreachable for card folders: folder names are unique within `feed/`, and the folder name is the id. Kept as a note pending SP02 confirmation.
+`duplicate-id` is unreachable for card folders: folder names are unique within `feed/`, and the folder name is the id. SP02 confirmed it is unreachable; it is not a reason in the snapshot.
 
 ## Skipped folders
 

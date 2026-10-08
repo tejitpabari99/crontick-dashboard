@@ -9,13 +9,15 @@ A watcher card ("deployment finished") must not be missed, even with the browser
 
 ## When a notification fires
 
-A card produces a notification when it has `notify: true` and it is new or has a changed `updatedAt`, is not Broken, and is currently visible (inside its `show` window). Each `updatedAt` notifies once; the dedupe marker is kept in state, so a restart does not repeat old notifications.
+A card produces a notification when it has `notify: true` and its `data.json` is new or has a changed `updatedAt`, is not Broken, and is currently visible (inside its `show` window). Each data version notifies once; the dedupe marker is kept in state, so a restart does not repeat old notifications.
 
-Rewriting a card to the same content does not notify, and neither does the server's own write-back.
+An alert file notifies the same way when it has `notify: true` and is new or changed, under its own key (`alert:<id>`).
+
+Editing `card.json` (title, layout, priority) is silent. So is rewriting `data.json` with the same `updatedAt`, the server's own write-back, and ticking an alert; files in `feed/alerts/.done/` never notify.
 
 ## What it says
 
-One plain-text line, capped in length, derived from the card by its type (first line of a markdown note, first list item plus a count, first metric, a row count, a caption). It never dumps card data. Each type supplies its own summary through the contract registry, so the notifier has no per-type branches. Where the platform supports click-through, clicking opens the dashboard on that card (`#card=<id>`).
+One plain-text line, capped in length. For a card it is derived from `data.json` by its type (first line of a markdown note, first list item plus a count, first metric, a row count, a caption); for an alert the body is its `text` if present, otherwise its `title`. It never dumps card data. Each type supplies its own summary through the contract registry, so the notifier has no per-type branches. Where the platform supports click-through, clicking opens the dashboard on that card (`#card=<id>`); alerts open the dashboard home.
 
 ## Bursts
 
