@@ -53,31 +53,31 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
       st = statSync(path);
       raw = readFileSync(path);
     } catch {
-      refreshFeed(entry.file);
+      refreshFeed({ kind: 'card', id: entry.key });
       return CHANGED;
     }
     const hash = sha256(raw);
     if (attempt === 0 && hash !== entry.dataHash) {
-      refreshFeed(entry.file);
+      refreshFeed({ kind: 'card', id: entry.key });
       return CHANGED;
     }
     let obj: unknown;
     try {
       obj = JSON.parse(raw.toString('utf8'));
     } catch {
-      refreshFeed(entry.file);
+      refreshFeed({ kind: 'card', id: entry.key });
       return CHANGED;
     }
     // Effective updatedAt = data.updatedAt, else data file mtime (same rule as ingest).
     const explicit = isObj(obj) ? obj['updatedAt'] : undefined;
     const effective = typeof explicit === 'string' ? explicit : new Date(st.mtimeMs).toISOString();
     if (!isObj(obj) || !sameInstant(effective, req.updatedAt)) {
-      refreshFeed(entry.file);
+      refreshFeed({ kind: 'card', id: entry.key });
       return CHANGED;
     }
     const item = findItem(obj, itemId);
     if (!item) {
-      refreshFeed(entry.file);
+      refreshFeed({ kind: 'card', id: entry.key });
       return CHANGED;
     }
     if ((item['checked'] === true) === checked && (checked ? typeof item['checkedAt'] === 'string' : !('checkedAt' in item))) {
@@ -105,7 +105,7 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
       }
       if (!unchanged) {
         if (selfWrites.get(entry.file) === newHash) selfWrites.delete(entry.file);
-        refreshFeed(entry.file);
+        refreshFeed({ kind: 'card', id: entry.key });
         continue;
       }
       await retryOnBusy(() => rename(tmp, path), { tries: RENAME_TRIES, backoffMs: WRITEBACK_RENAME_BACKOFF_MS, sleep });
@@ -116,7 +116,7 @@ export async function completeWriteBack(req: ActionRequest, deps: ActionDeps): P
     } finally {
       if (!renamed) rmSync(tmp, { force: true });
     }
-    refreshFeed(entry.file);
+    refreshFeed({ kind: 'card', id: entry.key });
     return { ok: true };
   }
   return CHANGED;

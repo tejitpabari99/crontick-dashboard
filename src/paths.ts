@@ -16,7 +16,8 @@ export function dataDir(env: Env = process.env): string {
   return envPaths(APP_NAME, { suffix: '' }).data;
 }
 export const feedDir = (env: Env = process.env): string => join(dataDir(env), 'feed');
-export const doneDir = (env: Env = process.env): string => join(dataDir(env), 'feed', 'done');
+export const doneDir = (env: Env = process.env): string => join(dataDir(env), 'feed', 'alerts', '.done');
+export const alertsDir = (env: Env = process.env): string => join(dataDir(env), 'feed', 'alerts');
 export const statePath = (env: Env = process.env): string => join(dataDir(env), 'state.json');
 export const configPath = (env: Env = process.env): string => join(dataDir(env), 'config.json');
 export const pidFilePath = (env: Env = process.env): string => join(dataDir(env), 'daemon.pid');
@@ -29,7 +30,7 @@ const PRIVATE_DIR_MODE = 0o700;
 
 /** First-run setup: creates dirs and a default config.json. Never creates state.json. */
 export function ensureDirs(env: Env = process.env): void {
-  for (const dir of [dataDir(env), feedDir(env), doneDir(env)]) {
+  for (const dir of [dataDir(env), feedDir(env), alertsDir(env)]) {
     mkdirSync(dir, { recursive: true, mode: PRIVATE_DIR_MODE });
   }
   const cfg = configPath(env);

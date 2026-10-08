@@ -84,8 +84,6 @@ describe('e2e acceptance', () => {
     expect((await snap(s2)).completed.map((c) => c.id)).toContain('p1');
   });
 
-  // Alert tick idempotency is covered again when alert ingest returns (later task).
-
   it('feed write -> snapshot -> mutation -> restart', async () => {
     const s = await boot();
     expect((await snap(s)).alerts).toEqual([]);

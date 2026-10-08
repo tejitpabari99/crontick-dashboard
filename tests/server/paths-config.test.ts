@@ -25,7 +25,7 @@ describe('paths', () => {
   it('resolves all paths under override', () => {
     expect(dataDir(env)).toBe(home);
     expect(feedDir(env)).toBe(join(home, 'feed'));
-    expect(doneDir(env)).toBe(join(home, 'feed', 'done'));
+    expect(doneDir(env)).toBe(join(home, 'feed', 'alerts', '.done'));
     expect(statePath(env)).toBe(join(home, 'state.json'));
     expect(configPath(env)).toBe(join(home, 'config.json'));
     expect(pidFilePath(env)).toBe(join(home, 'daemon.pid'));
@@ -38,7 +38,7 @@ describe('paths', () => {
   });
   it('first run creates layout, default config, no state.json', () => {
     ensureDirs(env);
-    for (const d of [home, feedDir(env), doneDir(env)]) expect(statSync(d).isDirectory()).toBe(true);
+    for (const d of [home, feedDir(env), join(feedDir(env), 'alerts')]) expect(statSync(d).isDirectory()).toBe(true);
     if (process.platform !== 'win32') {
       expect(statSync(home).mode & 0o777).toBe(0o700);
       expect(statSync(feedDir(env)).mode & 0o777).toBe(0o700);
@@ -83,6 +83,12 @@ describe('config', () => {
   it('ensureDirs does not create archive/', () => {
     ensureDirs(env);
     expect(existsSync(join(home, 'archive'))).toBe(false);
+  });
+  it('ensureDirs creates feed/alerts but not feed/done or feed/alerts/.done', () => {
+    ensureDirs(env);
+    expect(statSync(join(home, 'feed', 'alerts')).isDirectory()).toBe(true);
+    expect(existsSync(join(home, 'feed', 'done'))).toBe(false);
+    expect(existsSync(doneDir(env))).toBe(false);
   });
   it('accepts valid values', () => {
     write({ port: 5000, nowPriorityThreshold: 4, pollIntervalMs: POLL_MIN_MS, timezone: 'Asia/Tokyo', notifications: { os: 'off' } });

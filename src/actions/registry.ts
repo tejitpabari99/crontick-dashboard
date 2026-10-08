@@ -8,6 +8,12 @@ import { completeWriteBack } from './writeback.js';
 
 export type ActionType = 'dismiss' | 'complete';
 
+/** One feed entry to re-ingest, by id (never a path). */
+export interface FeedRef {
+  kind: 'card' | 'alert';
+  id: string;
+}
+
 export interface ActionRequest {
   entry: OkEntry;
   itemId: string;
@@ -20,7 +26,7 @@ export interface ActionDeps {
   state: StateStore;
   clock: Clock;
   feedDir: string;
-  refreshFeed: (file: string) => void;
+  refreshFeed: (ref: FeedRef) => void;
   /** Watcher's file -> hash registry of server writes (self-write detection). */
   selfWrites: Map<string, string>;
   /** Test seams. */

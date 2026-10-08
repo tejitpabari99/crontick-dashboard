@@ -1,7 +1,7 @@
 /** Hono app: security envelope + read routes. Mutation routes attach in `mountMutations`. */
 import { Hono } from 'hono';
 import { APP_NAME } from '../constants/app.js';
-import type { ActionDeps } from '../actions/registry.js';
+import type { ActionDeps, FeedRef } from '../actions/registry.js';
 import type { Clock } from '../clock.js';
 import type { ConfigReader } from '../config.js';
 import { computeSnapshot } from '../compute/snapshot.js';
@@ -27,8 +27,8 @@ export interface AppContext {
   doneDir: string;
   /** Ingest issues (skipped folders, loose files) surfaced as snapshot warnings. */
   issues?: () => string[];
-  /** Re-ingest one feed path (`<id>/<file>` or `<id>`) synchronously (after server-side moves/writes). */
-  refreshFeed: (file: string) => void;
+  /** Re-ingest one card folder or alert file by id, synchronously (after server-side moves/writes). */
+  refreshFeed: (ref: FeedRef) => void;
   /** Watcher self-write registry (file -> hash of bytes the server wrote). */
   selfWrites: Map<string, string>;
   /** Test seams for write-back. */

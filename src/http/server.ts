@@ -9,6 +9,7 @@ import { LOOPBACK_HOST } from '../constants/http.js';
 import { RECONCILE_INTERVAL_MS } from '../constants/state.js';
 import { createCardEvents, type CardEvents } from '../feed/events.js';
 import { createFeedWatcher } from '../feed/watcher.js';
+import { syncSchemas as realSyncSchemas, type SchemaSyncResult } from '../schemas-sync.js';
 import { dataDir as dataDirOf, doneDir, ensureDirs, feedDir, portFilePath } from '../paths.js';
 import { claimPidFile, releasePidFile } from '../pid.js';
 import { errorMessage } from '../utils/errors.js';
@@ -47,6 +48,8 @@ export interface StartServerOptions {
   actionTestDeps?: Pick<ActionDeps, 'rename' | 'sleep' | 'hooks'>;
   /** OS notification adapter (default: real node-notifier adapter, created lazily on first delivery). */
   notifyAdapter?: NotifyAdapter;
+  /** Schema sync run once at startup (default `syncSchemas`); failures are logged, never fatal. */
+  syncSchemas?: (env: NodeJS.ProcessEnv) => SchemaSyncResult;
   /** Timer source for the state-reconcile interval (default real timers). */
   timers?: IntervalTimers;
   /** Platform used by the notification gate (default process.platform). Mainly for tests. */
@@ -76,6 +79,12 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
   assertUiBuilt(opts.uiDir);
 
   ensureDirs(env);
+  try {
+    const sync = (opts.syncSchemas ?? ((e) => realSyncSchemas(e)))(env);
+    for (const w of sync.warnings) logger.warn(w);
+  } catch (err) {
+    logger.warn(`schema sync failed: ${errorMessage(err)}`);
+  }
   await claimPidFile(env);
   const dataDir = dataDirOf(env);
   const config = createConfigReader(env);
@@ -160,7 +169,13 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     feedDir: feedDir(env),
     doneDir: doneDir(env),
     issues: () => watcher.issues(),
-    refreshFeed: (f) => watcher.processFolder(f.split('/')[0] ?? f),
+    refreshFeed: (ref) => {
+      if (ref.kind === 'card') watcher.processFolder(ref.id);
+      else {
+        watcher.processAlert(`${ref.id}.json`);
+        watcher.processCompletedAlert(`${ref.id}.json`);
+      }
+    },
     selfWrites: watcher.selfWrites,
     ...(opts.actionTestDeps ? { actionTestDeps: opts.actionTestDeps } : {}),
     uiDir: opts.uiDir,

@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, rename, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, rename, unlink, utimes } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import type { Clock } from '../clock.js';
 import { errnoCode } from '../utils/errors.js';
@@ -10,10 +10,15 @@ export interface MoveToDoneOptions {
   /** File name directly under feedDir (no path separators). */
   file: string;
   clock: Clock;
+  /** If set, the moved file's atime/mtime are set to this instant (the tick time). */
+  touchAt?: Date;
 }
 
-/** Rename `feed/<file>` to `feed/done/<file>` (suffix `-<ts>` on collision; EXDEV falls back to copy+unlink). Gone = ok. */
-export async function moveToDone({ feedDir, doneDir, file, clock }: MoveToDoneOptions): Promise<void> {
+/**
+ * Rename `<feedDir>/<file>` into doneDir (suffix `-<ts>` on collision; EXDEV falls back to copy+unlink).
+ * Returns the name it landed under, or undefined when the source was already gone.
+ */
+export async function moveToDone({ feedDir, doneDir, file, clock, touchAt }: MoveToDoneOptions): Promise<string | undefined> {
   if (basename(file) !== file) throw new Error('invalid feed file name');
   const src = join(feedDir, file);
   await mkdir(doneDir, { recursive: true });
@@ -27,16 +32,18 @@ export async function moveToDone({ feedDir, doneDir, file, clock }: MoveToDoneOp
     await rename(src, dest);
   } catch (err) {
     const code = errnoCode(err);
-    if (code === 'ENOENT') return;
+    if (code === 'ENOENT') return undefined;
     if (code !== 'EXDEV') throw err;
     try {
       await copyFile(src, dest);
     } catch (e2) {
-      if (errnoCode(e2) === 'ENOENT') return;
+      if (errnoCode(e2) === 'ENOENT') return undefined;
       throw e2;
     }
     await unlink(src).catch((e3: NodeJS.ErrnoException) => {
       if (e3.code !== 'ENOENT') throw e3;
     });
   }
+  if (touchAt) await utimes(dest, touchAt, touchAt);
+  return target;
 }
