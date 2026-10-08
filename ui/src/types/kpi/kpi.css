@@ -27,8 +27,4 @@
 @media (prefers-reduced-motion: reduce) {
   .kpi-value--fade, .kpi-state--pending [aria-hidden] { animation: none !important; }
 }
-.kpi-alert { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: var(--fs-base); }
-.kpi-alert-line { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
-.kpi-alert-label { color: var(--text-muted); }
-.kpi-alert-value { font-weight: 600; font-variant-numeric: tabular-nums; }
 .kpi-more, .kpi-empty { font-size: var(--fs-meta); color: var(--text-muted); margin: 0; }

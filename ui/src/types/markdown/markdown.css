@@ -12,4 +12,3 @@
 .md-body th, .md-body td { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); padding: 4px 8px; }
 .md-img { max-width: 100%; height: auto; }
 .md-empty { color: var(--muted, inherit); opacity: 0.7; margin: 0; }
-.md-alert { margin: 0; }

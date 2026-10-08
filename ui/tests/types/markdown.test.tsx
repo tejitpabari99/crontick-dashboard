@@ -8,7 +8,7 @@ import type { MarkdownData } from '../../../src/index.js';
 
 const def = getCardType('markdown')!;
 
-function renderMd(text: string, mode: CardTypeProps<MarkdownData>['mode'] = 'grid') {
+function renderMd(text: string, mode: CardTypeProps<MarkdownData>['mode'] = 'column') {
   const C = def.Component as React.ComponentType<CardTypeProps<MarkdownData>>;
   return render(
     <C
@@ -24,7 +24,7 @@ function renderMd(text: string, mode: CardTypeProps<MarkdownData>['mode'] = 'gri
 }
 
 describe('markdown type', () => {
-  it('registers, allows alert, searchText = text and is total', () => {
+  it('registers, searchText = text and is total', () => {
     expect(def).toBeDefined();
     expect(def.searchText({ text: 'hi **there**' })).toBe('hi **there**');
     expect(def.searchText({} as never)).toBe('');
@@ -88,14 +88,6 @@ describe('markdown type', () => {
     expect(boxes).toHaveLength(2);
     boxes.forEach((b) => expect((b as HTMLInputElement).disabled).toBe(true));
     expect(container.querySelector('pre code')?.textContent).toContain('code');
-  });
-
-  it('alert: first paragraph, plain text, 2-line clamp', () => {
-    const { container } = renderMd('**Disk** full on [db](https://x.com)\n\nsecond para', 'alert');
-    const p = container.querySelector('.clamp-2');
-    expect(p?.textContent).toContain('Disk');
-    expect(p?.textContent).not.toContain('second');
-    expect(container.querySelector('a, strong')).toBeNull();
   });
 
   it('empty shows (empty)', () => {

@@ -5,7 +5,6 @@ import remarkGfm from 'remark-gfm';
 import { CardLink, isAllowedLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
 import type { MarkdownData } from '../../../../src/index.js';
-import { clampProps } from '../shared/clamp.ts';
 import { safeImageSrc } from '../shared/safeImageSrc.ts';
 import './markdown.css';
 
@@ -45,14 +44,9 @@ const components: Components = {
   input: ({ checked }) => <input type="checkbox" checked={!!checked} disabled readOnly />,
 };
 
-export function MarkdownBody({ data, mode }: CardTypeProps<MarkdownData>) {
+export function MarkdownBody({ data }: CardTypeProps<MarkdownData>) {
   const text = typeof data?.text === 'string' ? data.text : '';
   if (text.trim() === '') return <p className="md-empty">(empty)</p>;
-  if (mode === 'alert') {
-    const first = text.split(/\n\s*\n/).find((p) => p.trim() !== '') ?? '';
-    const plain = first.trim();
-    return <p {...clampProps(plain, 2)} className="md-alert clamp-2">{plain}</p>;
-  }
   return (
     <div className="md-body">
       <Markdown remarkPlugins={[remarkGfm]} skipHtml urlTransform={urlTransform} components={components}>

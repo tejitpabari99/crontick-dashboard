@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ALERT_CAP } from '../../constants/types.ts';
 import { CardLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
 import type { KpiData, KpiMetric } from '../../../../src/index.js';
@@ -90,28 +89,6 @@ export function KpiBody({ card, data, mode }: CardTypeProps<KpiData>) {
   const [reduced] = useState(reducedMotion);
 
   if (items.length === 0) return <p className="kpi-empty">–</p>;
-
-  if (mode === 'alert') {
-    const shown = items.slice(0, ALERT_CAP);
-    const rest = items.length - shown.length;
-    return (
-      <div className="kpi-alert">
-        {shown.map((m, i) => {
-          const t = trendView(m.trend);
-          const word = stateWord(m.state);
-          return (
-            <div key={i} className="kpi-alert-line">
-              {word && <span role="img" className="kpi-alert-state" aria-label={`State: ${word}`}><span aria-hidden="true">{STATE_ICON[m.state as KpiState]}</span></span>}
-              {m.label && <span className="kpi-alert-label">{m.label}</span>}
-              <span className="kpi-alert-value">{`${valueText(m.value)}${m.unit ? ` ${m.unit}` : ''}`}</span>
-              {t && <span role="img" className={`kpi-trend kpi-trend--${t.tone}`} aria-label={t.label}><span aria-hidden="true">{`${t.arrow} ${t.text}`}</span></span>}
-            </div>
-          );
-        })}
-        {rest > 0 && <span className="kpi-more">{`+${rest}`}</span>}
-      </div>
-    );
-  }
 
   const full = mode === 'fullscreen';
   const shown = full ? items : items.slice(0, COMPACT_CAP);

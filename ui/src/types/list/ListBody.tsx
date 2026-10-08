@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ALERT_CAP, PAGE } from '../../constants/types.ts';
+import { PAGE } from '../../constants/types.ts';
 import { useDelayedSpinner } from '../../lib/delayed-spinner.ts';
 import { CardLink } from '../../frame/CardLink.tsx';
 import type { CardTypeProps } from '../../registry/registry.ts';
@@ -68,7 +68,6 @@ function actionType(item: ListItem): 'complete' | 'dismiss' | undefined {
 }
 
 export function ListBody({ card, data, mode, query, checked, pending, onItemAction }: CardTypeProps<ListData>) {
-  const alert = mode === 'alert';
   const full = mode === 'fullscreen';
   const items = useMemo<ListItem[]>(() => (Array.isArray(data?.items) ? data.items : []), [data]);
   const [shown, setShown] = useState(PAGE);
@@ -80,7 +79,7 @@ export function ListBody({ card, data, mode, query, checked, pending, onItemActi
   const tz = dueTimeZone();
 
   const pool = full && hideDone ? pre.visible.filter((i) => !isChecked(i)) : pre.visible;
-  const cap = alert ? ALERT_CAP : full ? shown : COMPACT_CAP;
+  const cap = full ? shown : COMPACT_CAP;
   const rows = pool.slice(0, cap);
   const remaining = pool.length - rows.length;
 
@@ -97,23 +96,21 @@ export function ListBody({ card, data, mode, query, checked, pending, onItemActi
 
   return (
     <div className="lst-root">
-      {!alert && (
-        <div className="lst-head">
-          <span className="lst-count">{`${done} of ${items.length} done`}</span>
-          {full && (
-            <label className="lst-hide">
-              <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
-              <span>Hide done</span>
-            </label>
-          )}
-        </div>
-      )}
-      <ul className={`lst${alert ? ' lst--alert' : ''}`}>
+      <div className="lst-head">
+        <span className="lst-count">{`${done} of ${items.length} done`}</span>
+        {full && (
+          <label className="lst-hide">
+            <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
+            <span>Hide done</span>
+          </label>
+        )}
+      </div>
+      <ul className="lst">
         {rows.map((it, idx) => {
           const c = isChecked(it);
           const act = actionType(it);
           const due = it.due ? formatDue(it.due, now, tz) : null;
-          const lines = alert ? 1 : 2;
+          const lines = 2;
           const textNode = highlight(it.text, query);
           const mainText = it.link ? (
             <CardLink href={it.link} title={it.text}>
@@ -148,7 +145,7 @@ export function ListBody({ card, data, mode, query, checked, pending, onItemActi
                     <span className={`lst-due${due.overdue && !c ? ' lst-due--negative' : ''}`}>{due.label}</span>
                   )}
                 </div>
-                {it.subtitle && !alert && (
+                {it.subtitle && (
                   <div className="lst-sub">
                     <span {...clampProps(it.subtitle, 2)}>{highlight(it.subtitle, query)}</span>
                   </div>
@@ -159,9 +156,7 @@ export function ListBody({ card, data, mode, query, checked, pending, onItemActi
         })}
       </ul>
       {remaining > 0 &&
-        (alert ? (
-          <span className="lst-more">{`+${remaining}`}</span>
-        ) : full ? (
+        (full ? (
           <PageMore count={Math.min(remaining, PAGE)} onMore={() => setShown((s) => s + PAGE)} />
         ) : (
           <ShowMore cardId={card.id} count={remaining} />

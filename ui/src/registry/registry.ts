@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import type { KnownType, KpiData, ListData, MarkdownData, MediaData, TableData } from '../../../src/index.js';
 import type { ViewCard } from '../api/types.ts';
 
-export type Mode = 'grid' | 'now' | 'alert' | 'fullscreen';
+export type Mode = 'column' | 'now' | 'fullscreen';
 
 /** Keys are the 01 registry type names. */
 export type TypeName = KnownType;

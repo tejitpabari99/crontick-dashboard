@@ -5,7 +5,6 @@ import { getCardType } from '../../src/registry/registry.ts';
 import '../../src/types/kpi/index.ts';
 import example from '../../../templates/kpi.example.json';
 import type { CardTypeProps } from '../../src/registry/registry.ts';
-import { ALERT_CAP } from '../../src/constants/types.ts';
 import type { KpiData } from '../../../src/index.js';
 
 const def = getCardType('kpi')!;
@@ -17,7 +16,7 @@ function el(data: unknown, over: Partial<P> = {}) {
     <C
       card={{ id: 'c1' } as never}
       data={data as KpiData}
-      mode="grid"
+      mode="column"
       query=""
       checked={new Set()}
       pending={new Set()}
@@ -119,15 +118,8 @@ describe('kpi type', () => {
     });
   });
 
-  it('alert: one line per metric, first ALERT_CAP + plain "+N"', () => {
-    const { container } = renderKpi(n(ALERT_CAP + 2), { mode: 'alert' });
-    expect(container.querySelectorAll('.kpi-alert-line').length).toBe(ALERT_CAP);
-    expect(screen.getByText('+2').tagName).not.toBe('BUTTON');
-    expect(screen.queryByRole('button')).toBeNull();
-  });
-
   it('renders 01 example with no axe violations (all modes)', async () => {
-    for (const mode of ['grid', 'fullscreen', 'alert'] as const) {
+    for (const mode of ['column', 'fullscreen'] as const) {
       const { container, unmount } = renderKpi(example.data, { mode });
       const res = await axe.run(container);
       expect(res.violations).toEqual([]);

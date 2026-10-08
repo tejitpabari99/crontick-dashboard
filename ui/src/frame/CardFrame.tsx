@@ -37,6 +37,12 @@ function emitExpanded(): void {
   expandedVersion++;
   for (const l of [...expandedListeners]) l();
 }
+/** Expand/collapse a collapsed-by-default card (UI-local, per session). */
+export function setExpanded(id: string, on: boolean): void {
+  if (on) expanded.add(id);
+  else expanded.delete(id);
+  emitExpanded();
+}
 export function resetExpanded(): void {
   expanded.clear();
   emitExpanded();
@@ -44,7 +50,7 @@ export function resetExpanded(): void {
 export function isExpanded(id: string): boolean {
   return expanded.has(id);
 }
-/** Notified whenever any card is expanded/collapsed (grid re-derives collapsed heights). */
+/** Notified whenever any card is expanded/collapsed (parents re-derive chip vs frame). */
 export function subscribeExpanded(l: () => void): () => void {
   expandedListeners.add(l);
   return () => {
@@ -73,19 +79,21 @@ export function CardFrame(p: CardFrameProps) {
   const [reduced] = useState(reducedMotion);
   const prevUpdated = useRef(card.updatedAt);
 
-  const highlighted = card.notify && seenAt !== card.updatedAt && isUnseen(card);
+  const updatedAt = card.updatedAt;
+  const noData = card.status === 'no-data';
+  const highlighted = card.notify && updatedAt !== undefined && seenAt !== updatedAt && isUnseen({ id: card.id, updatedAt });
 
   const see = () => {
-    if (!highlighted) return;
-    markSeen(card);
-    setSeenAt(card.updatedAt);
+    if (!highlighted || updatedAt === undefined) return;
+    markSeen({ id: card.id, updatedAt });
+    setSeenAt(updatedAt);
   };
 
   // 600 ms accent fade when updatedAt changes after first render.
   useEffect(() => {
     if (prevUpdated.current === card.updatedAt) return;
     prevUpdated.current = card.updatedAt;
-    if (reduced) return;
+    if (reduced || card.updatedAt === undefined) return;
     setFlash(true);
     const t = setTimeout(() => setFlash(false), FADE_MS);
     return () => clearTimeout(t);
@@ -101,6 +109,7 @@ export function CardFrame(p: CardFrameProps) {
         const e = entries[entries.length - 1];
         if (e && e.intersectionRatio >= 0.5) {
           timer ??= setTimeout(() => {
+            if (card.updatedAt === undefined) return;
             markSeen({ id: card.id, updatedAt: card.updatedAt });
             setSeenAt(card.updatedAt);
           }, SEEN_DWELL_MS);
@@ -119,20 +128,18 @@ export function CardFrame(p: CardFrameProps) {
   }, [highlighted, card.id, card.updatedAt]);
 
   const broken = card.status === 'broken';
-  const isChip = mode === 'grid' && card.collapsed && !expanded.has(card.id);
   const isPriority = card.priority >= p.nowPriorityThreshold;
 
   const toggle = () => {
-    if (expanded.has(card.id)) expanded.delete(card.id);
-    else expanded.add(card.id);
+    setExpanded(card.id, !expanded.has(card.id));
     bump((n) => n + 1);
-    emitExpanded();
   };
 
   const cls = [
     'card-frame',
     broken && 'card-frame--broken',
-    isChip && 'card-frame--chip',
+    `card-frame--h-${card.height}`,
+    noData && 'card-frame--nodata',
     highlighted && 'card-frame--notify',
     !reduced && 'card-frame--enter',
     flash && 'card-frame--updated',
@@ -147,49 +154,38 @@ export function CardFrame(p: CardFrameProps) {
   ) : null;
   const dot = highlighted ? <span className="card-frame__dot" data-testid="notify-dot" aria-label="New" /> : null;
 
-  if (isChip) {
-    return (
-      <section ref={rootRef} className={cls} data-card-id={card.id} aria-label={card.title} onClick={see} onFocus={see}>
-        <header className="card-frame__bar drag-handle">
-          {dot}
-          {marker}
-          <h3 className="card-frame__title" title={card.title}>
-            {card.title}
-          </h3>
-          <button type="button" className="card-frame__btn" aria-label="Expand" aria-expanded="false" onClick={toggle}>
-            ▾
-          </button>
-        </header>
-      </section>
-    );
-  }
-
-  const def = broken ? undefined : getCardType(card.type);
+  const def = broken || noData ? undefined : getCardType(card.type);
   const Body = def?.Component;
 
   return (
     <section ref={rootRef} className={cls} data-card-id={card.id} aria-label={card.title} onClick={see} onFocus={see}>
-      <header className="card-frame__bar drag-handle">
+      <header className="card-frame__bar">
         {dot}
         {marker}
         <h3 className="card-frame__title" title={card.title}>
           {card.title}
         </h3>
-        <span className="card-frame__meta" title={new Date(card.updatedAt).toLocaleString()}>
-          {formatRelative(card.updatedAt, now)}
-        </span>
+        {!noData && updatedAt !== undefined ? (
+          <span className="card-frame__meta" title={new Date(updatedAt).toLocaleString()}>
+            {formatRelative(updatedAt, now)}
+          </span>
+        ) : null}
         <span className="card-frame__actions">
-          {card.collapsed && mode === 'grid' ? (
+          {card.collapsed && mode === 'column' ? (
             <button type="button" className="card-frame__btn" aria-label="Collapse" aria-expanded="true" onClick={toggle}>
               ▴
             </button>
           ) : null}
-          <button type="button" className="card-frame__btn" aria-label="Fullscreen" onClick={() => p.onFullscreen(card.id)}>
-            ⤢
-          </button>
-          <button type="button" className="card-frame__btn" aria-label="Done" onClick={() => p.onDone(card.id)}>
-            ✓
-          </button>
+          {noData ? null : (
+            <button type="button" className="card-frame__btn" aria-label="Fullscreen" onClick={() => p.onFullscreen(card.id)}>
+              ⤢
+            </button>
+          )}
+          {noData ? null : (
+            <button type="button" className="card-frame__btn" aria-label="Done" onClick={() => p.onDone(card.id)}>
+              ✓
+            </button>
+          )}
           <button type="button" className="card-frame__btn" aria-label="Hide" onClick={() => p.onHide(card.id)}>
             ✕
           </button>
@@ -197,6 +193,10 @@ export function CardFrame(p: CardFrameProps) {
       </header>
       {broken ? (
         <BrokenBody card={card} />
+      ) : noData ? (
+        <div className="card-frame__body">
+          <p className="meta">No data yet</p>
+        </div>
       ) : (
         <div className="card-frame__body">
           <ErrorBoundary>

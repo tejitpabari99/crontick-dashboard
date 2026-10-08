@@ -16,7 +16,7 @@ function renderMedia(data: unknown, over: Partial<P> = {}) {
     <C
       card={{ id: 'c1' } as never}
       data={data as MediaData}
-      mode="grid"
+      mode="column"
       query=""
       checked={new Set()}
       pending={new Set()}
@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe('media type', () => {
   it('registers without alert mode', () => {
-    expect(def.allowedModes).toEqual(['grid', 'now', 'fullscreen']);
+    expect(def.allowedModes).toEqual(['column', 'now', 'fullscreen']);
   });
 
   it('searchText = alt + caption', () => {
@@ -109,7 +109,7 @@ describe('media type', () => {
   });
 
   it('renders 01 example with no axe violations', async () => {
-    for (const mode of ['grid', 'fullscreen'] as const) {
+    for (const mode of ['column', 'fullscreen'] as const) {
       const { container, unmount } = renderMedia(example.data, { mode });
       const res = await axe.run(container);
       expect(res.violations).toEqual([]);
@@ -123,7 +123,7 @@ describe('media type', () => {
     fireEvent.error(container.querySelector('img')!);
     expect(container.querySelector('img')).toBeNull();
     rerender(
-      <C card={{ id: 'c1' } as never} data={one('https://e.com/good.png') as MediaData} mode="grid" query="" checked={new Set()} pending={new Set()} onItemAction={async () => {}} />,
+      <C card={{ id: 'c1' } as never} data={one('https://e.com/good.png') as MediaData} mode="column" query="" checked={new Set()} pending={new Set()} onItemAction={async () => {}} />,
     );
     expect(container.querySelector('img')).not.toBeNull();
   });

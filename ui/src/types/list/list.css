@@ -12,7 +12,6 @@
 .lst-sub { font-size: var(--fs-meta); color: var(--text-muted); }
 .lst-item--done .lst-main { color: var(--text-muted); text-decoration: line-through; }
 .lst-item--done .lst-due, .lst-item--done .lst-chip { text-decoration: none; }
-.lst--alert .lst-line { flex-wrap: nowrap; }
 .lst-more, .lst-empty { font-size: var(--fs-meta); color: var(--text-muted); margin: 0; }
 
 .lst-spin { width: 12px; height: 12px; border: 2px solid var(--text-muted); border-right-color: transparent; border-radius: 50%; animation: lst-spin 700ms linear infinite; flex: none; margin-top: 2px; }

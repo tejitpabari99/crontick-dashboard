@@ -149,7 +149,7 @@ export function App(props: AppProps = {}) {
               renderCard={(c) => (
                 <CardFrame
                   card={c}
-                  mode="grid"
+                  mode="column"
                   query={query}
                   dim={searching && !matchIds?.has(c.id)}
                   match={Boolean(matchIds?.has(c.id))}

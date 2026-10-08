@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ViewCard } from '../src/api/types.ts';
 import { CardFrame, type CardFrameProps } from '../src/frame/CardFrame.tsx';
-import { resetExpanded } from '../src/frame/CardFrame.tsx';
+import { isExpanded, resetExpanded, setExpanded, subscribeExpanded } from '../src/frame/CardFrame.tsx';
 import { markSeen } from '../src/lib/seen.ts';
 import { SEEN_KEY } from '../src/constants/storage.ts';
 import { registerCardType } from '../src/registry/registry.ts';
@@ -13,13 +13,15 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 function card(over: Partial<ViewCard> = {}): ViewCard {
   return {
     id: 'c1',
-    kind: 'panel',
     type: 'zz-frame',
     title: 'My card',
     priority: 3,
     notify: false,
     updatedAt: ago(2 * 3_600_000),
+    column: 'center',
+    height: 'M',
     collapsed: false,
+    done: false,
     status: 'ok',
     data: { text: 'SECRET-DATA' },
     ...over,
@@ -29,7 +31,7 @@ function card(over: Partial<ViewCard> = {}): ViewCard {
 function props(over: Partial<CardFrameProps> = {}): CardFrameProps {
   return {
     card: card(),
-    mode: 'grid',
+    mode: 'column',
     query: '',
     checked: new Set(),
     pending: new Set(),
@@ -90,8 +92,8 @@ describe('title bar', () => {
     render(<CardFrame {...p} />);
     expect(screen.getByText('My card').getAttribute('title')).toBe('My card');
     const rel = screen.getByText('2h ago');
-    expect(rel.getAttribute('title')).toBe(new Date(p.card.updatedAt).toLocaleString());
-    expect(screen.getByTestId('body').textContent).toBe('SECRET-DATA|grid');
+    expect(rel.getAttribute('title')).toBe(new Date(p.card.updatedAt!).toLocaleString());
+    expect(screen.getByTestId('body').textContent).toBe('SECRET-DATA|column');
     expect(document.querySelector('.card-frame__body')).not.toBeNull();
   });
 
@@ -164,7 +166,7 @@ describe('notify highlight', () => {
 
   it('already-seen card is not highlighted', () => {
     const c = n();
-    markSeen(c);
+    markSeen({ id: c.id, updatedAt: c.updatedAt! });
     const { container } = render(<CardFrame {...props({ card: c })} />);
     expect(container.querySelector('.card-frame--notify')).toBeNull();
   });
@@ -220,7 +222,7 @@ describe('notify highlight', () => {
 
   it('new updatedAt re-highlights', () => {
     const c = n();
-    markSeen(c);
+    markSeen({ id: c.id, updatedAt: c.updatedAt! });
     const { container, rerender } = render(<CardFrame {...props({ card: c })} />);
     rerender(<CardFrame {...props({ card: { ...c, updatedAt: ago(0) } })} />);
     expect(container.querySelector('.card-frame--notify')).not.toBeNull();
@@ -253,33 +255,53 @@ describe('motion', () => {
   });
 });
 
-describe('collapsed chip', () => {
+describe('heights', () => {
+  it.each(['S', 'M', 'L', 'auto'] as const)('height %s -> card-frame--h-%s', (h) => {
+    const { container } = render(<CardFrame {...props({ card: card({ height: h }) })} />);
+    expect(container.querySelector('.card-frame')!.classList.contains(`card-frame--h-${h}`)).toBe(true);
+    expect(container.querySelector('.drag-handle')).toBeNull();
+  });
+});
+
+describe('no-data', () => {
+  const nd = () => card({ status: 'no-data', data: undefined, updatedAt: undefined, notify: true, height: 'S' });
+  it('muted frame with placeholder, no body, no Done/Fullscreen, Hide kept', () => {
+    const p = props({ card: nd() });
+    const { container } = render(<CardFrame {...p} />);
+    expect(container.querySelector('.card-frame--nodata')).not.toBeNull();
+    expect(container.querySelector('.card-frame--h-S')).not.toBeNull();
+    expect(screen.getByText('No data yet').className).toContain('meta');
+    expect(screen.getByText('My card')).toBeTruthy();
+    expect(screen.queryByTestId('body')).toBeNull();
+    expect(container.querySelector('.card-frame__meta')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fullscreen' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    expect(p.onHide).toHaveBeenCalledWith('c1');
+    expect(screen.queryByTestId('notify-dot')).toBeNull();
+  });
+});
+
+describe('collapsed card, expanded', () => {
   const col = () => card({ collapsed: true, priority: 9 });
 
-  it('renders compact chip without body, expand shows body', () => {
+  it('shows Collapse button in column mode only', () => {
     render(<CardFrame {...props({ card: col() })} />);
-    expect(screen.queryByTestId('body')).toBeNull();
-    expect(screen.getByText('My card')).toBeTruthy();
-    expect(screen.getByTestId('priority-marker')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
-    expect(screen.getByTestId('body')).toBeTruthy();
-  });
-
-  it('expand survives remount (session) but resets on reload', () => {
-    const { unmount } = render(<CardFrame {...props({ card: col() })} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
-    unmount();
-    render(<CardFrame {...props({ card: col() })} />);
-    expect(screen.getByTestId('body')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Collapse' }).getAttribute('aria-expanded')).toBe('true');
     cleanup();
-    resetExpanded(); // simulates page reload: in-memory map is gone
-    render(<CardFrame {...props({ card: col() })} />);
-    expect(screen.queryByTestId('body')).toBeNull();
-    expect(localStorage.length).toBe(0);
+    render(<CardFrame {...props({ card: col(), mode: 'fullscreen' })} />);
+    expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull();
+    expect(screen.getByTestId('body')).toBeTruthy();
   });
 
-  it('non-grid modes ignore collapsed', () => {
-    render(<CardFrame {...props({ card: col(), mode: 'fullscreen' })} />);
-    expect(screen.getByTestId('body')).toBeTruthy();
+  it('Collapse clears the session expanded flag and notifies subscribers', () => {
+    setExpanded('c1', true);
+    const l = vi.fn();
+    const off = subscribeExpanded(l);
+    render(<CardFrame {...props({ card: col() })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+    expect(isExpanded('c1')).toBe(false);
+    expect(l).toHaveBeenCalled();
+    off();
   });
 });

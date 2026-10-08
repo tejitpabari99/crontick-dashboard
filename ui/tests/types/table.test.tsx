@@ -17,7 +17,7 @@ function renderTable(data: unknown, over: Partial<P> = {}) {
     <C
       card={{ id: 'c1' } as never}
       data={data as TableData}
-      mode="grid"
+      mode="column"
       query=""
       checked={new Set()}
       pending={new Set()}
@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe('table type', () => {
   it('registers without alert; searchText covers labels + cells', () => {
-    expect(def.allowedModes).toEqual(['grid', 'now', 'fullscreen']);
+    expect(def.allowedModes).toEqual(['column', 'now', 'fullscreen']);
     expect(def.searchText({ columns: ['A'], rows: [{ cells: ['x'] }] } as never)).toBe('A x');
   });
 
@@ -163,7 +163,7 @@ describe('table type', () => {
     expect(container.querySelectorAll('tbody tr').length).toBe(1);
     expect(container.querySelector('mark')!.textContent).toBe('row1');
     const C = def.Component as React.ComponentType<P>;
-    const props = { card: { id: 'c1' } as never, data: big(3) as TableData, mode: 'grid' as const, checked: new Set<string>(), pending: new Set<string>(), onItemAction: async () => {} };
+    const props = { card: { id: 'c1' } as never, data: big(3) as TableData, mode: 'column' as const, checked: new Set<string>(), pending: new Set<string>(), onItemAction: async () => {} };
     rerender(<C {...props} query="zzz" />);
     expect(screen.getByText(/No rows match/).textContent).toContain('zzz');
     expect(container.querySelectorAll('tbody tr').length).toBe(0);

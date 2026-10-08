@@ -38,7 +38,7 @@ describe('templates/*.example.json fixtures', () => {
     it('renders with zero console errors and no axe violations', async () => {
       const err = vi.spyOn(console, 'error').mockImplementation(() => {});
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const modes = (getCardType(type)!.allowedModes ?? ['grid', 'now', 'alert', 'fullscreen']) as Mode[];
+      const modes = (getCardType(type)!.allowedModes ?? ['column', 'now', 'fullscreen']) as Mode[];
       for (const mode of modes) {
         const { container, unmount } = mount(type, data, mode);
         const res = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
