@@ -4,35 +4,56 @@
  */
 import type { BrokenReason } from '../constants/error-codes.js';
 
-export type ViewReason = BrokenReason | 'error' | 'stale' | 'duplicate-id' | 'no-data';
+export type ViewReason = BrokenReason | 'error' | 'stale';
+export type Column = 'left' | 'center' | 'right';
 
 export interface ViewCard {
   id: string;
-  kind: 'panel' | 'alert';
   type: string;
   title: string;
+  /** Effective priority. */
   priority: number;
-  size?: 'S' | 'M' | 'L';
   notify: boolean;
-  updatedAt: string;
+  /** Absent for no-data cards. */
+  updatedAt?: string;
+  /** Always set; defaults resolved server-side. */
+  column: Column;
+  height: 'S' | 'M' | 'L' | 'auto';
+  status: 'ok' | 'broken' | 'no-data';
   collapsed: boolean;
-  status: 'ok' | 'broken';
+  done: boolean;
+  /** Only while done. */
+  doneAt?: string;
   /** Broken only. */
   reason?: ViewReason;
   /** Broken only. */
   message?: string;
-  /** Present for ok cards in every zone; omitted for broken. */
+  /** Present for ok cards; omitted for broken and no-data. */
   data?: Record<string, unknown>;
   /** Item ids ticked via `dismiss` (server-held state). */
   checked?: string[];
 }
 
-export interface Zones {
-  alerts: string[];
-  now: string[];
-  grid: string[];
-  tray: string[];
-  hidden: string[];
+export interface ViewAlert {
+  id: string;
+  title: string;
+  text?: string;
+  link?: string;
+  priority: number;
+  updatedAt: string;
+  status: 'ok' | 'broken';
+  /** Broken only. */
+  message?: string;
+}
+
+export interface ViewCompletedAlert {
+  /** `.done` file stem; may carry a collision suffix. */
+  id: string;
+  title: string;
+  text?: string;
+  link?: string;
+  priority: number;
+  tickedAt: string;
 }
 
 export interface Snapshot {
@@ -40,6 +61,14 @@ export interface Snapshot {
   rev: string;
   warnings: string[];
   config: { pollIntervalMs: number; nowPriorityThreshold: number };
-  zones: Zones;
+  columns: Record<Column, string[]>;
+  now: string[];
+  alerts: string[];
+  hidden: string[];
+  /** Sorted by doneAt/tickedAt desc, then id. */
+  completed: Array<{ kind: 'card' | 'alert'; id: string }>;
+  /** Done cards stay here with done:true, doneAt. */
   cards: Record<string, ViewCard>;
+  alertItems: Record<string, ViewAlert>;
+  completedAlertItems: Record<string, ViewCompletedAlert>;
 }

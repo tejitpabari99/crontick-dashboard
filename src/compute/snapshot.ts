@@ -2,9 +2,20 @@
 import { createHash } from 'node:crypto';
 import type { DashboardConfig } from '../config.js';
 import { parseDuration, windowActive } from '../contract/formats.js';
-import { envelope, type CardEnvelope, type CardEntry, type NoDataEntry, type OkEntry } from '../feed/ingest.js';
+import { COMPLETED_ALERT_MAX, COMPLETED_ALERT_MAX_AGE_MS } from '../constants/feed.js';
+import type { Layout } from '../contract/card-def.js';
+import {
+  envelope,
+  type AlertEntry,
+  type BrokenEntry,
+  type CardEntry,
+  type CardEnvelope,
+  type CompletedAlertEntry,
+  type NoDataEntry,
+  type OkEntry,
+} from '../feed/ingest.js';
 import { sameInstant } from '../instant.js';
-import type { Snapshot, ViewCard, ViewReason, Zones } from '../shared/api-types.js';
+import type { Column, Snapshot, ViewAlert, ViewCard, ViewCompletedAlert, ViewReason } from '../shared/api-types.js';
 import type { StateData } from '../state/store.js';
 
 interface Show {
@@ -15,8 +26,12 @@ interface Show {
 interface Item {
   view: ViewCard;
   hasCron: boolean;
-  windowOn: boolean;
+  /** Sort key within a column. */
+  order: number;
 }
+
+const DEFAULT_LAYOUT: Pick<Layout, 'column' | 'order' | 'height'> = { column: 'center', order: 0, height: 'auto' };
+const slot = (l: Pick<Layout, 'column' | 'order' | 'height'> | undefined) => l ?? DEFAULT_LAYOUT;
 
 export function inWindow(show: Show | undefined, now: Date, timezone: string): boolean {
   try {
@@ -43,18 +58,19 @@ export function brokenReason(card: Pick<CardEnvelope, 'updatedAt' | 'error' | 's
 
 function okItem(e: OkEntry, st: Readonly<StateData>, now: Date, tz: string): Item | null {
   const c = envelope(e);
-  const show = c.show;
-  if (!inWindow(show, now, tz)) return null;
+  if (!inWindow(c.show, now, tz)) return null;
+  const l = slot(e.card.layout);
   const view: ViewCard = {
     id: c.id,
-    kind: c.kind,
     type: c.type,
     title: c.title,
     priority: c.priority,
-    ...(c.size !== undefined ? { size: c.size } : {}),
     notify: c.notify,
     updatedAt: c.updatedAt,
-    collapsed: c.kind === 'panel' && c.priority <= 1,
+    column: l.column,
+    height: l.height,
+    collapsed: c.priority <= 1,
+    done: false,
     status: 'ok',
   };
   const b = brokenReason(c, now);
@@ -67,66 +83,71 @@ function okItem(e: OkEntry, st: Readonly<StateData>, now: Date, tz: string): Ite
   }
   const chk = Object.hasOwn(st.checks, c.id) ? st.checks[c.id] : undefined;
   if (chk && sameInstant(chk.updatedAt, c.updatedAt)) view.checked = [...chk.items];
-  return { view, hasCron: show?.cron !== undefined, windowOn: true };
+  return { view, hasCron: c.show?.cron !== undefined, order: l.order };
 }
 
-/** Interim (full DTO in a later task): a no-data card renders as a muted broken-style tile; stale from card.json mtime. */
+/** No data file yet: keeps its slot, no updatedAt/data, never Now/Done; `staleAfter` runs from card.json mtime. */
 function noDataItem(e: NoDataEntry, now: Date, tz: string): Item | null {
   const c = e.card;
   if (!inWindow(c.show, now, tz)) return null;
-  const stale = brokenReason({ updatedAt: new Date(e.viewMtimeMs).toISOString(), ...(c.staleAfter !== undefined ? { staleAfter: c.staleAfter } : {}) }, now);
-  return {
-    view: {
-      id: c.id,
-      kind: 'panel',
-      type: c.type,
-      title: c.title,
-      priority: c.priority,
-      notify: c.notify,
-      updatedAt: new Date(e.viewMtimeMs).toISOString(),
-      collapsed: false,
-      status: 'broken',
-      reason: stale?.reason ?? 'no-data',
-      message: stale?.message ?? 'waiting for data.json',
-    },
-    hasCron: false,
-    windowOn: true,
+  const l = slot(c.layout);
+  const stale = brokenReason(
+    { updatedAt: new Date(e.viewMtimeMs).toISOString(), ...(c.staleAfter !== undefined ? { staleAfter: c.staleAfter } : {}) },
+    now,
+  );
+  const view: ViewCard = {
+    id: c.id,
+    type: c.type,
+    title: c.title,
+    priority: c.priority,
+    notify: c.notify,
+    column: l.column,
+    height: l.height,
+    collapsed: c.priority <= 1,
+    done: false,
+    status: 'no-data',
   };
+  if (stale) {
+    view.status = 'broken';
+    view.reason = stale.reason;
+    view.message = stale.message;
+  }
+  return { view, hasCron: false, order: l.order };
 }
 
-function brokenItem(e: Exclude<CardEntry, OkEntry | NoDataEntry>): Item {
-  const id = e.key;
+function brokenItem(e: BrokenEntry): Item {
+  const l = slot(e.layout);
   return {
     view: {
-      id,
-      kind: 'panel',
+      id: e.key,
       type: 'unknown',
       title: e.title,
       priority: 2,
       notify: false,
       updatedAt: new Date(e.mtimeMs).toISOString(),
+      column: l.column,
+      height: l.height,
       collapsed: false,
+      done: false,
       status: 'broken',
       reason: e.reason,
       message: e.message,
     },
     hasCron: false,
-    windowOn: true,
+    order: l.order,
   };
 }
 
-const byOrder = (items: Map<string, Item>) => (a: string, b: string): number => {
-  const x = items.get(a)!.view;
-  const y = items.get(b)!.view;
-  if (x.priority !== y.priority) return y.priority - x.priority;
-  const tx = Date.parse(x.updatedAt);
-  const ty = Date.parse(y.updatedAt);
-  if (tx !== ty) return (Number.isNaN(ty) ? 0 : ty) - (Number.isNaN(tx) ? 0 : tx);
-  return x.id < y.id ? -1 : x.id > y.id ? 1 : 0;
+const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+const ms = (iso: string | undefined): number => {
+  const t = iso === undefined ? NaN : Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;
 };
 
 export function computeSnapshot(
   cards: Iterable<CardEntry>,
+  alerts: Iterable<AlertEntry>,
+  completedAlerts: Iterable<CompletedAlertEntry>,
   state: Readonly<StateData>,
   config: Pick<DashboardConfig, 'nowPriorityThreshold' | 'pollIntervalMs' | 'timezone'>,
   now: Date,
@@ -139,25 +160,94 @@ export function computeSnapshot(
     if (it) items.set(it.view.id, it);
   }
 
-  const zones: Zones = { alerts: [], now: [], grid: [], tray: [], hidden: [] };
+  const columns: Record<Column, string[]> = { left: [], center: [], right: [] };
+  const nowIds: string[] = [];
+  const hidden: string[] = [];
+  const doneCards: string[] = [];
   for (const [id, { view, hasCron }] of items) {
-    if (Object.hasOwn(state.hidden, id)) zones.hidden.push(id);
-    else if (view.kind === 'alert') zones.alerts.push(id);
-    else if (Object.hasOwn(state.acks, id) && sameInstant(state.acks[id]!, view.updatedAt)) zones.tray.push(id);
-    else if (hasCron && view.priority >= config.nowPriorityThreshold) zones.now.push(id);
-    else zones.grid.push(id);
+    if (Object.hasOwn(state.hidden, id)) hidden.push(id);
+    else if (view.updatedAt !== undefined && Object.hasOwn(state.acks, id) && sameInstant(state.acks[id]!, view.updatedAt)) {
+      view.done = true;
+      if (Object.hasOwn(state.doneAt, id)) view.doneAt = state.doneAt[id]!;
+      doneCards.push(id);
+    } else if (hasCron && view.priority >= config.nowPriorityThreshold) nowIds.push(id);
+    else columns[view.column].push(id);
   }
-  const cmp = byOrder(items);
-  for (const z of Object.keys(zones) as (keyof Zones)[]) zones[z].sort(cmp);
+  const v = (id: string): ViewCard => items.get(id)!.view;
+  nowIds.sort(
+    (a, b) => v(b).priority - v(a).priority || ms(v(b).updatedAt) - ms(v(a).updatedAt) || cmpStr(a, b),
+  );
+  for (const col of Object.keys(columns) as Column[]) {
+    columns[col].sort((a, b) => items.get(a)!.order - items.get(b)!.order || cmpStr(a, b));
+  }
+  hidden.sort(cmpStr);
 
-  const out: Record<string, ViewCard> = Object.create(null) as Record<string, ViewCard>;
-  for (const id of [...items.keys()].sort()) out[id] = items.get(id)!.view;
+  const cardsOut: Record<string, ViewCard> = Object.create(null) as Record<string, ViewCard>;
+  for (const id of [...items.keys()].sort()) cardsOut[id] = v(id);
+
+  // Alerts (cards-only hide/done; alerts have their own window + tick).
+  const alertItems: Record<string, ViewAlert> = Object.create(null) as Record<string, ViewAlert>;
+  for (const a of alerts) {
+    if (a.status === 'ok') {
+      if (!inWindow(a.alert.show, now, config.timezone)) continue;
+      alertItems[a.key] = {
+        id: a.key,
+        title: a.alert.title,
+        ...(a.alert.text !== undefined ? { text: a.alert.text } : {}),
+        ...(a.alert.link !== undefined ? { link: a.alert.link } : {}),
+        priority: a.alert.priority,
+        updatedAt: a.alert.updatedAt,
+        status: 'ok',
+      };
+    } else {
+      alertItems[a.key] = {
+        id: a.key,
+        title: a.title,
+        priority: 2,
+        updatedAt: new Date(a.mtimeMs).toISOString(),
+        status: 'broken',
+        message: a.message,
+      };
+    }
+  }
+  const alertIds = Object.keys(alertItems).sort(
+    (a, b) =>
+      alertItems[b]!.priority - alertItems[a]!.priority || ms(alertItems[b]!.updatedAt) - ms(alertItems[a]!.updatedAt) || cmpStr(a, b),
+  );
+
+  // Completed: ticked alerts (7 days, newest 50) + Done cards (uncapped).
+  const minTick = now.getTime() - COMPLETED_ALERT_MAX_AGE_MS;
+  const doneAlerts = [...completedAlerts]
+    .filter((c) => c.mtimeMs >= minTick)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs || cmpStr(a.key, b.key))
+    .slice(0, COMPLETED_ALERT_MAX);
+  const completedAlertItems: Record<string, ViewCompletedAlert> = Object.create(null) as Record<string, ViewCompletedAlert>;
+  const completedRows: Array<{ kind: 'card' | 'alert'; id: string; t: number }> = [];
+  for (const c of doneAlerts) {
+    completedAlertItems[c.key] = {
+      id: c.key,
+      title: c.title,
+      ...(c.text !== undefined ? { text: c.text } : {}),
+      ...(c.link !== undefined ? { link: c.link } : {}),
+      priority: c.priority,
+      tickedAt: c.tickedAt,
+    };
+    completedRows.push({ kind: 'alert', id: c.key, t: ms(c.tickedAt) });
+  }
+  for (const id of doneCards) completedRows.push({ kind: 'card', id, t: ms(v(id).doneAt) });
+  completedRows.sort((a, b) => b.t - a.t || cmpStr(a.id, b.id) || cmpStr(a.kind, b.kind));
 
   const body = {
     warnings: [...warnings],
     config: { pollIntervalMs: config.pollIntervalMs, nowPriorityThreshold: config.nowPriorityThreshold },
-    zones,
-    cards: out,
+    columns,
+    now: nowIds,
+    alerts: alertIds,
+    hidden,
+    completed: completedRows.map(({ kind, id }) => ({ kind, id })),
+    cards: cardsOut,
+    alertItems,
+    completedAlertItems,
   };
   const rev = createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16);
   return { serverTime: now.toISOString(), rev, ...body };

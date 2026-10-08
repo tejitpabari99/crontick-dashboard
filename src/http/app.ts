@@ -5,7 +5,7 @@ import type { ActionDeps } from '../actions/registry.js';
 import type { Clock } from '../clock.js';
 import type { ConfigReader } from '../config.js';
 import { computeSnapshot } from '../compute/snapshot.js';
-import type { CardStore } from '../feed/ingest.js';
+import type { AlertStore, CardStore, CompletedAlertStore } from '../feed/ingest.js';
 import type { StateStore } from '../state/store.js';
 import type { Warnings } from '../state/warnings.js';
 import type { Snapshot } from '../shared/api-types.js';
@@ -19,6 +19,8 @@ export interface AppContext {
   config: ConfigReader;
   state: StateStore;
   cards: CardStore;
+  alerts: AlertStore;
+  completedAlerts: CompletedAlertStore;
   warnings: Warnings;
   dataDir: string;
   feedDir: string;
@@ -43,6 +45,8 @@ export function buildSnapshot(ctx: AppContext): Snapshot {
   const { config, warnings: cfgWarnings } = ctx.config.get();
   return computeSnapshot(
     ctx.cards.list(),
+    ctx.alerts.list(),
+    ctx.completedAlerts.list(),
     ctx.state.get(),
     config,
     ctx.clock.now(),

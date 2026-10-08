@@ -66,7 +66,7 @@ describe('e2e acceptance', () => {
     expect(res.every((r) => r.status === 200)).toBe(true);
     const st = JSON.parse(readFileSync(join(data, 'state.json'), 'utf8')) as { hidden: Record<string, unknown> };
     expect(Object.keys(st.hidden)).toHaveLength(50);
-    expect((await snap(s)).zones.hidden).toHaveLength(50);
+    expect((await snap(s)).hidden).toHaveLength(50);
   });
 
   it('delete + recreate keeps ack; restart keeps state', async () => {
@@ -76,25 +76,25 @@ describe('e2e acceptance', () => {
     rmSync(feed('p1'), { recursive: true });
     await until(async () => (await snap(s)).cards['p1'] === undefined);
     put('p1', card('p1', 'panel', '2026-06-01T10:00:00Z'));
-    await until(async () => (await snap(s)).zones.tray.includes('p1'));
-    expect((await snap(s)).zones.tray).toContain('p1');
+    await until(async () => (await snap(s)).completed.some((c) => c.id === 'p1'));
+    expect((await snap(s)).completed.map((c) => c.id)).toContain('p1');
     await s.stop();
     running = undefined;
     const s2 = await boot();
-    expect((await snap(s2)).zones.tray).toContain('p1');
+    expect((await snap(s2)).completed.map((c) => c.id)).toContain('p1');
   });
 
   // Alert tick idempotency is covered again when alert ingest returns (later task).
 
   it('feed write -> snapshot -> mutation -> restart', async () => {
     const s = await boot();
-    expect((await snap(s)).zones.alerts).toEqual([]);
+    expect((await snap(s)).alerts).toEqual([]);
     put('p1', card('p1', 'panel', '2026-06-01T10:00:00Z'));
-    await until(async () => (await snap(s)).zones.grid.includes('p1'));
+    await until(async () => (await snap(s)).columns.center.includes('p1'));
     expect((await call(s, 'PUT', '/api/cards/p1/hidden')).status).toBe(200);
     await s.stop();
     running = undefined;
     const s2 = await boot();
-    expect((await snap(s2)).zones.hidden).toEqual(['p1']);
+    expect((await snap(s2)).hidden).toEqual(['p1']);
   });
 });

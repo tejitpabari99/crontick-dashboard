@@ -63,14 +63,14 @@ describe('mutations', () => {
     const { rev } = (await r.json()) as { rev: string };
     const a = await snap(s);
     expect(a.rev).toBe(rev);
-    expect(a.zones.tray).toEqual(['p1']);
+    expect(a.completed).toEqual([{ kind: 'card', id: 'p1' }]);
     expect((await call(s, 'DELETE', '/api/cards/p1/done')).status).toBe(200);
-    expect((await snap(s)).zones.tray).toEqual([]);
+    expect((await snap(s)).completed).toEqual([]);
     await call(s, 'POST', '/api/cards/p1/done');
     put('p1', card('p1', 'panel', '2026-06-01T11:00:00Z'));
     for (let i = 0; i < 100 && (await snap(s)).cards['p1']?.updatedAt !== '2026-06-01T11:00:00Z'; i++)
       await new Promise((r2) => setTimeout(r2, 50));
-    expect((await snap(s)).zones.tray).toEqual([]);
+    expect((await snap(s)).completed).toEqual([]);
     expect((await call(s, 'POST', '/api/cards/nope/done')).status).toBe(404);
     expect((await call(s, 'DELETE', '/api/cards/nope/done')).status).toBe(404);
   });
@@ -83,11 +83,11 @@ describe('mutations', () => {
     await running!.stop();
     s = await boot();
     const a = await snap(s);
-    expect(a.zones.hidden).toEqual(['p1']);
+    expect(a.hidden).toEqual(['p1']);
     expect((await call(s, 'DELETE', '/api/cards/p1/hidden')).status).toBe(200);
     await running!.stop();
     s = await boot();
-    expect((await snap(s)).zones.hidden).toEqual([]);
+    expect((await snap(s)).hidden).toEqual([]);
     expect(readFileSync(join(data, 'state.json'), 'utf8')).toContain('"version": 1');
   });
 

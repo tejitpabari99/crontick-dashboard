@@ -158,7 +158,7 @@ describe('warnings registry', () => {
     expect(w.list()).toEqual(['fs.watch failed again']);
     const state = createStateStore({ env: env(), clock });
     const cfg = { nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD, pollIntervalMs: POLL_DEFAULT_MS, timezone: 'UTC' };
-    const snap = computeSnapshot([], state.get(), cfg, clock.now(), [...state.warnings, ...w.list()]);
+    const snap = computeSnapshot([], [], [], state.get(), cfg, clock.now(), [...state.warnings, ...w.list()]);
     expect(snap.warnings).toEqual(['fs.watch failed again']);
   });
 });

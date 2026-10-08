@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Layout } from '../contract/card-def.js';
 import { CARD_DEF_FILE } from '../constants/contract.js';
 import type { BrokenReason } from '../constants/error-codes.js';
 import { FEED_SETTLE_DELAYS_MS } from '../constants/feed.js';
@@ -60,6 +61,8 @@ export interface BrokenEntry {
   message: string;
   viewHash: string;
   dataHash?: string;
+  /** card.json layout when card.json parsed (so a broken card keeps its slot). */
+  layout?: Layout;
   /** Best available mtime (data file, else card.json). */
   mtimeMs: number;
 }
@@ -481,6 +484,7 @@ export function createFeedIngest(opts: FeedIngestOptions): FeedIngest {
         message: result.message,
         viewHash,
         ...(dataText !== undefined ? { dataHash: sha256(dataText) } : {}),
+        ...(result.def ? { layout: result.def.layout } : {}),
         mtimeMs: dataMtime || viewMtimeMs,
       });
       return;

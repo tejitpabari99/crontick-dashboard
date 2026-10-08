@@ -153,6 +153,8 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
     config,
     state,
     cards: watcher.store,
+    alerts: watcher.alerts,
+    completedAlerts: watcher.completedAlerts,
     warnings,
     dataDir,
     feedDir: feedDir(env),

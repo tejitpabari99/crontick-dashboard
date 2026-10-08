@@ -185,7 +185,7 @@ describe('complete write-back', () => {
     await new Promise((res) => setTimeout(res, 600)); // ingest re-reads the renamed file
     const a = await snap(s);
     expect(a.cards['l1']?.updatedAt).toBe(prior);
-    expect(a.zones.tray).toEqual(['l1']);
+    expect(a.completed).toEqual([{ kind: 'card', id: 'l1' }]);
     expect(a.cards['l1']?.checked).toEqual(['d']);
     expect((a.cards['l1'] as unknown as { data: { items: Record<string, unknown>[] } }).data.items[1]?.['checked']).toBe(true);
     expect(events).toEqual([]);

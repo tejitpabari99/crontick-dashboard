@@ -27,7 +27,7 @@ const card = (id = 'c1') => ({
 });
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const snapWarnings = (w: ReturnType<typeof createWarnings>) =>
-  computeSnapshot([], { acks: {}, hidden: {}, notified: {}, checks: {} } as never,
+  computeSnapshot([], [], [], { acks: {}, hidden: {}, notified: {}, checks: {} } as never,
     { nowPriorityThreshold: 3, pollIntervalMs: 1000, timezone: 'UTC' }, new Date(), w.list()).warnings;
 
 describe('failure isolation', () => {
