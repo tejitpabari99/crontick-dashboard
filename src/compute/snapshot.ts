@@ -4,7 +4,7 @@ import type { DashboardConfig } from '../config.js';
 import { parseDuration, windowActive } from '../contract/formats.js';
 import { envelope, type CardEnvelope, type CardEntry, type OkEntry } from '../feed/ingest.js';
 import { sameInstant } from '../instant.js';
-import type { LayoutItem, Snapshot, ViewCard, ViewReason, Zones } from '../shared/api-types.js';
+import type { Snapshot, ViewCard, ViewReason, Zones } from '../shared/api-types.js';
 import type { StateData } from '../state/store.js';
 
 interface Show {
@@ -133,7 +133,6 @@ export function computeSnapshot(
     config: { pollIntervalMs: config.pollIntervalMs, nowPriorityThreshold: config.nowPriorityThreshold },
     zones,
     cards: out,
-    layout: state.layout as LayoutItem[],
   };
   const rev = createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16);
   return { serverTime: now.toISOString(), rev, ...body };

@@ -19,7 +19,7 @@ const StateSchema = z.object({
   version: z.literal(1),
   acks: rec(z.string()),
   hidden: rec(z.literal(true)),
-  layout: z.array(z.unknown()),
+  doneAt: rec(z.string()).default({}),
   checks: rec(CheckSchema),
   notified: rec(z.string()),
   lastSeen: rec(z.string()),
@@ -34,14 +34,14 @@ export interface StateData {
   version: 1;
   acks: Record<string, string>;
   hidden: Record<string, true>;
-  layout: unknown[];
+  doneAt: Record<string, string>;
   checks: Record<string, CheckEntry>;
   notified: Record<string, string>;
   lastSeen: Record<string, string>;
 }
 
-type MapKey = 'acks' | 'hidden' | 'checks' | 'notified' | 'lastSeen';
-const MAP_KEYS: MapKey[] = ['acks', 'hidden', 'checks', 'notified', 'lastSeen'];
+type MapKey = 'acks' | 'doneAt' | 'hidden' | 'checks' | 'notified' | 'lastSeen';
+const MAP_KEYS: MapKey[] = ['acks', 'doneAt', 'hidden', 'checks', 'notified', 'lastSeen'];
 
 function nullMap<T>(src?: Record<string, T>): Record<string, T> {
   const out = Object.create(null) as Record<string, T>;
@@ -60,7 +60,7 @@ function snapshotOf(s: StateData): StateData {
     version: 1,
     acks: nullMap(s.acks),
     hidden: nullMap(s.hidden),
-    layout: structuredClone(s.layout),
+    doneAt: nullMap(s.doneAt),
     checks: cloneChecks(s.checks),
     notified: nullMap(s.notified),
     lastSeen: nullMap(s.lastSeen),
@@ -71,7 +71,7 @@ function snapshotOf(s: StateData): StateData {
 function restore(s: StateData, from: StateData): void {
   s.acks = from.acks;
   s.hidden = from.hidden;
-  s.layout = from.layout;
+  s.doneAt = from.doneAt;
   s.checks = from.checks;
   s.notified = from.notified;
   s.lastSeen = from.lastSeen;
@@ -82,7 +82,7 @@ function defaults(): StateData {
     version: 1,
     acks: nullMap(),
     hidden: nullMap(),
-    layout: [],
+    doneAt: nullMap(),
     checks: nullMap(),
     notified: nullMap(),
     lastSeen: nullMap(),
@@ -106,11 +106,16 @@ export interface StateStore {
   ack(id: string, updatedAt: string): Promise<void>;
   unack(id: string): Promise<void>;
   hide(id: string, hidden: boolean): Promise<void>;
-  setLayout(layout: unknown[]): Promise<void>;
+  /** Done: records the ack and when it happened (ISO). */
+  markDone(id: string, updatedAt: string, doneAt: string): Promise<void>;
   setChecks(id: string, updatedAt: string, items: string[]): Promise<void>;
   setNotified(id: string, updatedAt: string): Promise<void>;
-  /** Marks present ids as seen now; prunes entries for ids absent > 30 days. */
-  reconcile(presentIds: ReadonlySet<string>): Promise<void>;
+  /**
+   * Marks present ids as seen now; prunes entries for ids absent > 30 days.
+   * `presentIds` may include `alert:<id>` keys and ids of broken cards.
+   * `currentUpdatedAt` (optional): an ack differing from the card's current updatedAt is dropped with its doneAt.
+   */
+  reconcile(presentIds: ReadonlySet<string>, currentUpdatedAt?: ReadonlyMap<string, string>): Promise<void>;
   /** Generic serialized mutation. */
   /** `fn` may return `false` to signal "nothing changed" (skips the write). On write failure the in-memory state is rolled back. */
   mutate(fn: (state: StateData) => void | boolean): Promise<void>;
@@ -131,19 +136,20 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
     if (!existsSync(file)) return defaults();
     try {
       const raw: unknown = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
-      const parsed = StateSchema.parse(raw);
       // Rebuild maps from the raw object: zod's record drops `__proto__` keys.
-      const rawObj = raw as Record<MapKey, Record<string, unknown>>;
+      StateSchema.parse(raw);
+      const rawObj = raw as Partial<Record<MapKey, Record<string, unknown>>>;
       const copy = <T>(key: MapKey, v: z.ZodType<T>): Record<string, T> => {
         const out = nullMap<T>();
-        for (const id of Object.keys(rawObj[key])) out[id] = v.parse(rawObj[key][id]);
+        const m = rawObj[key] ?? {};
+        for (const id of Object.keys(m)) out[id] = v.parse(m[id]);
         return out;
       };
       return {
         version: 1,
         acks: copy('acks', z.string()),
         hidden: copy('hidden', z.literal(true)),
-        layout: parsed.layout,
+        doneAt: copy('doneAt', z.string()),
         checks: copy('checks', CheckSchema),
         notified: copy('notified', z.string()),
         lastSeen: copy('lastSeen', z.string()),
@@ -191,16 +197,24 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
     warnings,
     mutate,
     ack: (id, updatedAt) => mutate((s) => void (s.acks[id] = updatedAt)),
-    unack: (id) => mutate((s) => void delete s.acks[id]),
+    unack: (id) =>
+      mutate((s) => {
+        delete s.acks[id];
+        delete s.doneAt[id];
+      }),
     hide: (id, hidden) =>
       mutate((s) => {
         if (hidden) s.hidden[id] = true;
         else delete s.hidden[id];
       }),
-    setLayout: (layout) => mutate((s) => void (s.layout = layout)),
+    markDone: (id, updatedAt, doneAt) =>
+      mutate((s) => {
+        s.acks[id] = updatedAt;
+        s.doneAt[id] = doneAt;
+      }),
     setChecks: (id, updatedAt, items) => mutate((s) => void (s.checks[id] = { updatedAt, items: [...items] })),
     setNotified: (id, updatedAt) => mutate((s) => void (s.notified[id] = updatedAt)),
-    reconcile: (present) =>
+    reconcile: (present, currentUpdatedAt) =>
       mutate((s) => {
         // No state.json until the first real mutation: nothing to track or prune before that.
         if (!existsSync(file)) return false;
@@ -211,6 +225,15 @@ export function createStateStore(opts: StateStoreOptions = {}): StateStore {
           s.lastSeen[id] = nowIso;
           changed = true;
         };
+        if (currentUpdatedAt) {
+          for (const [id, cur] of currentUpdatedAt) {
+            if (Object.hasOwn(s.acks, id) && s.acks[id] !== cur) {
+              delete s.acks[id];
+              delete s.doneAt[id];
+              changed = true;
+            }
+          }
+        }
         const ids = new Set<string>();
         for (const k of MAP_KEYS) for (const id of Object.keys(s[k])) ids.add(id);
         for (const id of present) {

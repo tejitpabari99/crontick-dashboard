@@ -20,7 +20,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retry
 describe('state store', () => {
   it('has defaults and no file until first mutation', async () => {
     const s = createStateStore({ env, clock: fakeClock('2026-01-01T00:00:00Z') });
-    expect(s.get()).toMatchObject({ version: 1, layout: [] });
+    expect(s.get()).toMatchObject({ version: 1, doneAt: {} });
     expect(existsSync(join(dir, 'state.json'))).toBe(false);
     await s.ack('a', '2026-01-01T00:00:00Z');
     expect(JSON.parse(readFileSync(join(dir, 'state.json'), 'utf8')).acks.a).toBe('2026-01-01T00:00:00Z');
@@ -74,6 +74,57 @@ describe('state store', () => {
     expect(s.get().lastSeen['a']).toBeUndefined();
   });
 
+  it('doneAt lifecycle: set, reopen clears, reconcile reset clears, prune', async () => {
+    const clock = fakeClock('2026-01-01T00:00:00Z');
+    const s = createStateStore({ env, clock });
+    await s.markDone('a', 'u1', 'T1');
+    await s.markDone('b', 'u1', 'T2');
+    expect(s.get().acks['a']).toBe('u1');
+    expect(s.get().doneAt['a']).toBe('T1');
+    expect(createStateStore({ env, clock }).get().doneAt['a']).toBe('T1');
+    await s.unack('a');
+    expect(s.get().doneAt['a']).toBeUndefined();
+    await s.reconcile(new Set(['b']), new Map([['b', 'u1']]));
+    expect(s.get().doneAt['b']).toBe('T2');
+    await s.reconcile(new Set(['b']), new Map([['b', 'u2']]));
+    expect(s.get().acks['b']).toBeUndefined();
+    expect(s.get().doneAt['b']).toBeUndefined();
+    await s.markDone('c', 'u', 'T3');
+    await s.reconcile(new Set(['c']));
+    clock.advance(31 * DAY);
+    await s.reconcile(new Set());
+    expect(s.get().doneAt['c']).toBeUndefined();
+    expect(s.get().acks['c']).toBeUndefined();
+  });
+
+  it('loads an old state.json with layout; key vanishes on next write', async () => {
+    writeFileSync(
+      join(dir, 'state.json'),
+      JSON.stringify({ version: 1, acks: { a: 'u' }, hidden: {}, layout: [{ i: 'a' }], checks: {}, notified: {}, lastSeen: {} }),
+    );
+    const s = createStateStore({ env, clock: fakeClock(0) });
+    expect(s.warnings).toEqual([]);
+    expect(s.get().acks['a']).toBe('u');
+    expect('layout' in s.get()).toBe(false);
+    await s.hide('a', true);
+    const disk = JSON.parse(readFileSync(join(dir, 'state.json'), 'utf8'));
+    expect('layout' in disk).toBe(false);
+    expect(disk.doneAt).toEqual({});
+  });
+
+  it('alert:<id> keys survive prune when present, pruned when absent', async () => {
+    const clock = fakeClock('2026-01-01T00:00:00Z');
+    const s = createStateStore({ env, clock });
+    await s.setNotified('alert:x', 'u');
+    await s.setNotified('alert:y', 'u');
+    await s.reconcile(new Set(['alert:x', 'alert:y']));
+    clock.advance(40 * DAY);
+    await s.reconcile(new Set(['alert:x']));
+    await s.reconcile(new Set(['alert:x']));
+    expect(s.get().notified['alert:x']).toBe('u');
+    expect(s.get().notified['alert:y']).toBeUndefined();
+  });
+
   it('starts the 30-day clock for ids without lastSeen', async () => {
     const clock = fakeClock('2026-01-01T00:00:00Z');
     const s = createStateStore({ env, clock });
@@ -93,17 +144,15 @@ describe('state store', () => {
     expect(Object.getPrototypeOf(s2.get().acks)).toBeNull();
   });
 
-  it('supports checks, notified, layout, unack', async () => {
+  it('supports checks, notified, unack', async () => {
     const s = createStateStore({ env, clock: fakeClock(0) });
     await s.setChecks('c', 'u1', ['i1']);
     await s.setNotified('c', 'u1');
-    await s.setLayout([{ id: 'c' }]);
     await s.ack('c', 'u1');
     await s.unack('c');
     const st = s.get();
     expect(st.checks['c']).toEqual({ updatedAt: 'u1', items: ['i1'] });
     expect(st.notified['c']).toBe('u1');
-    expect(st.layout).toEqual([{ id: 'c' }]);
     expect(st.acks['c']).toBeUndefined();
   });
 

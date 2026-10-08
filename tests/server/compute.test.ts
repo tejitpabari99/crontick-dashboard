@@ -12,7 +12,7 @@ const config: DashboardConfig = {
   timezone: 'UTC', notifications: { os: 'auto' },
 };
 const state = (p: Partial<StateData> = {}): StateData => ({
-  version: 1, acks: {}, hidden: {}, layout: [], checks: {}, notified: {}, lastSeen: {}, ...p,
+  version: 1, acks: {}, doneAt: {}, hidden: {}, checks: {}, notified: {}, lastSeen: {}, ...p,
 });
 const NOW = new Date('2026-10-05T12:00:00Z');
 
@@ -37,7 +37,6 @@ describe('computeSnapshot', () => {
     expect(s.config).toEqual({ pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: DEFAULT_NOW_PRIORITY_THRESHOLD });
     expect(s.zones).toEqual({ alerts: [], now: [], grid: ['a'], tray: [], hidden: [] });
     expect(s.cards.a).toMatchObject({ status: 'ok', collapsed: false, data: { text: 'a' } });
-    expect(s.layout).toEqual([]);
   });
 
   it('window: out excluded, in kept; alerts honor show', () => {
@@ -156,12 +155,11 @@ describe('computeSnapshot', () => {
     expect(s.cards.b!.checked).toBeUndefined();
   });
 
-  it('warnings merged; layout passed; rev deterministic and content-sensitive', () => {
-    const st = state({ layout: [{ i: 'a', x: 0, y: 0, w: 2, h: 2 }] });
+  it('warnings merged; rev deterministic and content-sensitive', () => {
+    const st = state({});
     const s1 = snap([ok('a')], st, config, NOW, ['w1']);
     const s2 = snap([ok('a')], st, config, new Date(NOW.getTime() + 1000), ['w1']);
     expect(s1.warnings).toEqual(['w1']);
-    expect(s1.layout).toEqual(st.layout);
     expect(s1.rev).toBe(s2.rev);
     expect(snap([ok('a', { title: 'x' })], st, config, NOW, ['w1']).rev).not.toBe(s1.rev);
     expect(snap([ok('a')], st, config, NOW, []).rev).not.toBe(s1.rev);

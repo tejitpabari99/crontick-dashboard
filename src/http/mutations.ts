@@ -35,7 +35,7 @@ export function mountMutations(app: Hono, ctx: AppContext): void {
     if (!entry) return notFound(c);
     if (entry.status !== 'ok') return apiError(c, 400, ERROR_CODES.CARD_BROKEN, 'card is broken; fix the card file');
     try {
-      await ctx.state.ack(entry.key, envelope(entry.card).updatedAt);
+      await ctx.state.markDone(entry.key, envelope(entry.card).updatedAt, ctx.clock.now().toISOString());
     } catch (err) {
       return fail(c, err);
     }

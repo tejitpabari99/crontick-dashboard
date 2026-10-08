@@ -6,14 +6,6 @@ import type { BrokenReason } from '../feed/legacy-envelope.js';
 
 export type ViewReason = BrokenReason | 'error' | 'stale' | 'duplicate-id';
 
-export interface LayoutItem {
-  i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 export interface ViewCard {
   id: string;
   kind: 'panel' | 'alert';
@@ -50,5 +42,4 @@ export interface Snapshot {
   config: { pollIntervalMs: number; nowPriorityThreshold: number };
   zones: Zones;
   cards: Record<string, ViewCard>;
-  layout: LayoutItem[];
 }
