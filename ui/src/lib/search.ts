@@ -4,7 +4,7 @@ import { getCardType } from '../registry/registry.ts';
 export interface SearchCard {
   id: string;
   title: string;
-  status: 'ok' | 'broken';
+  status: ViewCard['status'];
   message?: string | undefined;
   /** Per-card searchable text supplied by the type registry. */
   searchText?: string | undefined;

@@ -19,7 +19,7 @@ export function Header(p: HeaderProps) {
   const [choice, setChoice] = useState(readChoice);
   const date = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const scrollToNow = (): void => {
-    document.querySelector('[data-testid="now-zone"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    document.querySelector('[aria-label="Alerts"], [data-testid="now-zone"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
   return (
     <header className="header">

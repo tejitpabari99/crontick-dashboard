@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { getMutations, useMutationView, type Mutations } from './api/mutations.ts';
 import { getToastStore, type ToastStore } from './api/toasts.ts';
-import type { ViewCard } from './api/types.ts';
-import { CardFrame } from './frame/CardFrame.tsx';
+import type { Column, ViewAlert, ViewCard } from './api/types.ts';
 import { Fullscreen } from './frame/Fullscreen.tsx';
 import { buildCardHash, parseCardHash, replaceHash, useHash } from './lib/hash.ts';
 import { attentionCount } from './lib/attention.ts';
 import { getSeenVersion, subscribeSeen } from './lib/seen.ts';
 import { matchCards, toSearchCard } from './lib/search.ts';
-import { DoneTray } from './zones/DoneTray.tsx';
-import { Grid } from './zones/Grid.tsx';
+import { AlertStrip } from './zones/AlertStrip.tsx';
+import { Columns } from './zones/Columns.tsx';
 import { Header } from './zones/Header.tsx';
-import { NowZone } from './zones/NowZone.tsx';
 import { ServerDown } from './zones/ServerDown.tsx';
 import { ToastHost } from './zones/ToastHost.tsx';
 
@@ -31,27 +29,32 @@ export function App(props: AppProps = {}) {
   const down = state.serverDown;
   const pick = (ids: readonly string[] | undefined): ViewCard[] =>
     (ids ?? []).map((id) => snap?.cards[id]).filter((c): c is ViewCard => Boolean(c));
-  const alerts = useMemo(() => pick(snap?.zones.alerts), [snap]);
-  const now = useMemo(() => pick(snap?.zones.now), [snap]);
-  const grid = useMemo(() => pick(snap?.zones.grid), [snap]);
-  const tray = useMemo(() => pick(snap?.zones.tray), [snap]);
-  const hidden = useMemo(() => pick(snap?.zones.hidden), [snap]);
+  const alerts = useMemo(
+    () => (snap?.alerts ?? []).map((id) => snap?.alertItems[id]).filter((a): a is ViewAlert => Boolean(a)),
+    [snap],
+  );
+  const now = useMemo(() => pick(snap?.now), [snap]);
+  const columns = useMemo<Record<Column, ViewCard[]>>(
+    () => ({ left: pick(snap?.columns.left), center: pick(snap?.columns.center), right: pick(snap?.columns.right) }),
+    [snap],
+  );
+  const hidden = useMemo(() => pick(snap?.hidden), [snap]);
   const threshold = snap?.config.nowPriorityThreshold ?? 5;
   const onItemAction = (cardId: string, itemId: string, checked?: boolean): Promise<void> =>
     m.onItemAction(cardId, itemId, checked);
 
   const searching = query.trim() !== '';
-  const visible = useMemo(() => [...alerts, ...now, ...grid], [alerts, now, grid]);
+  const visible = useMemo(
+    () => [...now, ...columns.center, ...columns.left, ...columns.right],
+    [now, columns],
+  );
   const visibleIds = useMemo(() => matchCards(visible.map(toSearchCard), query), [visible, query]);
   const matchIds = useMemo(() => (searching ? new Set(visibleIds) : null), [searching, visibleIds]);
+  // Done-card search matches arrive with the Completed section (T7/T8).
   const others = useMemo(() => {
-    const t = new Set(matchCards(tray.map(toSearchCard), query));
     const h = new Set(matchCards(hidden.map(toSearchCard), query));
-    return [
-      ...tray.filter((c) => t.has(c.id)).map((card) => ({ card, where: 'tray' as const })),
-      ...hidden.filter((c) => h.has(c.id)).map((card) => ({ card, where: 'hidden' as const })),
-    ];
-  }, [tray, hidden, query]);
+    return hidden.filter((c) => h.has(c.id)).map((card) => ({ card, where: 'hidden' as const }));
+  }, [hidden, query]);
 
   const hash = useHash();
   const target = useMemo(() => parseCardHash(hash), [hash]);
@@ -70,11 +73,11 @@ export function App(props: AppProps = {}) {
     }
     if (target.full) return;
     replaceHash('');
-    if (snap.zones.tray.includes(c.id)) {
+    if (c.done) {
       toasts.push(`${c.title} is Done`);
       return;
     }
-    if (snap.zones.hidden.includes(c.id)) {
+    if (snap.hidden.includes(c.id)) {
       toasts.push(`${c.title} is hidden`);
       return;
     }
@@ -91,7 +94,10 @@ export function App(props: AppProps = {}) {
     document.title = down ? 'Server down' : count > 0 ? `(${count}) Crontick` : 'Crontick';
   }, [count, down]);
   const empty =
-    snap !== null && ['alerts', 'now', 'grid', 'tray', 'hidden'].every((z) => (snap.zones[z as keyof typeof snap.zones] ?? []).length === 0);
+    snap !== null &&
+    [snap.columns.left, snap.columns.center, snap.columns.right, snap.now, snap.alerts, snap.hidden, snap.completed].every(
+      (z) => z.length === 0,
+    );
 
   return (
     <>
@@ -111,7 +117,7 @@ export function App(props: AppProps = {}) {
           onUnhide: (id) => void m.unhide(id),
         }}
       />
-      <main>
+      <main className="page">
         {down ? (
           <ServerDown retryMs={state.retryMs} />
         ) : empty ? (
@@ -123,48 +129,21 @@ export function App(props: AppProps = {}) {
           </section>
         ) : snap ? (
           <>
-            <NowZone
-              alerts={alerts}
-              panels={now}
+            <AlertStrip alerts={alerts} nowPriorityThreshold={threshold} onTick={(id) => void m.tick(id)} />
+            <Columns
+              columns={columns}
+              now={now}
               query={query}
               matchIds={matchIds}
               nowPriorityThreshold={threshold}
               checked={m.getChecked}
               pending={m.getPending}
               onItemAction={onItemAction}
-              onTick={(id) => void m.tick(id)}
               onDone={(id) => void m.done(id)}
               onHide={(id) => void m.hide(id)}
               onFullscreen={openFullscreen}
             />
-            <section aria-labelledby="grid-zone-h" className="grid-section">
-              <h2 id="grid-zone-h" className="sr-only">
-                Cards
-              </h2>
-            <Grid
-              cards={grid}
-              layout={snap.layout}
-              putLayout={m.putLayout}
-              putLayoutKeepalive={m.putLayoutKeepalive}
-              renderCard={(c) => (
-                <CardFrame
-                  card={c}
-                  mode="column"
-                  query={query}
-                  dim={searching && !matchIds?.has(c.id)}
-                  match={Boolean(matchIds?.has(c.id))}
-                  checked={m.getChecked(c.id)}
-                  pending={m.getPending(c.id)}
-                  nowPriorityThreshold={threshold}
-                  onItemAction={(itemId, checked) => onItemAction(c.id, itemId, checked)}
-                  onDone={(id) => void m.done(id)}
-                  onHide={(id) => void m.hide(id)}
-                  onFullscreen={openFullscreen}
-                />
-              )}
-            />
-            </section>
-            <DoneTray cards={tray} onReopen={(id) => void m.reopen(id)} />
+            {/* Completed section (done cards + ticked alerts) is built in a later task (T7). */}
           </>
         ) : null}
       </main>

@@ -1,0 +1,17 @@
+.page { padding: var(--page-pad); display: flex; flex-direction: column; gap: var(--col-gap); }
+.columns {
+  display: grid;
+  grid-template-columns: var(--col-side) minmax(0, 1fr) var(--col-side);
+  grid-template-areas: 'left center right';
+  align-items: start;
+  gap: var(--col-gap);
+}
+.column { display: flex; flex-direction: column; gap: var(--col-gap); min-width: 0; }
+.column--left { grid-area: left; }
+.column--center { grid-area: center; }
+.column--right { grid-area: right; }
+/* Breakpoint literal (CSS cannot use vars in @media): keep equal to COLUMNS_BREAKPOINT_PX in ui/tests/helpers/breakpoint.ts (see tokens.css). */
+@media (max-width: 1200px) {
+  .columns { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'center' 'left' 'right'; }
+  .column--empty { display: none; }
+}

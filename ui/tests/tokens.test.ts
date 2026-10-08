@@ -1,11 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COLUMNS_BREAKPOINT_PX } from './helpers/breakpoint.ts';
 
 const themeDir = join(import.meta.dirname, '../src/theme');
 const tokensCss = readFileSync(join(themeDir, 'tokens.css'), 'utf8');
-const columnsPath = join(themeDir, 'columns.css');
+const columnsPath = join(import.meta.dirname, '../src/zones/columns.css');
 
 const LAYOUT_TOKENS: Record<string, string> = {
   '--col-side': '300px',
@@ -29,7 +29,7 @@ describe('layout tokens', () => {
     expect(COLUMNS_BREAKPOINT_PX).toBe(1200);
   });
 
-  it.skipIf(!existsSync(columnsPath))('columns.css uses the same breakpoint literal', () => {
+  it('columns.css uses the same breakpoint literal', () => {
     const css = readFileSync(columnsPath, 'utf8');
     expect(css).toContain(`max-width: ${COLUMNS_BREAKPOINT_PX}px`);
   });

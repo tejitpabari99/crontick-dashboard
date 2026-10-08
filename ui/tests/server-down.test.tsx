@@ -1,4 +1,3 @@
-import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import axe from 'axe-core';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,44 +8,17 @@ import { createSnapshotStore } from '../src/api/store.ts';
 import { createToastStore } from '../src/api/toasts.ts';
 import { DOWN_BACKOFF_MS } from '../src/constants/polling.ts';
 import type { Snapshot, ViewCard } from '../src/api/types.ts';
+import { snapshotOf, valert, vcard, type Placement } from './helpers/snapshot.ts';
 import '../src/types/index.ts';
 import table from '../../templates/table.example.json';
 import list from '../../templates/list.example.json';
 import media from '../../templates/media.example.json';
 
-vi.mock('react-grid-layout', () => ({
-  useContainerWidth: () => ({ width: 1200, containerRef: { current: null }, mounted: true }),
-  verticalCompactor: {},
-  GridLayout: (props: { children: unknown }) => <div data-testid="rgl">{props.children as never}</div>,
-}));
+const card = (id: string, over: Partial<ViewCard> = {}): ViewCard =>
+  vcard(id, 'markdown', { title: `Title-${id}`, data: { text: `Data-${id}` } as never, ...over });
 
-function card(id: string, over: Partial<ViewCard> = {}): ViewCard {
-  return {
-    id,
-    kind: 'panel',
-    type: 'markdown',
-    title: `Title-${id}`,
-    priority: 3,
-    notify: false,
-    updatedAt: '2026-10-05T10:00:00Z',
-    collapsed: false,
-    status: 'ok',
-    data: { text: `Data-${id}` } as never,
-    ...over,
-  };
-}
-
-function snapshot(cards: ViewCard[], zones: Partial<Snapshot['zones']>): Snapshot {
-  return {
-    serverTime: 't',
-    rev: 'r',
-    warnings: [],
-    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
-    zones: { alerts: [], now: [], grid: [], tray: [], hidden: [], ...zones },
-    cards: Object.fromEntries(cards.map((c) => [c.id, c])),
-    layout: [],
-  };
-}
+const snapshot = (cards: ViewCard[], p: Placement, alertIds: string[] = []): Snapshot =>
+  snapshotOf(cards, p, { alertItems: alertIds.map((id) => valert(id, { title: `Title-${id}` })) });
 
 const FIXTURE = snapshot(
   [
@@ -56,11 +28,11 @@ const FIXTURE = snapshot(
     card('kp', { type: 'kpi', data: { items: [{ label: 'Data-kp', value: 1 }] } as never }),
     card('me', { type: 'media', data: media.data as never }),
     card('br', { status: 'broken', reason: 'schema-invalid', message: 'bad data', data: undefined }),
-    card('al', { kind: 'alert', type: 'markdown' }),
-    card('tr'),
+    card('tr', { done: true, doneAt: '2026-10-05T11:00:00Z' }),
     card('hi'),
   ],
-  { alerts: ['al'], now: ['kp'], grid: ['md', 'tb', 'ls', 'me', 'br'], tray: ['tr'], hidden: ['hi'] },
+  { now: ['kp'], center: ['md', 'tb'], left: ['ls'], right: ['me', 'br'], hidden: ['hi'], alerts: ['al'], completed: [{ kind: 'card', id: 'tr' }] },
+  ['al'],
 );
 
 interface Timer {

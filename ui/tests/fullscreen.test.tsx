@@ -1,4 +1,3 @@
-import { POLL_DEFAULT_MS } from '../../src/constants/poll.ts';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App.tsx';
@@ -6,14 +5,9 @@ import { createClient } from '../src/api/client.ts';
 import { createMutations } from '../src/api/mutations.ts';
 import { createSnapshotStore } from '../src/api/store.ts';
 import { createToastStore } from '../src/api/toasts.ts';
-import type { LayoutItem, Snapshot, ViewCard } from '../src/api/types.ts';
+import type { Snapshot, ViewCard } from '../src/api/types.ts';
+import { snapshotOf, valert, vcard } from './helpers/snapshot.ts';
 import { registerCardType } from '../src/registry/registry.ts';
-
-vi.mock('react-grid-layout', () => ({
-  useContainerWidth: () => ({ width: 1200, containerRef: { current: null }, mounted: true }),
-  verticalCompactor: {},
-  GridLayout: (props: { children: unknown }) => <div data-testid="rgl">{props.children as never}</div>,
-}));
 
 // @ts-expect-error deliberately not a 01 type name
 registerCardType('zz-fs', {
@@ -21,35 +15,15 @@ registerCardType('zz-fs', {
   searchText: () => '',
 });
 
-function card(id: string, over: Partial<ViewCard> = {}): ViewCard {
-  return {
-    id,
-    kind: 'panel',
-    type: 'zz-fs',
-    title: `T-${id}`,
-    priority: 3,
-    notify: false,
-    updatedAt: '2026-10-05T10:00:00Z',
-    collapsed: false,
-    status: 'ok',
-    data: {},
-    ...over,
-  };
-}
-
-const L = (i: string, x: number, y: number): LayoutItem => ({ i, x, y, w: 3, h: 7 });
+const card = (id: string, over: Partial<ViewCard> = {}): ViewCard => vcard(id, 'zz-fs', { title: `T-${id}`, ...over });
 
 function snapshot(): Snapshot {
-  const cards = [card('a'), card('b'), card('n', { priority: 8 }), card('al', { kind: 'alert' }), card('d'), card('h')];
-  return {
-    serverTime: 't',
-    rev: 'r',
-    warnings: [],
-    config: { pollIntervalMs: POLL_DEFAULT_MS, nowPriorityThreshold: 5 },
-    zones: { alerts: ['al'], now: ['n'], grid: ['a', 'b'], tray: ['d'], hidden: ['h'] },
-    cards: Object.fromEntries(cards.map((c) => [c.id, c])),
-    layout: [L('a', 0, 0), L('b', 3, 0)],
-  };
+  const cards = [card('a'), card('b'), card('n', { priority: 8 }), card('d', { done: true, doneAt: '2026-10-05T11:00:00Z' }), card('h')];
+  return snapshotOf(
+    cards,
+    { center: ['a', 'b'], now: ['n'], alerts: ['al'], hidden: ['h'], completed: [{ kind: 'card', id: 'd' }] },
+    { alertItems: [valert('al')] },
+  );
 }
 
 function mount() {
@@ -148,7 +122,7 @@ describe('Fullscreen', () => {
 });
 
 describe('Deep link', () => {
-  it.each(['n', 'al', 'a'])('scrolls %s into view, highlights 2 s, clears hash', async (id) => {
+  it.each(['n', 'a'])('scrolls %s into view, highlights 2 s, clears hash', async (id) => {
     history.replaceState(null, '', `/#card=${id}`);
     const { toasts } = mount();
     await screen.findByText('T-a');
